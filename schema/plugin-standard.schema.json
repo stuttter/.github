@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/stuttter/.github/blob/main/schema/plugin-standard.schema.json",
+  "title": "WordPress plugin portfolio manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "slug",
+    "main_file",
+    "risk",
+    "minimum_php",
+    "minimum_wordpress",
+    "tested_wordpress",
+    "wordpress_org",
+    "multisite"
+  ],
+  "properties": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "main_file": {
+      "type": "string",
+      "pattern": "^[^/]+\\.php$"
+    },
+    "risk": {
+      "enum": ["standard", "elevated", "critical"]
+    },
+    "minimum_php": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "minimum_wordpress": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "tested_wordpress": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "wordpress_org": { "type": "boolean" },
+    "multisite": { "type": "boolean" },
+    "release_branch": {
+      "type": "string",
+      "default": "main"
+    },
+    "php_matrix": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+$"
+      }
+    }
+  }
+}

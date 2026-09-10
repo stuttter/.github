@@ -1,0 +1,137 @@
+name: WordPress plugin CI
+
+on:
+  workflow_call:
+    inputs:
+      php-versions:
+        description: JSON array of PHP versions to syntax-check.
+        required: false
+        type: string
+        default: '["7.2", "7.4", "8.0", "8.2", "8.4"]'
+      quality-php-version:
+        description: PHP version used for Composer-backed quality checks.
+        required: false
+        type: string
+        default: '8.4'
+      build-artifact:
+        description: Build and upload a production ZIP.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: Metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out portfolio standard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          path: .portfolio-standard
+          persist-credentials: false
+
+      - name: Validate plugin metadata
+        run: php .portfolio-standard/scripts/validate-plugin.php .
+
+  syntax:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(inputs.php-versions) }}
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+
+      - name: Check PHP syntax
+        shell: bash
+        run: git ls-files -z -- '*.php' | xargs -0 -n1 php -l
+
+  quality:
+    name: Project quality suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
+        with:
+          php-version: ${{ inputs.quality-php-version }}
+          coverage: none
+          tools: composer
+
+      - name: Validate Composer configuration
+        if: ${{ hashFiles('composer.json') != '' }}
+        run: composer validate --strict
+
+      - name: Install locked development tools
+        if: ${{ hashFiles('composer.json') != '' }}
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Audit dependencies
+        if: ${{ hashFiles('composer.lock') != '' }}
+        run: composer audit --locked
+
+      - name: Run project checks
+        if: ${{ hashFiles('composer.json') != '' }}
+        run: |
+          composer run-script phpcs --if-present
+          composer run-script phpstan --if-present
+          composer run-script test --if-present
+
+  artifact:
+    name: Production artifact
+    if: ${{ inputs.build-artifact }}
+    needs: [metadata, syntax, quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out portfolio standard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          path: .portfolio-standard
+          persist-credentials: false
+
+      - name: Build production ZIP
+        run: bash .portfolio-standard/scripts/build-plugin.sh . build
+
+      - name: Upload production ZIP and checksum
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: plugin-production-artifact
+          path: |
+            build/*.zip
+            build/*.sha256
+          if-no-files-found: error
+          retention-days: 14
