@@ -15,7 +15,8 @@ permissions: {}
 jobs:
   draft:
     if: "${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'codex: ready' }}"
-    uses: stuttter/.github/.github/workflows/codex-issue.yml@main
+    # Replace the zero SHA with a reviewed full commit SHA from stuttter/.github.
+    uses: stuttter/.github/.github/workflows/codex-issue.yml@0000000000000000000000000000000000000000
     permissions:
       contents: write
       issues: write

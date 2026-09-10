@@ -43,10 +43,19 @@ jobs:
           bash -n scripts/build-plugin.sh
           bash -n brand/export.sh
           bash -n brand/validate.sh
+          node --check scripts/sync-plugin-standards.mjs
+          node --check scripts/fleet-matrix.mjs
+          node --check scripts/validate-workflow-pins.mjs
+          node --check scripts/render-workflow-fixtures.mjs
+
+      - name: Run fleet synchronization tests
+        run: npm test
 
       - name: Check JSON
         run: |
           php -r 'json_decode(file_get_contents("schema/plugin-standard.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("schema/portfolio.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("portfolio/plugins.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("examples/plugin-standard.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("brand/tokens.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("brand/plugins.json"), true, 512, JSON_THROW_ON_ERROR);'
@@ -71,13 +80,14 @@ jobs:
             --output "${archive}"
           echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  ${archive}" | shasum -a 256 --check
           tar -xzf "${archive}" -C "${RUNNER_TEMP}" actionlint
-          "${RUNNER_TEMP}/actionlint" -color
+          # actionlint 1.7.7 predates GitHub's reusable-workflow
+          # job.workflow_sha context. Keep the narrow compatibility exception
+          # until actionlint's context model catches up.
+          "${RUNNER_TEMP}/actionlint" -color \
+            -ignore 'property "workflow_sha" is not defined in object type'
           "${RUNNER_TEMP}/actionlint" -color examples/*.yml
+          node scripts/render-workflow-fixtures.mjs "${RUNNER_TEMP}/rendered-workflows"
+          "${RUNNER_TEMP}/actionlint" -color "${RUNNER_TEMP}/rendered-workflows/.github/workflows/"*.yml
 
       - name: Reject mutable third-party Actions
-        shell: bash
-        run: |
-          if grep -R --line-number --extended-regexp 'uses: [^#[:space:]]+@(main|master|v[0-9]+([[:space:]]|$))' .github/workflows examples | grep -v 'uses: stuttter/.github/'; then
-            echo 'Third-party Actions must use full commit SHAs.' >&2
-            exit 1
-          fi
+        run: node scripts/validate-workflow-pins.mjs .github/workflows examples fleet/templates

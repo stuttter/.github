@@ -8,7 +8,8 @@
   },
   "scripts": {
     "brand:export": "node brand/export.mjs",
-    "brand:validate": "node brand/validate.mjs"
+    "brand:validate": "node brand/validate.mjs",
+    "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "2.6.2"

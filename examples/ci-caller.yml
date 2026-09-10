@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   plugin:
-    uses: stuttter/.github/.github/workflows/wordpress-plugin-ci.yml@main
+    # Replace the zero SHA with a reviewed full commit SHA from stuttter/.github.
+    uses: stuttter/.github/.github/workflows/wordpress-plugin-ci.yml@0000000000000000000000000000000000000000
     with:
       php-versions: '["7.2", "7.4", "8.0", "8.2", "8.4"]'

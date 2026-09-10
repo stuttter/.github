@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/stuttter/.github/main/schema/portfolio.schema.json",
+  "title": "WordPress plugin portfolio inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["repositories"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri-reference"
+    },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repository", "enabled", "managed_paths", "manifest"],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "managed_paths": {
+                  "contains": { "const": "release" }
+                }
+              },
+              "required": ["managed_paths"]
+            },
+            "then": {
+              "properties": {
+                "manifest": {
+                  "properties": {
+                    "wordpress_org": { "const": true }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "enabled": { "type": "boolean" },
+          "managed_paths": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": ["ci", "release", "dependabot"]
+            }
+          },
+          "manifest": {
+            "$ref": "plugin-standard.schema.json"
+          }
+        }
+      }
+    }
+  }
+}

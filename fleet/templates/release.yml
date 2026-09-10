@@ -1,4 +1,5 @@
-name: Release
+# Managed by stuttter/.github fleet standards. Do not edit locally.
+name: Release plugin
 
 on:
   workflow_dispatch:
@@ -8,20 +9,20 @@ on:
         required: true
         type: string
       commit:
-        description: Full commit SHA currently at the release-branch head.
+        description: Full commit SHA at the protected release branch head.
         required: true
         type: string
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   release:
-    # Replace the zero SHA with a reviewed full commit SHA from stuttter/.github.
-    uses: stuttter/.github/.github/workflows/wordpress-plugin-release.yml@0000000000000000000000000000000000000000
+    uses: stuttter/.github/.github/workflows/wordpress-plugin-release.yml@{{policy_ref}}
     permissions:
       contents: write
     with:
       version: ${{ inputs.version }}
       commit: ${{ inputs.commit }}
-      release-branch: master
+      release-branch: {{release_branch}}
       environment: wordpress.org

@@ -14,6 +14,7 @@ automation to approve its own work or publish unverified releases.
 - `docs/namespace-migration.md` defines the safe path away from the legacy
   organization name.
 - `portfolio/plugins.json` records project-specific compatibility and risk.
+- `docs/fleet-synchronization.md` documents safe audit and draft-PR automation.
 - `.github/workflows/` contains reusable workflows called by plugin repositories.
 - `scripts/` contains deterministic validation and release helpers.
 

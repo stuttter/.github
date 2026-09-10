@@ -94,6 +94,10 @@ Releases begin from an exact commit after required checks pass. The release job
 must validate versions, build the production artifact, and publish its checksum
 before entering a protected `wordpress.org` environment.
 
+Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` only as secrets on
+that environment. Managed callers do not pass publication credentials into the
+reusable workflow, and preflight jobs cannot read them.
+
 After approval it may create the Git tag and GitHub release, update WordPress.org
 trunk and the matching Subversion tag, then download the generated public ZIP
 and compare its contents with the approved artifact. A mismatch fails the

@@ -28,6 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Validate immutable policy reference
+        env:
+          POLICY_REF: ${{ job.workflow_sha }}
+        shell: bash
+        run: '[[ "${POLICY_REF}" =~ ^[0-9a-f]{40}$ ]]'
+
       - name: Check out plugin
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,6 +43,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: stuttter/.github
+          ref: ${{ job.workflow_sha }}
           path: .portfolio-standard
           persist-credentials: false
 
@@ -118,6 +125,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Validate immutable policy reference
+        env:
+          POLICY_REF: ${{ job.workflow_sha }}
+        shell: bash
+        run: '[[ "${POLICY_REF}" =~ ^[0-9a-f]{40}$ ]]'
+
       - name: Check out plugin
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -127,6 +140,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: stuttter/.github
+          ref: ${{ job.workflow_sha }}
           path: .portfolio-standard
           persist-credentials: false
 
