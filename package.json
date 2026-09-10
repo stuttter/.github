@@ -1,0 +1,16 @@
+{
+  "name": "wordpress-plugin-portfolio-standards",
+  "private": true,
+  "version": "1.0.0",
+  "license": "GPL-2.0-or-later",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "brand:export": "node brand/export.mjs",
+    "brand:validate": "node brand/validate.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2"
+  }
+}
