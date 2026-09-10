@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 772 250" role="img" aria-labelledby="title description">
+  <title id="title">WP User Groups solid banner concept</title>
+  <desc id="description">People organized into overlapping groups on a strong blue field.</desc>
+  <rect width="772" height="250" fill="#3858E9"/>
+  <g fill="#3858E9" fill-opacity="0" stroke="#F0F0F0" stroke-width="3">
+    <rect x="72" y="48" width="244" height="154" rx="28"/>
+    <rect x="228" y="48" width="244" height="154" rx="28" opacity=".56"/>
+    <rect x="384" y="48" width="244" height="154" rx="28" opacity=".28"/>
+  </g>
+  <g transform="translate(278 17) scale(9)" fill="#F0F0F0">
+    <!-- people path adapted from @wordpress/icons 15.4.0, GPL-2.0-or-later -->
+    <path fill-rule="evenodd" d="M15.5 9.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm0 1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-2.25 6v-2a2.75 2.75 0 0 0-2.75-2.75h-4A2.75 2.75 0 0 0 3.75 15v2h1.5v-2c0-.69.56-1.25 1.25-1.25h4c.69 0 1.25.56 1.25 1.25v2h1.5Zm7-2v2h-1.5v-2c0-.69-.56-1.25-1.25-1.25H15v-1.5h2.5A2.75 2.75 0 0 1 20.25 15ZM9.5 8.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm1.5 0a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z"/>
+  </g>
+  <circle cx="572" cy="59" r="17" fill="#F0C33C"/>
+</svg>

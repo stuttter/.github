@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 772 250" role="img" aria-labelledby="title description">
+  <title id="title">WP User Groups sorting day banner concept</title>
+  <desc id="description">A playful field of people moving into three taxonomy groups.</desc>
+  <defs>
+    <g id="person">
+      <circle cx="0" cy="0" r="6"/>
+      <path d="M-10 19v-4c0-6 4-10 10-10s10 4 10 10v4Z"/>
+    </g>
+  </defs>
+  <rect width="772" height="250" fill="#3858E9"/>
+  <g fill-rule="evenodd">
+    <path fill="#F0F0F0" d="M80 38h134a28 28 0 0 1 28 28v118a28 28 0 0 1-28 28H80a28 28 0 0 1-28-28V66a28 28 0 0 1 28-28Zm0 3a25 25 0 0 0-25 25v118a25 25 0 0 0 25 25h134a25 25 0 0 0 25-25V66a25 25 0 0 0-25-25Z"/>
+    <path fill="#F0F0F0" d="M319 38h134a28 28 0 0 1 28 28v118a28 28 0 0 1-28 28H319a28 28 0 0 1-28-28V66a28 28 0 0 1 28-28Zm0 3a25 25 0 0 0-25 25v118a25 25 0 0 0 25 25h134a25 25 0 0 0 25-25V66a25 25 0 0 0-25-25Z"/>
+    <path fill="#F0F0F0" d="M558 38h134a28 28 0 0 1 28 28v118a28 28 0 0 1-28 28H558a28 28 0 0 1-28-28V66a28 28 0 0 1 28-28Zm0 3a25 25 0 0 0-25 25v118a25 25 0 0 0 25 25h134a25 25 0 0 0 25-25V66a25 25 0 0 0-25-25Z"/>
+  </g>
+  <g fill="#F0F0F0">
+    <use xlink:href="#person" x="92" y="75"/><use xlink:href="#person" x="147" y="75"/><use xlink:href="#person" x="202" y="75"/>
+    <use xlink:href="#person" x="92" y="133"/><use xlink:href="#person" x="147" y="133"/><use xlink:href="#person" x="202" y="133"/>
+    <use xlink:href="#person" x="331" y="75"/><use xlink:href="#person" x="386" y="75"/><use xlink:href="#person" x="441" y="75"/>
+    <use xlink:href="#person" x="331" y="133"/><use xlink:href="#person" x="386" y="133"/><use xlink:href="#person" x="441" y="133"/>
+    <use xlink:href="#person" x="570" y="75"/><use xlink:href="#person" x="625" y="75"/><use xlink:href="#person" x="680" y="75"/>
+    <use xlink:href="#person" x="570" y="133"/><use xlink:href="#person" x="625" y="133"/><use xlink:href="#person" x="680" y="133"/>
+  </g>
+  <g fill="#F0C33C">
+    <circle cx="235" cy="183" r="2"/><circle cx="248" cy="190" r="2"/><circle cx="262" cy="195" r="2"/>
+    <circle cx="307" cy="195" r="2"/><circle cx="321" cy="190" r="2"/><circle cx="334" cy="183" r="2"/>
+  </g>
+  <circle cx="284" cy="169" r="6" fill="#F0C33C"/>
+  <path d="M274 188v-4c0-6 4-10 10-10s10 4 10 10v4Z" fill="#F0C33C"/>
+</svg>

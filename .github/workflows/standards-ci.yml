@@ -28,15 +28,35 @@ jobs:
           coverage: none
           tools: none
 
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked visual tooling
+        run: npm ci
+
       - name: Check scripts
         run: |
           php -l scripts/validate-plugin.php
           bash -n scripts/build-plugin.sh
+          bash -n brand/export.sh
+          bash -n brand/validate.sh
 
       - name: Check JSON
         run: |
           php -r 'json_decode(file_get_contents("schema/plugin-standard.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("examples/plugin-standard.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("brand/tokens.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("brand/plugins.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Validate deterministic visual exports
+        run: |
+          # shellcheck disable=SC2016
+          find brand/sources -type f -name '*.svg' -print0 | xargs -0 -n1 php -r '$document = new DOMDocument(); exit($document->load($argv[1]) ? 0 : 1);'
+          bash brand/export.sh
+          bash brand/validate.sh
 
       - name: Check workflow YAML
         run: |
