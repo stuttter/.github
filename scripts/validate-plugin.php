@@ -126,6 +126,11 @@ if ($manifest['wordpress_org'] && ! is_file($readme_path)) {
 		} elseif (trim($match[1]) !== $expected_version) {
 			$errors[] = 'readme.txt Stable tag (' . trim($match[1]) . ") does not match expected version ({$expected_version}).";
 		}
+
+		$changelog_pattern = '/^=\s*\[?' . preg_quote($expected_version, '/') . '\]?\s*(?:-|=)/mi';
+		if (! preg_match($changelog_pattern, $readme)) {
+			$errors[] = "readme.txt Changelog is missing version {$expected_version}.";
+		}
 	}
 }
 

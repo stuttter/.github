@@ -1,0 +1,267 @@
+name: WordPress plugin release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Exact SemVer version without a leading v.
+        required: true
+        type: string
+      commit:
+        description: Full commit SHA at the protected release-branch head.
+        required: true
+        type: string
+      release-branch:
+        description: Protected branch that owns releases.
+        required: false
+        type: string
+        default: master
+      environment:
+        description: Protected GitHub environment requiring deployment approval.
+        required: false
+        type: string
+        default: wordpress.org
+    secrets:
+      WORDPRESS_ORG_USERNAME:
+        required: true
+      WORDPRESS_ORG_PASSWORD:
+        required: true
+
+concurrency:
+  group: wordpress-plugin-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Verify and build exact release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      slug: ${{ steps.metadata.outputs.slug }}
+      archive: ${{ steps.metadata.outputs.archive }}
+    steps:
+      - name: Check out exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer
+
+      - name: Check out portfolio standard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          path: .portfolio-standard
+          persist-credentials: false
+
+      - name: Verify immutable release inputs
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+          RELEASE_BRANCH: ${{ inputs.release-branch }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(git rev-parse HEAD)" = "${EXPECTED_COMMIT}"
+          git fetch --no-tags origin "${RELEASE_BRANCH}"
+          test "$(git rev-parse FETCH_HEAD)" = "${EXPECTED_COMMIT}"
+          php .portfolio-standard/scripts/validate-plugin.php . "${VERSION}"
+
+      - name: Run locked project checks without secrets
+        shell: bash
+        run: |
+          if [[ -f composer.json ]]; then
+            test -f composer.lock
+            composer validate --strict
+            composer install --no-interaction --no-progress --prefer-dist
+            composer audit --locked
+            for script in phpcs phpstan test; do
+              # shellcheck disable=SC2016
+              if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
+                composer run-script "${script}"
+              fi
+            done
+          fi
+
+      - name: Build production artifact
+        env:
+          VERSION: ${{ inputs.version }}
+        id: metadata
+        shell: bash
+        run: |
+          bash .portfolio-standard/scripts/build-plugin.sh . build
+          # shellcheck disable=SC2016
+          slug="$(php -r '$manifest = json_decode(file_get_contents(".github/plugin-standard.json"), true, 512, JSON_THROW_ON_ERROR); echo $manifest["slug"];')"
+          archive="${slug}-${VERSION}.zip"
+          test -f "build/${archive}"
+          echo "slug=${slug}" >> "${GITHUB_OUTPUT}"
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload approved artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wordpress-plugin-release-${{ inputs.version }}-${{ github.run_id }}
+          path: |
+            build/*.zip
+            build/*.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish approved release
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      RELEASE_COMMIT: ${{ inputs.commit }}
+      RELEASE_BRANCH: ${{ inputs.release-branch }}
+      PLUGIN_SLUG: ${{ needs.preflight.outputs.slug }}
+      ARCHIVE: ${{ needs.preflight.outputs.archive }}
+    steps:
+      - name: Check out exact commit without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download approved artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wordpress-plugin-release-${{ inputs.version }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/approved
+
+      - name: Re-verify artifact and release targets
+        shell: bash
+        run: |
+          (cd "${RUNNER_TEMP}/approved" && shasum -a 256 --check "${ARCHIVE}.sha256")
+          test "$(git rev-parse HEAD)" = "${RELEASE_COMMIT}"
+
+          if svn info --non-interactive "https://plugins.svn.wordpress.org/${PLUGIN_SLUG}/tags/${VERSION}" > /dev/null 2>&1; then
+            existing_root="${RUNNER_TEMP}/existing-wordpress-org"
+            approved_root="${RUNNER_TEMP}/existing-approved"
+            mkdir -p "${existing_root}" "${approved_root}"
+            svn export --quiet --non-interactive \
+              "https://plugins.svn.wordpress.org/${PLUGIN_SLUG}/tags/${VERSION}" \
+              "${existing_root}/${PLUGIN_SLUG}"
+            unzip -q "${RUNNER_TEMP}/approved/${ARCHIVE}" -d "${approved_root}"
+            diff --recursive --brief \
+              "${approved_root}/${PLUGIN_SLUG}" \
+              "${existing_root}/${PLUGIN_SLUG}"
+            echo 'WPORG_TAG_EXISTS=true' >> "${GITHUB_ENV}"
+          else
+            echo 'WPORG_TAG_EXISTS=false' >> "${GITHUB_ENV}"
+          fi
+
+          existing_tag="$(git ls-remote --tags origin "refs/tags/${VERSION}^{}" | awk '{ print $1 }')"
+          if [[ -z "${existing_tag}" ]]; then
+            existing_tag="$(git ls-remote --tags origin "refs/tags/${VERSION}" | awk '{ print $1 }')"
+          fi
+          if [[ -n "${existing_tag}" && "${existing_tag}" != "${RELEASE_COMMIT}" ]]; then
+            echo "Git tag ${VERSION} points to ${existing_tag}, not ${RELEASE_COMMIT}." >&2
+            exit 1
+          fi
+
+      - name: Publish or reconcile GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            gh release upload "${VERSION}" \
+              "${RUNNER_TEMP}/approved/${ARCHIVE}" \
+              "${RUNNER_TEMP}/approved/${ARCHIVE}.sha256" \
+              --clobber \
+              --repo "${GITHUB_REPOSITORY}"
+          else
+            gh release create "${VERSION}" \
+              "${RUNNER_TEMP}/approved/${ARCHIVE}" \
+              "${RUNNER_TEMP}/approved/${ARCHIVE}.sha256" \
+              --target "${RELEASE_COMMIT}" \
+              --generate-notes \
+              --title "${VERSION}" \
+              --repo "${GITHUB_REPOSITORY}"
+          fi
+
+      - name: Publish one atomic WordPress.org changeset
+        if: ${{ env.WPORG_TAG_EXISTS != 'true' }}
+        env:
+          WORDPRESS_ORG_USERNAME: ${{ secrets.WORDPRESS_ORG_USERNAME }}
+          WORDPRESS_ORG_PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}
+        shell: bash
+        run: |
+          svn_root="${RUNNER_TEMP}/wordpress-org"
+          stage_root="${RUNNER_TEMP}/plugin"
+          mkdir -p "${svn_root}" "${stage_root}"
+          unzip -q "${RUNNER_TEMP}/approved/${ARCHIVE}" -d "${stage_root}"
+          test -d "${stage_root}/${PLUGIN_SLUG}"
+
+          svn checkout \
+            --depth immediates \
+            --non-interactive \
+            --no-auth-cache \
+            --username "${WORDPRESS_ORG_USERNAME}" \
+            --password "${WORDPRESS_ORG_PASSWORD}" \
+            "https://plugins.svn.wordpress.org/${PLUGIN_SLUG}" \
+            "${svn_root}"
+          svn update --depth infinity "${svn_root}/trunk"
+
+          rsync --archive --delete "${stage_root}/${PLUGIN_SLUG}/" "${svn_root}/trunk/"
+          svn add --force "${svn_root}/trunk"
+          svn status "${svn_root}/trunk" | awk '$1 == "!" { sub(/^! +/, ""); print }' > "${RUNNER_TEMP}/svn-missing.txt"
+          while IFS= read -r missing_path; do
+            if [[ -n "${missing_path}" ]]; then
+              svn rm --force "${missing_path}"
+            fi
+          done < "${RUNNER_TEMP}/svn-missing.txt"
+
+          svn copy "${svn_root}/trunk" "${svn_root}/tags/${VERSION}"
+          svn commit \
+            --non-interactive \
+            --no-auth-cache \
+            --username "${WORDPRESS_ORG_USERNAME}" \
+            --password "${WORDPRESS_ORG_PASSWORD}" \
+            --message "Tag ${VERSION}." \
+            "${svn_root}/trunk" \
+            "${svn_root}/tags/${VERSION}"
+
+      - name: Verify public WordPress.org ZIP
+        shell: bash
+        run: |
+          public_zip="${RUNNER_TEMP}/public.zip"
+          public_root="${RUNNER_TEMP}/public"
+          approved_root="${RUNNER_TEMP}/approved-tree"
+          mkdir -p "${public_root}" "${approved_root}"
+
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error --location \
+              "https://downloads.wordpress.org/plugin/${PLUGIN_SLUG}.${VERSION}.zip" \
+              --output "${public_zip}"; then
+              break
+            fi
+            if [[ "${attempt}" == 20 ]]; then
+              echo 'WordPress.org did not publish the requested ZIP within five minutes.' >&2
+              exit 1
+            fi
+            sleep 15
+          done
+
+          unzip -q "${public_zip}" -d "${public_root}"
+          unzip -q "${RUNNER_TEMP}/approved/${ARCHIVE}" -d "${approved_root}"
+          diff --recursive --brief \
+            "${approved_root}/${PLUGIN_SLUG}" \
+            "${public_root}/${PLUGIN_SLUG}"

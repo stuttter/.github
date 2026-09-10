@@ -38,5 +38,5 @@ for forbidden_path in .git .github tests node_modules vendor composer.json compo
 done
 
 (cd "${temporary_directory}" && zip -X -q -r "${archive_path}" "${slug}")
-shasum -a 256 "${archive_path}" > "${archive_path}.sha256"
+(cd "${output_directory}" && shasum -a 256 "$(basename "${archive_path}")" > "$(basename "${archive_path}").sha256")
 echo "${archive_path}"
