@@ -101,9 +101,11 @@ jobs:
         if: ${{ hashFiles('composer.json') != '' }}
         shell: bash
         run: |
+          set -euo pipefail
+
           for script in phpcs phpstan test; do
             if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
-              composer run-script "${script}"
+              composer --no-interaction run-script "${script}"
             fi
           done
 
