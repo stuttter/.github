@@ -104,6 +104,8 @@ jobs:
           set -euo pipefail
 
           for script in phpcs phpstan test; do
+            # The PHP program is intentionally single-quoted for the shell.
+            # shellcheck disable=SC2016
             if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
               composer --no-interaction run-script "${script}"
             fi
