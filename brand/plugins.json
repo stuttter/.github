@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "plugins": {
+    "wp-user-groups": {
+      "symbol": "people",
+      "accent": "blue",
+      "personality": "organized, social, quietly playful",
+      "concepts": ["solid", "sorting-day"]
+    }
+  }
+}

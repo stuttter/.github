@@ -32,11 +32,21 @@ jobs:
         run: |
           php -l scripts/validate-plugin.php
           bash -n scripts/build-plugin.sh
+          bash -n brand/export.sh
+          bash -n brand/validate.sh
 
       - name: Check JSON
         run: |
           php -r 'json_decode(file_get_contents("schema/plugin-standard.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("examples/plugin-standard.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("brand/tokens.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("brand/plugins.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Validate deterministic visual exports
+        run: |
+          find brand/sources -type f -name '*.svg' -print0 | xargs -0 -n1 xmllint --noout
+          bash brand/export.sh
+          bash brand/validate.sh
 
       - name: Check workflow YAML
         run: |
