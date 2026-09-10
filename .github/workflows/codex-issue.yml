@@ -97,6 +97,8 @@ jobs:
         shell: bash
         run: |
           gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}" > "${RUNNER_TEMP}/issue.json"
+          # The Markdown backticks below are intentionally literal prompt text.
+          # shellcheck disable=SC2016
           {
             printf '# Implement one approved issue\n\n'
             printf 'Implement only the supplied GitHub issue in this repository.\n\n'
@@ -143,8 +145,13 @@ jobs:
           fi
 
           for path in "${changed_files[@]}"; do
+            if [[ "${path}" == .git* ]]; then
+              echo "Codex attempted to change protected path: ${path}" >&2
+              exit 1
+            fi
+
             case "${path}" in
-              .git*|.github/*|AGENTS.md|SECURITY.md|composer.json|composer.lock|package.json|package-lock.json|phpunit.xml*|phpcs.xml*|phpstan.neon*|scripts/*)
+              .github/*|AGENTS.md|SECURITY.md|composer.json|composer.lock|package.json|package-lock.json|phpunit.xml*|phpcs.xml*|phpstan.neon*|scripts/*)
                 echo "Codex attempted to change protected path: ${path}" >&2
                 exit 1
                 ;;
