@@ -99,10 +99,15 @@ jobs:
 
       - name: Run project checks
         if: ${{ hashFiles('composer.json') != '' }}
+        shell: bash
         run: |
-          composer run-script phpcs --if-present
-          composer run-script phpstan --if-present
-          composer run-script test --if-present
+          set -euo pipefail
+
+          for script in phpcs phpstan test; do
+            if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
+              composer --no-interaction run-script "${script}"
+            fi
+          done
 
   artifact:
     name: Production artifact
