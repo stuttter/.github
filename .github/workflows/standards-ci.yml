@@ -1,0 +1,51 @@
+name: Standards CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate shared standards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: none
+
+      - name: Check scripts
+        run: |
+          php -l scripts/validate-plugin.php
+          bash -n scripts/build-plugin.sh
+
+      - name: Check JSON
+        run: |
+          php -r 'json_decode(file_get_contents("schema/plugin-standard.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("examples/plugin-standard.json"), true, 512, JSON_THROW_ON_ERROR);'
+
+      - name: Check workflow YAML
+        run: |
+          ruby -e 'require "yaml"; Dir[".github/workflows/*.yml", "examples/*.yml"].each { |file| YAML.parse_file(file); puts "YAML OK: #{file}" }'
+
+      - name: Reject mutable third-party Actions
+        shell: bash
+        run: |
+          if grep -R --line-number --extended-regexp 'uses: [^#[:space:]]+@(main|master|v[0-9]+([[:space:]]|$))' .github/workflows examples | grep -v 'uses: stuttter/.github/'; then
+            echo 'Third-party Actions must use full commit SHAs.' >&2
+            exit 1
+          fi
