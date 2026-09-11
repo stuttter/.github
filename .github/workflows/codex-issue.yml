@@ -150,6 +150,11 @@ jobs:
             exit 1
           fi
 
+          if ! git diff HEAD --no-ext-diff --no-textconv --no-renames --diff-filter=D --quiet; then
+            echo 'Deletions and renames are not accepted from the issue lane.' >&2
+            exit 1
+          fi
+
           for path in "${changed_files[@]}"; do
             if [[ "${path}" == .git* ]]; then
               echo "Codex attempted to change protected path: ${path}" >&2
@@ -233,6 +238,11 @@ jobs:
 
           if (( ${#changed_files[@]} == 0 || ${#changed_files[@]} > MAX_FILES )); then
             echo "Applied patch changed ${#changed_files[@]} files; accepted range is 1-${MAX_FILES}." >&2
+            exit 1
+          fi
+
+          if ! git diff --cached HEAD --no-ext-diff --no-textconv --no-renames --diff-filter=D --quiet; then
+            echo 'Deletions and renames are not accepted from the issue lane.' >&2
             exit 1
           fi
 

@@ -48,7 +48,7 @@ function validate(instance, schema, path = '$', base = schema.$id) {
     }
   }
 
-  if (schema.type === 'array') {
+  if (Array.isArray(instance)) {
     if (schema.minItems && instance.length < schema.minItems) errors.push(`${path} needs at least ${schema.minItems} item(s).`);
     if (schema.uniqueItems && new Set(instance.map((item) => JSON.stringify(item))).size !== instance.length) errors.push(`${path} must contain unique items.`);
     if (schema.items) instance.forEach((item, index) => errors.push(...validate(item, schema.items, `${path}[${index}]`, base)));
@@ -79,4 +79,11 @@ test('portfolio schema rejects root policy drift and invalid referenced manifest
   invalidRelease.repositories[0].managed_paths = ['release'];
   invalidRelease.repositories[0].manifest.wordpress_org = false;
   assert.match(validate(invalidRelease, portfolioSchema).join('\n'), /must equal true/);
+});
+
+test('portfolio schema accepts non-release managed paths for non-WordPress.org repositories', () => {
+  const valid = structuredClone(portfolio);
+  valid.repositories[0].managed_paths = ['ci'];
+  valid.repositories[0].manifest.wordpress_org = false;
+  assert.deepEqual(validate(valid, portfolioSchema), []);
 });

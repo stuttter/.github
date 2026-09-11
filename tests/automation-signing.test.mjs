@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 
 const codexWorkflow = readFileSync(new URL('../.github/workflows/codex-issue.yml', import.meta.url), 'utf8');
+const fleetWorkflow = readFileSync(new URL('../.github/workflows/fleet-standards.yml', import.meta.url), 'utf8');
 
 test('Codex publishing requires dedicated signing secrets', () => {
   for (const secret of ['FLEET_SIGNING_KEY', 'FLEET_SIGNING_PUBLIC_KEY', 'FLEET_SIGNING_EMAIL']) {
@@ -52,9 +53,16 @@ test('Codex boundary includes deletions and splits renames into both paths', () 
       .split('\n');
 
     assert.deepEqual(paths, ['.github/protected.yml', 'allowed.txt']);
+    assert.throws(() => execFileSync('git', ['diff', 'HEAD', '--no-ext-diff', '--no-textconv', '--no-renames', '--diff-filter=D', '--quiet'], { cwd: root }));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('Codex rejects deletions and renames in both untrusted and trusted boundaries', () => {
+  assert.equal((codexWorkflow.match(/Deletions and renames are not accepted from the issue lane\./g) || []).length, 2);
+  assert.match(codexWorkflow, /git diff HEAD --no-ext-diff --no-textconv --no-renames --diff-filter=D --quiet/);
+  assert.match(codexWorkflow, /git diff --cached HEAD --no-ext-diff --no-textconv --no-renames --diff-filter=D --quiet/);
 });
 
 test('failure state records cancellations and skipped downstream publishing', () => {
@@ -124,4 +132,15 @@ test('failure state reports a preserved pull request when one exists', () => {
   assert.match(failureBlock, /gh pr list/);
   assert.match(failureBlock, /after preserving a draft pull request/);
   assert.match(failureBlock, /without a surviving pull request/);
+});
+
+test('fleet cleanup tracks ambiguous pushes and only removes its exact remote commit', () => {
+  assert.match(fleetWorkflow, /push_attempted='false'/);
+  assert.ok(fleetWorkflow.indexOf("push_attempted='true'") < fleetWorkflow.indexOf('git push --set-upstream origin "${branch}"'));
+  assert.match(fleetWorkflow, /remote_sha.*git ls-remote --heads origin/);
+  assert.match(fleetWorkflow, /remote_sha.*!=.*local_sha/);
+  assert.match(fleetWorkflow, /gh pr list/);
+  assert.match(fleetWorkflow, /--force-with-lease="refs\/heads\/\$\{branch\}:\$\{local_sha\}"/);
+  assert.match(fleetWorkflow, /":refs\/heads\/\$\{branch\}"/);
+  assert.doesNotMatch(fleetWorkflow, /git push origin --delete/);
 });

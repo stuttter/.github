@@ -38,6 +38,11 @@ function cloneWithout(object, keys) {
 
 function readJson(root, path, errors) {
 	try {
+		const status = lstatSync(join(root, path));
+		if (! status.isFile() || status.isSymbolicLink()) {
+			errors.push({ code: 'unsafe_required_path', path, message: `${path} must be a regular file and cannot be a symbolic link.` });
+			return null;
+		}
 		const value = JSON.parse(readFileSync(join(root, path), 'utf8'));
 		if (! plainObject(value)) {
 			throw new Error('top-level value must be an object');
@@ -119,10 +124,20 @@ function safeSpecifier(specifier, version) {
 	const concrete = parseVersion(version);
 	if (! match || ! concrete) return false;
 	const [, operator, major, minor, patch] = match;
-	if (Number(major) !== concrete[0] || Number(minor) !== concrete[1]) return false;
+	const requested = [Number(major), Number(minor), Number(patch ?? 0)];
+	if (concrete[0] !== requested[0]) return false;
 	if (! operator && patch === undefined) return false;
-	if (! operator) return Number(patch) === concrete[2];
-	return patch === undefined || concrete[2] >= Number(patch);
+	if (! operator) return concrete[1] === requested[1] && concrete[2] === requested[2];
+	if (operator === '~') {
+		return concrete[1] === requested[1] && (patch === undefined || concrete[2] >= requested[2]);
+	}
+	if (requested[0] > 0) {
+		return concrete[1] > requested[1] || (concrete[1] === requested[1] && concrete[2] >= requested[2]);
+	}
+	if (requested[1] > 0 || patch === undefined) {
+		return concrete[1] === requested[1] && (patch === undefined || concrete[2] >= requested[2]);
+	}
+	return concrete[1] === 0 && concrete[2] === requested[2];
 }
 
 function policyResult(policy, errors) {
@@ -287,6 +302,9 @@ function classifyComposer(baseRoot, headRoot, policy, updates, errors) {
 		}
 		if (oldSpecifier !== newSpecifier && ! safeSpecifier(newSpecifier, after.version)) {
 			errors.push({ code: 'unsafe_dependency_source', dependency: name, message: `${name} changed to an unsupported or mismatched source constraint.` });
+		}
+		if (! safeSpecifier(newSpecifier, after.version)) {
+			errors.push({ code: 'constraint_mismatch', dependency: name, message: `${name} locked version ${after.version} does not satisfy its resulting development constraint.` });
 		}
 	}
 	for (const [name, before] of beforeDev) {
@@ -463,6 +481,9 @@ function classifyNpm(baseRoot, headRoot, policy, updates, errors) {
 		}
 		if (oldSpecifier !== newSpecifier && ! safeSpecifier(newSpecifier, after.version)) {
 			errors.push({ code: 'unsafe_dependency_source', dependency: name, message: `${name} changed to an unsupported or mismatched source constraint.` });
+		}
+		if (! safeSpecifier(newSpecifier, after.version)) {
+			errors.push({ code: 'constraint_mismatch', dependency: name, message: `${name} locked version ${after.version} does not satisfy its resulting development constraint.` });
 		}
 	}
 	for (const [path, before] of beforePackages) {

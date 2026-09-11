@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -173,6 +173,100 @@ test('denies lifecycle-script changes', () => {
 		assert.ok(codes(classifyDependabotUpdate(fixture)).includes('unexpected_manifest_change'));
 	} finally {
 		fixture.cleanup();
+	}
+});
+
+test('denies unchanged symlinked required manifests', () => {
+	const fixture = scenario('npm', (head, base) => {
+		for (const root of [base, head]) {
+			renameSync(join(root, 'package.json'), join(root, 'package-manifest.json'));
+			symlinkSync('package-manifest.json', join(root, 'package.json'));
+		}
+		const path = join(head, 'package-lock.json');
+		const lock = json(path);
+		lock.packages['node_modules/example-parser'].version = '1.1.1';
+		lock.packages['node_modules/example-parser'].resolved = 'https://registry.npmjs.org/example-parser/-/example-parser-1.1.1.tgz';
+		writeJson(path, lock);
+	});
+	try {
+		assert.ok(codes(classifyDependabotUpdate(fixture)).includes('unsafe_required_path'));
+	} finally {
+		fixture.cleanup();
+	}
+});
+
+test('denies lock-only direct updates that violate the resulting constraint', () => {
+	for (const ecosystem of ['npm', 'composer']) {
+		const fixture = scenario(ecosystem, (head) => {
+			if (ecosystem === 'npm') {
+				npmUpdate(head, '2.3.5');
+				const path = join(head, 'package.json');
+				const manifest = json(path);
+				manifest.devDependencies['example-linter'] = '2.3.4';
+				writeJson(path, manifest);
+				const lockPath = join(head, 'package-lock.json');
+				const lock = json(lockPath);
+				lock.packages[''].devDependencies['example-linter'] = '2.3.4';
+				writeJson(lockPath, lock);
+			} else {
+				composerUpdate(head, '2.3.5');
+				const path = join(head, 'composer.json');
+				const manifest = json(path);
+				manifest['require-dev']['vendor/tester'] = '2.3.4';
+				writeJson(path, manifest);
+			}
+		});
+		try {
+			assert.ok(codes(classifyDependabotUpdate(fixture)).includes('constraint_mismatch'));
+		} finally {
+			fixture.cleanup();
+		}
+	}
+});
+
+test('applies caret ranges correctly for zero and nonzero major versions', () => {
+	const rejected = ['npm', 'composer'].map((ecosystem) => scenario(ecosystem, (head, base) => {
+		const configure = (root, version) => {
+			if (ecosystem === 'npm') {
+				npmUpdate(root, version);
+				const manifestPath = join(root, 'package.json');
+				const manifest = json(manifestPath);
+				manifest.devDependencies['example-linter'] = '^0.0.3';
+				writeJson(manifestPath, manifest);
+				const lockPath = join(root, 'package-lock.json');
+				const lock = json(lockPath);
+				lock.packages[''].devDependencies['example-linter'] = '^0.0.3';
+				writeJson(lockPath, lock);
+			} else {
+				composerUpdate(root, version);
+				const manifestPath = join(root, 'composer.json');
+				const manifest = json(manifestPath);
+				manifest['require-dev']['vendor/tester'] = '^0.0.3';
+				writeJson(manifestPath, manifest);
+			}
+		};
+		configure(base, '0.0.3');
+		configure(head, '0.0.4');
+	}));
+	const allowed = scenario('npm', (head) => {
+		npmUpdate(head, '2.4.0');
+		const path = join(head, 'package.json');
+		const manifest = json(path);
+		manifest.devDependencies['example-linter'] = '^2.3.4';
+		writeJson(path, manifest);
+		const lockPath = join(head, 'package-lock.json');
+		const lock = json(lockPath);
+		lock.packages[''].devDependencies['example-linter'] = '^2.3.4';
+		writeJson(lockPath, lock);
+	});
+	try {
+		for (const fixture of rejected) {
+			assert.ok(codes(classifyDependabotUpdate(fixture)).includes('constraint_mismatch'));
+		}
+		assert.equal(classifyDependabotUpdate({ ...allowed, policy: { allow_minor: true } }).decision, 'allow');
+	} finally {
+		for (const fixture of rejected) fixture.cleanup();
+		allowed.cleanup();
 	}
 });
 
