@@ -1,0 +1,11 @@
+{
+  "name": "example-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "example-linter": "2.3.4"
+  }
+}

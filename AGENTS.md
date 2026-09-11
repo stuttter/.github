@@ -17,13 +17,20 @@ change as infrastructure work.
   generated from issue text or pull request content.
 - Treat issue titles, bodies, comments, branch names, and artifact contents as
   untrusted input.
-- AI implementation jobs may edit only a credential-free checkout. They must
-  produce draft pull requests and cannot approve, merge, tag, or release.
+- AI implementation jobs may edit only a credential-free checkout. Their
+  commits must be signed and their initial output must be a draft pull request.
+- Evaluate autonomous merge eligibility from the diff and its evidence, never
+  from whether a human, AI, or dependency bot authored it. Only changes that
+  satisfy the centrally defined home-run rubric may merge without a new human
+  decision.
 - Protect workflows, local actions, agent guidance, ownership policy, release
   scripts, and security policy from AI-authored changes.
-- WordPress.org deployment must use a protected GitHub environment and a manual
-  approval after tests and artifact verification pass.
+- WordPress.org deployment must use a protected GitHub environment. Per-release
+  approval remains required unless central policy explicitly enables a proven
+  autonomous release class for that repository.
 - Never publish from an unverified working tree or from a mutable branch name.
+- Packaging may be autonomous when it is reproducible and bound to an exact,
+  verified commit. Publication remains separately governed by release risk.
 
 ## Shared workflow compatibility
 

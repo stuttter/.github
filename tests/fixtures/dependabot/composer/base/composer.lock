@@ -1,0 +1,42 @@
+{
+  "_readme": ["Generated fixture"],
+  "content-hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "packages": [
+    {
+      "name": "vendor/runtime",
+      "version": "1.0.0"
+    }
+  ],
+  "packages-dev": [
+    {
+      "name": "vendor/tester",
+      "version": "2.3.4",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/vendor/tester.git",
+        "reference": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "dist": {
+        "type": "zip",
+        "url": "https://api.github.com/repos/vendor/tester/zipball/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "reference": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "shasum": ""
+      },
+      "require": {
+        "vendor/assertions": "1.1.0"
+      }
+    },
+    {
+      "name": "vendor/assertions",
+      "version": "1.1.0"
+    }
+  ],
+  "aliases": [],
+  "minimum-stability": "stable",
+  "stability-flags": {},
+  "prefer-stable": false,
+  "prefer-lowest": false,
+  "platform": {},
+  "platform-dev": {},
+  "plugin-api-version": "2.6.0"
+}

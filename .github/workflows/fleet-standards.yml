@@ -1,0 +1,284 @@
+name: Fleet standards
+
+on:
+  schedule:
+    - cron: '23 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Audit only, or open one signed draft pull request per repository with drift.
+        required: true
+        type: choice
+        default: audit
+        options:
+          - audit
+          - propose
+      repository:
+        description: Exact owner/repository from the inventory, or all.
+        required: true
+        type: string
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    name: Select explicit targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+      has_targets: ${{ steps.targets.outputs.has_targets }}
+    steps:
+      - name: Check out fleet policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate inventory and select targets
+        id: targets
+        env:
+          REQUESTED_REPOSITORY: ${{ github.event.inputs.repository || 'all' }}
+        shell: bash
+        run: |
+          targets="$(node scripts/fleet-matrix.mjs "${REQUESTED_REPOSITORY}")"
+          echo "targets=${targets}" >> "${GITHUB_OUTPUT}"
+          echo "has_targets=$(jq --raw-output '.include | length > 0' <<< "${targets}")" >> "${GITHUB_OUTPUT}"
+
+  audit:
+    name: Audit ${{ matrix.target.repository }}
+    if: ${{ needs.matrix.outputs.has_targets == 'true' && (github.event_name == 'schedule' || github.event.inputs.mode == 'audit') }}
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.matrix.outputs.targets).include }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out fleet policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fleet-policy
+          persist-credentials: false
+
+      - name: Check out plugin without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ matrix.target.repository }}
+          ref: ${{ matrix.target.branch }}
+          path: plugin
+          persist-credentials: false
+
+      - name: Audit managed standards
+        id: audit
+        env:
+          TARGET_REPOSITORY: ${{ matrix.target.repository }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          report_root="${RUNNER_TEMP}/fleet-audit"
+          result="${report_root}/result.json"
+          diagnostics="${report_root}/diagnostics.txt"
+          mkdir -p "${report_root}"
+          policy_ref="$(git -C fleet-policy rev-parse HEAD)"
+          [[ "${policy_ref}" =~ ^[0-9a-f]{40}$ ]]
+
+          set +e
+          node fleet-policy/scripts/sync-plugin-standards.mjs \
+            --mode audit \
+            --repository "${TARGET_REPOSITORY}" \
+            --repo-dir plugin \
+            --inventory fleet-policy/portfolio/plugins.json \
+            --policy-ref "${policy_ref}" \
+            > "${result}" \
+            2> "${diagnostics}"
+          status=$?
+          set -e
+
+          cat "${result}"
+          cat "${diagnostics}" >&2
+          {
+            echo "### Fleet audit: ${TARGET_REPOSITORY}"
+            echo
+            if jq --exit-status 'type == "object"' "${result}" > /dev/null 2>&1; then
+              echo '| Result | Count |'
+              echo '| --- | ---: |'
+              echo "| Planned changes | $(jq '.changes | length' "${result}") |"
+              echo "| Conflicts | $(jq '.conflicts | length' "${result}") |"
+              echo
+              echo '<details><summary>Complete JSON result</summary>'
+              echo
+              echo '```json'
+              cat "${result}"
+              echo '```'
+              echo '</details>'
+            else
+              echo 'The audit did not produce a valid JSON result.'
+            fi
+            if [[ -s "${diagnostics}" ]]; then
+              echo
+              echo '<details><summary>Diagnostics</summary>'
+              echo
+              echo '```text'
+              cat "${diagnostics}"
+              echo '```'
+              echo '</details>'
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${status}" -eq 1 ]]; then
+            echo "::notice title=Fleet standards drift::${TARGET_REPOSITORY} has managed drift; see the job summary and audit artifact."
+            exit 0
+          fi
+          exit "${status}"
+
+      - name: Upload audit report
+        if: ${{ always() && steps.audit.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fleet-audit-${{ strategy.job-index }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fleet-audit
+          if-no-files-found: error
+          retention-days: 14
+
+  propose:
+    name: Propose ${{ matrix.target.repository }}
+    if: ${{ needs.matrix.outputs.has_targets == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'propose' }}
+    needs: matrix
+    environment: fleet-standards
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.matrix.outputs.targets).include }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out fleet policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fleet-policy
+          persist-credentials: false
+
+      - name: Check out exact plugin target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ matrix.target.repository }}
+          ref: ${{ matrix.target.branch }}
+          path: plugin
+          token: ${{ secrets.FLEET_GITHUB_TOKEN }}
+          persist-credentials: false
+
+      - name: Reject forks, archives, and unexpected owners
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_GITHUB_TOKEN }}
+          TARGET_REPOSITORY: ${{ matrix.target.repository }}
+        shell: bash
+        run: |
+          metadata="$(gh api "repos/${TARGET_REPOSITORY}")"
+          test "$(jq -r '.full_name' <<< "${metadata}")" = "${TARGET_REPOSITORY}"
+          test "$(jq -r '.owner.login' <<< "${metadata}")" = 'stuttter'
+          test "$(jq -r '.fork' <<< "${metadata}")" = 'false'
+          test "$(jq -r '.archived' <<< "${metadata}")" = 'false'
+
+      - name: Apply only explicitly managed standards
+        id: synchronize
+        env:
+          TARGET_REPOSITORY: ${{ matrix.target.repository }}
+        shell: bash
+        run: |
+          policy_ref="$(git -C fleet-policy rev-parse HEAD)"
+          [[ "${policy_ref}" =~ ^[0-9a-f]{40}$ ]]
+          node fleet-policy/scripts/sync-plugin-standards.mjs \
+            --mode apply \
+            --repository "${TARGET_REPOSITORY}" \
+            --repo-dir plugin \
+            --inventory fleet-policy/portfolio/plugins.json \
+            --policy-ref "${policy_ref}" \
+            > "${RUNNER_TEMP}/sync-result.json"
+          cat "${RUNNER_TEMP}/sync-result.json"
+          if git -C plugin diff --quiet && [[ -z "$(git -C plugin status --short)" ]]; then
+            echo 'changed=false' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'changed=true' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create signed commit and draft pull request
+        if: ${{ steps.synchronize.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.FLEET_GITHUB_TOKEN }}
+          FLEET_SIGNING_KEY: ${{ secrets.FLEET_SIGNING_KEY }}
+          FLEET_SIGNING_PUBLIC_KEY: ${{ secrets.FLEET_SIGNING_PUBLIC_KEY }}
+          SIGNING_EMAIL: ${{ secrets.FLEET_SIGNING_EMAIL }}
+          TARGET_REPOSITORY: ${{ matrix.target.repository }}
+          TARGET_BRANCH: ${{ matrix.target.branch }}
+        shell: bash
+        working-directory: plugin
+        run: |
+          set -euo pipefail
+          signing_key="${RUNNER_TEMP}/fleet-signing-key"
+          allowed_signers="${RUNNER_TEMP}/fleet-allowed-signers"
+          branch="automation/fleet-standards-${GITHUB_RUN_ID}"
+          pushed='false'
+
+          cleanup() {
+            status=$?
+            rm -f "${signing_key}" "${allowed_signers}"
+            if [[ "${status}" -ne 0 && "${pushed}" == 'true' ]]; then
+              echo "Cleaning up ${branch} after a post-push failure." >&2
+              git push origin --delete "${branch}" || echo "Could not remove ${branch}; manual cleanup is required." >&2
+            fi
+            trap - EXIT
+            exit "${status}"
+          }
+          trap cleanup EXIT
+
+          printf '%s\n' "${FLEET_SIGNING_KEY}" > "${signing_key}"
+          printf '%s %s\n' "${SIGNING_EMAIL}" "${FLEET_SIGNING_PUBLIC_KEY}" > "${allowed_signers}"
+          chmod 600 "${signing_key}"
+          chmod 600 "${allowed_signers}"
+
+          git config user.name 'Stuttter maintenance automation'
+          git config user.email "${SIGNING_EMAIL}"
+          git config gpg.format ssh
+          git config user.signingkey "${signing_key}"
+          git config gpg.ssh.allowedSignersFile "${allowed_signers}"
+          git config commit.gpgsign true
+          git switch -c "${branch}"
+          while IFS= read -r path; do
+            case "${path}" in
+              .github/plugin-standard.json|.github/dependabot.yml|.github/workflows/ci.yml|.github/workflows/release.yml)
+                git add -- "${path}"
+                ;;
+              *)
+                echo "Refusing unexpected synchronized path: ${path}" >&2
+                exit 1
+                ;;
+            esac
+          done < <(jq --raw-output '.changes[].path' "${RUNNER_TEMP}/sync-result.json")
+          git commit -S -m 'Automation: Synchronize shared plugin standards.'
+          git verify-commit HEAD
+          gh auth setup-git
+          git push --set-upstream origin "${branch}"
+          pushed='true'
+
+          verified='false'
+          for attempt in {1..6}; do
+            echo "Signature verification attempt ${attempt}."
+            verified="$(gh api "repos/${TARGET_REPOSITORY}/commits/$(git rev-parse HEAD)" --jq '.commit.verification.verified')"
+            [[ "${verified}" == 'true' ]] && break
+            sleep 5
+          done
+          if [[ "${verified}" != 'true' ]]; then
+            echo 'GitHub did not verify the automation signature; the branch will be removed without opening a pull request.' >&2
+            exit 1
+          fi
+
+          gh pr create \
+            --repo "${TARGET_REPOSITORY}" \
+            --base "${TARGET_BRANCH}" \
+            --head "${branch}" \
+            --draft \
+            --title 'Synchronize shared plugin standards' \
+            --body 'Adds or updates only files explicitly owned by the Stuttter fleet standard. Repository-owned files are never overwritten. Review and full CI are required before merge.'

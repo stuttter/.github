@@ -1,0 +1,9 @@
+# Managed by stuttter/.github fleet standards. Do not edit locally.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies

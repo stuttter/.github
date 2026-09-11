@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stuttter/.github/main/schema/portfolio.schema.json",
+  "repositories": [
+    {
+      "repository": "stuttter/wp-user-groups",
+      "enabled": false,
+      "managed_paths": ["release", "dependabot"],
+      "manifest": {
+        "slug": "wp-user-groups",
+        "main_file": "wp-user-groups.php",
+        "risk": "elevated",
+        "minimum_php": "7.2",
+        "minimum_wordpress": "5.2",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": true,
+        "release_branch": "master",
+        "php_matrix": ["7.2", "7.4", "8.0", "8.2", "8.4"]
+      }
+    },
+    {
+      "repository": "stuttter/wp-user-signups",
+      "enabled": false,
+      "managed_paths": [],
+      "manifest": {
+        "slug": "wp-user-signups",
+        "main_file": "wp-user-signups.php",
+        "risk": "critical",
+        "minimum_php": "7.2",
+        "minimum_wordpress": "5.2",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": true,
+        "release_branch": "master",
+        "php_matrix": ["7.2", "7.4", "8.0", "8.2", "8.4"]
+      }
+    }
+  ]
+}
