@@ -60,6 +60,19 @@ test('apply creates deterministic files and becomes clean', () => {
   }
 });
 
+test('rendered workflow branch values remain strings for YAML boolean words', () => {
+  const { root, cleanup } = fixture();
+  try {
+    const booleanBranch = structuredClone(target);
+    booleanBranch.manifest.release_branch = 'true';
+    synchronize({ root, target: booleanBranch, policyRef, mode: 'apply' });
+    assert.match(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8'), /- "true"/);
+    assert.match(readFileSync(join(root, '.github/workflows/release.yml'), 'utf8'), /release-branch: "true"/);
+  } finally {
+    cleanup();
+  }
+});
+
 test('managed files update while repository-owned files are preserved', () => {
   const { root, cleanup } = fixture();
   try {

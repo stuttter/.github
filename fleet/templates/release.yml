@@ -24,5 +24,4 @@ jobs:
     with:
       version: ${{ inputs.version }}
       commit: ${{ inputs.commit }}
-      release-branch: {{release_branch}}
-      environment: wordpress.org
+      release-branch: "{{release_branch}}"

@@ -220,14 +220,33 @@ jobs:
           signing_key="${RUNNER_TEMP}/fleet-signing-key"
           allowed_signers="${RUNNER_TEMP}/fleet-allowed-signers"
           branch="automation/fleet-standards-${GITHUB_RUN_ID}"
-          pushed='false'
+          push_attempted='false'
 
           cleanup() {
             status=$?
             rm -f "${signing_key}" "${allowed_signers}"
-            if [[ "${status}" -ne 0 && "${pushed}" == 'true' ]]; then
-              echo "Cleaning up ${branch} after a post-push failure." >&2
-              git push origin --delete "${branch}" || echo "Could not remove ${branch}; manual cleanup is required." >&2
+            if [[ "${status}" -ne 0 && "${push_attempted}" == 'true' ]]; then
+              local_sha="$(git rev-parse HEAD)"
+              remote_sha="$(git ls-remote --heads origin "refs/heads/${branch}" | awk '{ print $1 }')"
+              if [[ -n "${remote_sha}" && "${remote_sha}" != "${local_sha}" ]]; then
+                echo "Refusing to remove ${branch}; remote ${remote_sha} does not match local ${local_sha}." >&2
+              elif [[ "${remote_sha}" == "${local_sha}" ]]; then
+                pull_request_url="$(gh pr list \
+                  --repo "${TARGET_REPOSITORY}" \
+                  --head "${branch}" \
+                  --state all \
+                  --json url \
+                  --jq '.[0].url // empty')"
+                if [[ -n "${pull_request_url}" ]]; then
+                  echo "Preserving ${branch}; a pull request exists at ${pull_request_url}." >&2
+                else
+                  echo "Cleaning up ${branch} after a post-push failure." >&2
+                  git push \
+                    --force-with-lease="refs/heads/${branch}:${local_sha}" \
+                    origin \
+                    ":refs/heads/${branch}" || echo "Could not remove ${branch}; manual cleanup is required." >&2
+                fi
+              fi
             fi
             trap - EXIT
             exit "${status}"
@@ -260,8 +279,8 @@ jobs:
           git commit -S -m 'Automation: Synchronize shared plugin standards.'
           git verify-commit HEAD
           gh auth setup-git
+          push_attempted='true'
           git push --set-upstream origin "${branch}"
-          pushed='true'
 
           verified='false'
           for attempt in {1..6}; do

@@ -17,7 +17,7 @@ on:
         type: string
         default: master
       environment:
-        description: Protected GitHub environment requiring deployment approval.
+        description: Deprecated compatibility input. Publishing always uses the wordpress.org environment.
         required: false
         type: string
         default: wordpress.org
@@ -63,14 +63,12 @@ jobs:
           EXPECTED_COMMIT: ${{ inputs.commit }}
           POLICY_REF: ${{ job.workflow_sha }}
           RELEASE_BRANCH: ${{ inputs.release-branch }}
-          RELEASE_ENVIRONMENT: ${{ inputs.environment }}
           VERSION: ${{ inputs.version }}
         shell: bash
         run: |
           [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${POLICY_REF}" =~ ^[0-9a-f]{40}$ ]]
-          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          test "${RELEASE_ENVIRONMENT}" = 'wordpress.org'
+          [[ "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           test "$(git rev-parse HEAD)" = "${EXPECTED_COMMIT}"
           git fetch --no-tags origin "${RELEASE_BRANCH}"
           test "$(git rev-parse FETCH_HEAD)" = "${EXPECTED_COMMIT}"
@@ -99,9 +97,11 @@ jobs:
             if length == 1 then .[0] else empty end
           ' .portfolio-standard/portfolio/plugins.json)"
           actual_slug="$(jq --raw-output '.slug' .github/plugin-standard.json)"
+          actual_wordpress_org="$(jq --raw-output '.wordpress_org' .github/plugin-standard.json)"
           test -n "${expected_slug}"
           test -n "${expected_branch}"
           test "${actual_slug}" = "${expected_slug}"
+          test "${actual_wordpress_org}" = 'true'
           test "${RELEASE_BRANCH}" = "${expected_branch}"
 
       - name: Run locked project checks without secrets
@@ -149,7 +149,7 @@ jobs:
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ inputs.environment }}
+    environment: wordpress.org
     permissions:
       contents: write
     env:
@@ -196,9 +196,11 @@ jobs:
             ) | (.manifest.release_branch // "main")] |
             if length == 1 then .[0] else empty end
           ' .portfolio-policy/portfolio/plugins.json)"
+          actual_wordpress_org="$(jq --raw-output '.wordpress_org' .github/plugin-standard.json)"
           test -n "${expected_slug}"
           test -n "${expected_branch}"
           test "${PLUGIN_SLUG}" = "${expected_slug}"
+          test "${actual_wordpress_org}" = 'true'
           test "${RELEASE_BRANCH}" = "${expected_branch}"
 
       - name: Download approved artifact
