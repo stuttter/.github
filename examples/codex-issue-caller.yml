@@ -26,3 +26,6 @@ jobs:
       base-branch: master
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FLEET_SIGNING_KEY: ${{ secrets.FLEET_SIGNING_KEY }}
+      FLEET_SIGNING_PUBLIC_KEY: ${{ secrets.FLEET_SIGNING_PUBLIC_KEY }}
+      FLEET_SIGNING_EMAIL: ${{ secrets.FLEET_SIGNING_EMAIL }}

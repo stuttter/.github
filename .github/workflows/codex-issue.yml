@@ -25,6 +25,12 @@ on:
     secrets:
       OPENAI_API_KEY:
         required: true
+      FLEET_SIGNING_KEY:
+        required: true
+      FLEET_SIGNING_PUBLIC_KEY:
+        required: true
+      FLEET_SIGNING_EMAIL:
+        required: true
 
 concurrency:
   group: codex-issue-${{ github.repository }}-${{ inputs.issue-number }}
@@ -132,7 +138,7 @@ jobs:
         shell: bash
         run: |
           git add -N --all
-          mapfile -d '' changed_files < <(git diff --name-only --diff-filter=ACMRTUXB -z)
+          mapfile -d '' changed_files < <(git diff HEAD --no-ext-diff --no-textconv --name-only --no-renames --diff-filter=ACDMRTUXB -z)
 
           if (( ${#changed_files[@]} == 0 )); then
             echo 'Codex completed without producing a repository change.' >&2
@@ -158,23 +164,23 @@ jobs:
             esac
           done
 
-          if git diff --numstat | awk '$1 == "-" || $2 == "-" { found=1 } END { exit !found }'; then
+          if git diff HEAD --no-ext-diff --no-textconv --numstat | awk '$1 == "-" || $2 == "-" { found=1 } END { exit !found }'; then
             echo 'Binary changes are not accepted from the issue lane.' >&2
             exit 1
           fi
 
-          changed_lines="$(git diff --numstat | awk '{ added += $1; removed += $2 } END { print added + removed }')"
+          changed_lines="$(git diff HEAD --no-ext-diff --no-textconv --numstat | awk '{ added += $1; removed += $2 } END { print added + removed }')"
           if (( changed_lines > MAX_LINES )); then
             echo "Codex changed ${changed_lines} lines; limit is ${MAX_LINES}." >&2
             exit 1
           fi
 
-          if git diff --summary | grep -q '120000'; then
-            echo 'Symbolic links are not accepted from the issue lane.' >&2
+          if git diff HEAD --no-ext-diff --no-textconv --raw --no-abbrev | awk '$1 == ":120000" || $1 == ":160000" || $2 == "120000" || $2 == "160000" { found=1 } END { exit !found }'; then
+            echo 'Symbolic links and gitlinks are not accepted from the issue lane.' >&2
             exit 1
           fi
 
-          git diff --binary --full-index > "${RUNNER_TEMP}/codex.patch"
+          git diff HEAD --no-ext-diff --no-textconv --binary --full-index --src-prefix=a/ --dst-prefix=b/ > "${RUNNER_TEMP}/codex.patch"
           printf '%s\n' "${CODEX_SUMMARY}" > "${RUNNER_TEMP}/codex-summary.md"
 
       - name: Upload inert patch
@@ -214,16 +220,94 @@ jobs:
         shell: bash
         run: git apply --index --whitespace=error "${RUNNER_TEMP}/codex-result/codex.patch"
 
+      - name: Revalidate applied patch in trusted checkout
+        env:
+          MAX_FILES: ${{ inputs.max-files }}
+          MAX_LINES: ${{ inputs.max-lines }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --no-ext-diff --no-textconv --quiet
+          git diff --cached HEAD --check
+          mapfile -d '' changed_files < <(git diff --cached HEAD --no-ext-diff --no-textconv --name-only --no-renames --diff-filter=ACDMRTUXB -z)
+
+          if (( ${#changed_files[@]} == 0 || ${#changed_files[@]} > MAX_FILES )); then
+            echo "Applied patch changed ${#changed_files[@]} files; accepted range is 1-${MAX_FILES}." >&2
+            exit 1
+          fi
+
+          for path in "${changed_files[@]}"; do
+            if [[ "${path}" == .git* ]]; then
+              echo "Applied patch contains protected path: ${path}" >&2
+              exit 1
+            fi
+
+            case "${path}" in
+              .github/*|AGENTS.md|SECURITY.md|composer.json|composer.lock|package.json|package-lock.json|phpunit.xml*|phpcs.xml*|phpstan.neon*|scripts/*)
+                echo "Applied patch contains protected path: ${path}" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          if git diff --cached HEAD --no-ext-diff --no-textconv --numstat | awk '$1 == "-" || $2 == "-" { found=1 } END { exit !found }'; then
+            echo 'Binary changes are not accepted from the issue lane.' >&2
+            exit 1
+          fi
+
+          changed_lines="$(git diff --cached HEAD --no-ext-diff --no-textconv --numstat | awk '{ added += $1; removed += $2 } END { print added + removed }')"
+          if (( changed_lines > MAX_LINES )); then
+            echo "Applied patch changed ${changed_lines} lines; limit is ${MAX_LINES}." >&2
+            exit 1
+          fi
+
+          if git diff --cached HEAD --no-ext-diff --no-textconv --raw --no-abbrev | awk '$1 == ":120000" || $1 == ":160000" || $2 == "120000" || $2 == "160000" { found=1 } END { exit !found }'; then
+            echo 'Symbolic links and gitlinks are not accepted from the issue lane.' >&2
+            exit 1
+          fi
+
       - name: Publish draft pull request
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           BASE_BRANCH: ${{ inputs.base-branch }}
+          FLEET_SIGNING_KEY: ${{ secrets.FLEET_SIGNING_KEY }}
+          FLEET_SIGNING_PUBLIC_KEY: ${{ secrets.FLEET_SIGNING_PUBLIC_KEY }}
+          SIGNING_EMAIL: ${{ secrets.FLEET_SIGNING_EMAIL }}
         shell: bash
         run: |
+          set -euo pipefail
           gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}" > "${RUNNER_TEMP}/issue.json"
           issue_title="$(jq -r '.title | gsub("[[:space:]]+"; " ") | .[0:120]' "${RUNNER_TEMP}/issue.json")"
           branch="codex/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          signing_key="${RUNNER_TEMP}/codex-signing-key"
+          allowed_signers="${RUNNER_TEMP}/codex-allowed-signers"
+          push_attempted='false'
+
+          cleanup() {
+            status=$?
+            rm -f "${signing_key}" "${allowed_signers}"
+            if [[ "${status}" -ne 0 && "${push_attempted}" == 'true' ]]; then
+              remote_ref="$(git ls-remote --heads origin "refs/heads/${branch}" | awk '{ print $1 }')"
+              if [[ -n "${remote_ref}" ]]; then
+                pull_request_url="$(gh pr list \
+                  --repo "${GITHUB_REPOSITORY}" \
+                  --head "${branch}" \
+                  --state all \
+                  --json url \
+                  --jq '.[0].url // empty')"
+                if [[ -n "${pull_request_url}" ]]; then
+                  echo "Preserving ${branch}; a pull request exists at ${pull_request_url}." >&2
+                else
+                  echo "Cleaning up ${branch} after a post-push failure." >&2
+                  git push origin --delete "${branch}" || echo "Could not remove ${branch}; manual cleanup is required." >&2
+                fi
+              fi
+            fi
+            trap - EXIT
+            exit "${status}"
+          }
+          trap cleanup EXIT
 
           {
             printf 'Addresses #%s.\n\n' "${ISSUE_NUMBER}"
@@ -232,12 +316,34 @@ jobs:
             cat "${RUNNER_TEMP}/codex-result/codex-summary.md"
           } > "${RUNNER_TEMP}/pull-request.md"
 
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          printf '%s\n' "${FLEET_SIGNING_KEY}" > "${signing_key}"
+          printf '%s %s\n' "${SIGNING_EMAIL}" "${FLEET_SIGNING_PUBLIC_KEY}" > "${allowed_signers}"
+          chmod 600 "${signing_key}" "${allowed_signers}"
+
+          git config user.name 'Stuttter maintenance automation'
+          git config user.email "${SIGNING_EMAIL}"
+          git config gpg.format ssh
+          git config user.signingkey "${signing_key}"
+          git config gpg.ssh.allowedSignersFile "${allowed_signers}"
+          git config commit.gpgsign true
           git switch -c "${branch}"
-          git commit -m "Address #${ISSUE_NUMBER}: ${issue_title}"
+          git commit -S -m "Address #${ISSUE_NUMBER}: ${issue_title}"
+          git verify-commit HEAD
           gh auth setup-git
+          push_attempted='true'
           git push --set-upstream origin "${branch}"
+
+          verified='false'
+          for attempt in {1..6}; do
+            echo "Signature verification attempt ${attempt}."
+            verified="$(gh api "repos/${GITHUB_REPOSITORY}/commits/$(git rev-parse HEAD)" --jq '.commit.verification.verified')"
+            [[ "${verified}" == 'true' ]] && break
+            sleep 5
+          done
+          if [[ "${verified}" != 'true' ]]; then
+            echo 'GitHub did not verify the automation signature; the branch will be removed without opening a pull request.' >&2
+            exit 1
+          fi
 
           pull_request_url="$(gh pr create \
             --repo "${GITHUB_REPOSITORY}" \
@@ -257,12 +363,13 @@ jobs:
 
   failure-state:
     name: Record safe stop
-    if: ${{ always() && needs.authorize.result == 'success' && (needs.implement.result == 'failure' || needs.publish.result == 'failure') }}
+    if: ${{ always() && needs.authorize.result == 'success' && (needs.implement.result != 'success' || needs.publish.result != 'success') }}
     needs: [authorize, implement, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       issues: write
+      pull-requests: read
     steps:
       - name: Mark issue blocked
         env:
@@ -271,10 +378,22 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
+          branch="codex/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          pull_request_url="$(gh pr list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --head "${branch}" \
+            --state all \
+            --json url \
+            --jq '.[0].url // empty')"
           gh issue edit "${ISSUE_NUMBER}" \
             --repo "${GITHUB_REPOSITORY}" \
             --remove-label 'codex: working' \
             --add-label 'codex: blocked'
+          if [[ -n "${pull_request_url}" ]]; then
+            message="Codex stopped safely after preserving a draft pull request: ${pull_request_url}. Review it and the workflow run before continuing: ${RUN_URL}"
+          else
+            message="Codex stopped safely without a surviving pull request. Review the run, adjust the issue if needed, then reapply \`codex: ready\`: ${RUN_URL}"
+          fi
           gh issue comment "${ISSUE_NUMBER}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --body "Codex stopped safely before opening a pull request. Review the run, adjust the issue if needed, then reapply \`codex: ready\`: ${RUN_URL}"
+            --body "${message}"

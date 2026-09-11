@@ -1,0 +1,12 @@
+{
+  "name": "example/plugin",
+  "require": {
+    "vendor/runtime": "1.0.0"
+  },
+  "require-dev": {
+    "vendor/tester": "2.3.4"
+  },
+  "scripts": {
+    "test": "phpunit"
+  }
+}

@@ -6,6 +6,10 @@ Every maintained plugin should be easy to understand, safe to change, cheap to
 validate, and routine to release. Automation removes repetition; it does not
 remove independent review from risky work.
 
+The fleet-wide definition of autonomous, mechanically safe work lives in
+[`autonomy-policy.md`](autonomy-policy.md). Repository risk classes add test and
+review requirements; they do not override its fail-closed home-run rubric.
+
 ## Maintenance classes
 
 ### Standard
@@ -17,14 +21,17 @@ may use auto-merge after every required check passes.
 ### Elevated
 
 Plugins that manage users, media, taxonomy relationships, or cross-plugin
-integration. AI changes remain draft pull requests until a maintainer approves
-them. Release deployment requires protected-environment approval.
+integration. Runtime, data-sensitive, compatibility, and integration changes
+require maintainer approval. Proven home-run maintenance may follow the central
+autonomy policy.
 
 ### Critical
 
 Database, cache, multisite-network, authentication, authorization, migration,
 and recovery code. Require focused integration coverage, explicit compatibility
-review, and maintainer approval for implementation and release.
+review, and maintainer approval for semantic implementation and release.
+Mechanically proven home-run maintenance may follow the central policy without
+weakening those requirements.
 
 ## Repository baseline
 
@@ -68,8 +75,11 @@ issue. The workflow must:
 - reject changes to automation, release, security, ownership, and agent-policy
   files;
 - enforce bounded changed-file and diff-size limits;
-- run deterministic validation before publishing;
-- create a draft `codex/issue-*` pull request;
+- enforce deterministic path, size, binary, and patch-integrity boundaries
+  before publishing;
+- create and locally verify a signed commit;
+- require GitHub to report that signature as verified before preserving the
+  branch or opening a draft `codex/issue-*` pull request;
 - never approve, merge, tag, or deploy its own output.
 
 `risk: high` and `risk: critical` issues are excluded from unattended
@@ -78,21 +88,30 @@ draft design notes.
 
 ## Merge policy
 
-Auto-merge means a reviewed pull request is queued until all protections pass.
-It is not permission to bypass review.
+Auto-merge means an eligible pull request is queued until all protections pass.
+It is not permission to bypass review or to substitute author identity for the
+evidence required by the home-run rubric.
 
 - Dependabot patch updates may auto-merge when dependency policy and the full
   validation matrix pass.
-- Low-risk mechanical changes may auto-merge after explicit maintainer approval.
-- AI-authored production changes require maintainer approval during the initial
-  rollout, regardless of risk label.
-- Elevated and critical changes always require maintainer approval.
+- Preauthorized mechanical changes may auto-merge only when every item in the
+  home-run rubric is mechanically proven.
+- Elevated and critical runtime, data-sensitive, security, compatibility, and
+  infrastructure changes always require maintainer approval.
+
+Before enabling the Codex issue caller, configure `FLEET_SIGNING_KEY`,
+`FLEET_SIGNING_PUBLIC_KEY`, and `FLEET_SIGNING_EMAIL` as secrets available to the
+caller. Use a dedicated SSH signing key registered with GitHub. The publishing
+job receives these values only after the credential-free implementation job has
+produced an inert patch artifact.
 
 ## Release policy
 
 Releases begin from an exact commit after required checks pass. The release job
 must validate versions, build the production artifact, and publish its checksum
-before entering a protected `wordpress.org` environment.
+before entering a protected `wordpress.org` environment. Per-release approval is
+the default and remains mandatory until centrally reviewed policy explicitly
+enables an autonomous release class for that repository.
 
 Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` only as secrets on
 that environment. Managed callers do not pass publication credentials into the
