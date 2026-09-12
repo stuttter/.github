@@ -60,6 +60,26 @@ test('apply creates deterministic files and becomes clean', () => {
   }
 });
 
+test('Dependabot follows every package manifest present in a repository', () => {
+  for (const [manifests, expected, unexpected = []] of [
+    [[], ['github-actions'], ['composer', 'npm']],
+    [['composer.json'], ['github-actions', 'composer'], ['npm']],
+    [['package.json'], ['github-actions', 'npm'], ['composer']],
+    [['composer.json', 'package.json'], ['github-actions', 'composer', 'npm']],
+  ]) {
+    const { root, cleanup } = fixture();
+    try {
+      for (const manifest of manifests) writeFileSync(join(root, manifest), '{}\n');
+      synchronize({ root, target, policyRef, mode: 'apply' });
+      const dependabot = readFileSync(join(root, '.github/dependabot.yml'), 'utf8');
+      for (const ecosystem of expected) assert.match(dependabot, new RegExp(`package-ecosystem: ${ecosystem}`));
+      for (const ecosystem of unexpected) assert.doesNotMatch(dependabot, new RegExp(`package-ecosystem: ${ecosystem}`));
+    } finally {
+      cleanup();
+    }
+  }
+});
+
 test('rendered workflow branch values remain strings for YAML boolean words', () => {
   const { root, cleanup } = fixture();
   try {
