@@ -105,8 +105,8 @@
     },
     {
       "repository": "stuttter/wp-reset-filters",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "manifest": {
         "slug": "wp-reset-filters",
         "main_file": "wp-reset-filters.php",
