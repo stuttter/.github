@@ -125,13 +125,11 @@ selected-repository visibility. Their allowlist must exactly match the enabled,
 release-managed WordPress.org repositories in `portfolio/plugins.json`. Managed
 callers explicitly map these two organization secrets to the distinct reusable
 workflow inputs `STUTTTER_WORDPRESS_ORG_USERNAME` and
-`STUTTTER_WORDPRESS_ORG_PASSWORD`. This keeps legacy environment secrets named
-`WORDPRESS_ORG_USERNAME` or `WORDPRESS_ORG_PASSWORD` from shadowing the callee
-inputs inside the protected publish job. A repository secret with either
-canonical name would still override the organization secret while the caller is
-evaluated, so provisioning fails closed when either repository copy exists.
-Environment secrets using either `STUTTTER_WORDPRESS_ORG_*` input name are also
-forbidden because they would shadow the mapped secret inside the publish job.
+`STUTTTER_WORDPRESS_ORG_PASSWORD`. Repository and environment credential copies
+are forbidden. A repository secret with either canonical name would override
+the organization secret while the caller is evaluated, while an environment
+secret using either `STUTTTER_WORDPRESS_ORG_*` input name would shadow the mapped
+secret inside the publish job. Provisioning fails closed for either case.
 Callers must not use `secrets: inherit`. An
 organization secret is available to workflows in every selected repository, so
 the environment is not a repository-wide secret-access boundary. The immutable
@@ -141,21 +139,15 @@ managed caller and all workflow files from unreviewed changes.
 
 Create the environment in GitHub first, require JJJ's review, disable
 administrator bypass, and restrict deployment to the inventory's exact release
-branch. Repository copies of `WORDPRESS_ORG_USERNAME` or
-`WORDPRESS_ORG_PASSWORD` override the organization value and must be removed
-before audit or apply can succeed. Canonically named environment copies no
-longer shadow the distinct reusable-workflow inputs; audit and apply report and
-preserve those copies until the staged canary below proves the organization
-values. Then use
+branch. Keep WordPress.org credentials only at organization scope. Repository
+or environment copies must be removed before audit or apply can succeed. Then use
 `scripts/provision-release-environments.mjs` to audit or rotate credentials
 without copying values into files or command arguments. The script
 selects only enabled WordPress.org release targets from the validated inventory,
 rejects forks, archives, owner drift, branch drift, administrator bypass,
-incomplete API results, unexpected deployment policies, repository credential
-copies, and environment secrets using the reusable-workflow input names. It
-reports and preserves canonical environment credential copies. The provisioner
-also preserves stronger wait, self-review, and reviewer protections already
-present.
+incomplete API results, unexpected deployment policies, and any repository or
+environment credential copies. The provisioner also preserves stronger wait,
+self-review, and reviewer protections already present.
 
 Supply `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` through a trusted
 secret provider such as `op run`. GitHub CLI must target `github.com` and have
@@ -171,29 +163,19 @@ before the first write, sets both organization secrets with selected-repository
 visibility through standard input, and verifies their names and exact scope.
 This metadata verification cannot prove either credential value. Apply reports
 each environment it prepared and every confirmed mutation, including work
-completed before a later failure. Its `cleanup_required` result keeps permitted
-legacy environment copies visible; apply never deletes those copies. Run
+completed before a later failure. It never deletes secrets. Run
 `npm run release:provision -- --help` for the compact operator reminder.
 
-GitHub does not provide an atomic multi-secret or multi-repository update. If an
-apply fails after writing begins, existing narrower copies remain in place. The
+GitHub does not provide an atomic multi-secret or multi-repository update. The
 structured report identifies prepared targets, confirmed changes, the failure,
 and pending repositories. Rerun the same apply to converge; secret values are
 never returned.
 
 There is no trustworthy read-only authentication probe for the WordPress.org
 Subversion credentials: repository reads and HTTP capability requests are
-public and do not validate the supplied username or password. Cleanup is a
-separate future or manual phase. First choose an approved repository without a
-canonical repository copy or a conflicting environment alias and complete a
-normal protected release started after the organization secrets were last
-updated. The `Publish one atomic WordPress.org changeset` step must actually run
-and succeed; a skipped or reconciliation-only run is not proof. Only after that
-can a separately reviewed cleanup remove remaining canonical environment
-copies, rechecking both organization-secret allowlists immediately before each
-removal. This provisioner has no cleanup mode and issues no secret deletion
-requests. Until this proof exists, leave every permitted environment fallback
-copy intact.
+public and do not validate the supplied username or password. A normal protected
+release therefore provides the first real credential test. A wrong value fails
+the release; it does not justify a narrower fallback copy.
 
 ## Adding a plugin
 
