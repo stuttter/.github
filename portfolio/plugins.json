@@ -102,6 +102,23 @@
         "release_branch": "master",
         "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
+    },
+    {
+      "repository": "stuttter/wp-reset-filters",
+      "enabled": false,
+      "managed_paths": [],
+      "manifest": {
+        "slug": "wp-reset-filters",
+        "main_file": "wp-reset-filters.php",
+        "risk": "standard",
+        "minimum_php": "5.2",
+        "minimum_wordpress": "4.3",
+        "tested_wordpress": "4.4",
+        "wordpress_org": true,
+        "multisite": false,
+        "release_branch": "master",
+        "php_matrix": ["5.2"]
+      }
     }
   ]
 }
