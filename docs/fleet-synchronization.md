@@ -117,6 +117,35 @@ the templates, synchronizer, reusable workflows, inventories, signing policy,
 or environment configuration belong in focused pull requests in this repository
 before they can propagate to plugin repositories.
 
+## Release environments
+
+WordPress.org credentials remain environment secrets in each release-enabled
+repository. They are never passed through a reusable-workflow caller or stored
+as broader repository or organization secrets. The publish job cannot read them
+until the fixed `wordpress.org` environment gate passes.
+
+Create the environment in GitHub first, require JJJ's review, disable
+administrator bypass, and restrict deployment to the inventory's exact release
+branch. Then use `scripts/provision-release-environments.mjs` to audit or rotate
+credentials without copying values into files or command arguments. The script
+selects only enabled WordPress.org release targets from the validated inventory,
+rejects forks, archives, owner drift, branch drift, administrator bypass,
+incomplete API results, and unexpected deployment policies, and preserves any
+stronger wait, self-review, or reviewer protections already present.
+
+Supply `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` through a trusted
+secret provider such as `op run`. Run `npm run release:provision -- audit all`
+first; audit mode never writes. Apply mode inspects every selected repository
+before the first write, requires both credentials, and sends each value to
+GitHub CLI only through standard input. Invoke it as
+`npm run release:provision -- apply owner/repository` or replace the repository
+with `all`. Keep any 1Password environment template outside the repository.
+
+GitHub does not provide an atomic multi-secret or multi-repository update. If an
+apply fails after writing begins, the structured report identifies completed,
+failed, and pending repositories. Rerun the same apply to converge and verify
+both secret names; values are never returned.
+
 ## Adding a plugin
 
 Inspect the plugin first. Preserve its actual minimum versions, release branch,
