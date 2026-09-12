@@ -11,6 +11,7 @@ const environmentName = 'wordpress.org';
 const reviewerLogin = 'JJJ';
 const secretNames = ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'];
 const reusableWorkflowSecretNames = ['STUTTTER_WORDPRESS_ORG_USERNAME', 'STUTTTER_WORDPRESS_ORG_PASSWORD'];
+const credentialSecretNames = [...secretNames, ...reusableWorkflowSecretNames];
 const apiHeaders = ['-H', 'Accept: application/vnd.github+json', '-H', 'X-GitHub-Api-Version: 2026-03-10'];
 export const provisionUsage = `Usage:
   npm run release:provision -- audit [all|owner/repository]
@@ -268,11 +269,14 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
     `${repository} repository secrets`,
   ).map((secret) => secret.name);
   const credentialCopies = {
-    repository: repositorySecrets.filter((name) => secretNames.includes(name)),
-    environment: environmentSecrets.filter((name) => secretNames.includes(name)),
+    repository: repositorySecrets.filter((name) => credentialSecretNames.includes(name)),
+    environment: environmentSecrets.filter((name) => credentialSecretNames.includes(name)),
   };
   if (credentialCopies.repository.length > 0) {
     errors.push(`${repository} has repository credential copies that shadow the organization secrets.`);
+  }
+  if (credentialCopies.environment.length > 0) {
+    errors.push(`${repository} has ${environmentName} credential copies; WordPress.org credentials must be organization-only.`);
   }
 
   const desired = current && validProtectionMetadata

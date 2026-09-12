@@ -113,19 +113,16 @@ before entering a protected `wordpress.org` environment. Per-release approval is
 the default and remains mandatory until centrally reviewed policy explicitly
 enables an autonomous release class for that repository.
 
-Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` as Stuttter
+Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` only as Stuttter
 organization Actions secrets with selected-repository visibility restricted to
 the centrally approved release-managed repositories. Do not create repository
-copies: they override organization secrets while the caller is evaluated.
-Legacy `wordpress.org` environment copies using the canonical names may remain
-only through the staged canary because the distinct callee inputs bypass them.
-Never create environment secrets named `STUTTTER_WORDPRESS_ORG_USERNAME` or
-`STUTTTER_WORDPRESS_ORG_PASSWORD`; those aliases would shadow the mapped inputs
+or environment copies. Repository copies override organization secrets while
+the caller is evaluated, and environment aliases can override mapped inputs
 inside the publish job. Managed callers explicitly map the canonical names to
 the immutable reusable workflow's distinct `STUTTTER_WORDPRESS_ORG_USERNAME` and
 `STUTTTER_WORDPRESS_ORG_PASSWORD` inputs and never use `secrets: inherit`. The
-different callee names prevent legacy environment copies using the canonical
-organization-secret names from shadowing the reusable-workflow inputs.
+different callee names keep the organization credential handoff distinct from
+the publish step's conventional shell variable names.
 Organization secrets are repository-accessible; the protected
 environment gates the central publish job rather than access by every workflow
 in the repository. Protect all workflow files accordingly, and never reference

@@ -308,7 +308,7 @@ test('inspection rejects a seventh required reviewer before mutation', () => {
   assert.equal(full.calls.some((call) => call.args.includes('PUT') || call.args[0] === 'secret'), false);
 });
 
-test('inspection reports environment copies and rejects repository copies', () => {
+test('inspection rejects repository and environment credential copies', () => {
   const duplicate = readExecutor({
     environmentSecrets: ['WORDPRESS_ORG_PASSWORD'],
     repositorySecrets: ['WORDPRESS_ORG_USERNAME', 'UNRELATED_SECRET'],
@@ -319,6 +319,14 @@ test('inspection reports environment copies and rejects repository copies', () =
     environment: ['WORDPRESS_ORG_PASSWORD'],
   });
   assert.match(inspection.errors.join(' '), /repository credential copies that shadow the organization secrets/i);
+  assert.match(inspection.errors.join(' '), /credentials must be organization-only/i);
+  const repositoryAlias = inspectReleaseEnvironment({
+    target,
+    reviewerId: 88951,
+    execute: readExecutor({ repositorySecrets: ['STUTTTER_WORDPRESS_ORG_PASSWORD'] }).execute,
+  });
+  assert.deepEqual(repositoryAlias.credential_copies.repository, ['STUTTTER_WORDPRESS_ORG_PASSWORD']);
+  assert.match(repositoryAlias.errors.join(' '), /repository credential copies/i);
 });
 
 test('organization credential audit requires both secrets and the exact repository allowlist', () => {
@@ -364,10 +372,11 @@ test('release-environment apply only creates a missing exact branch policy', () 
   assert.deepEqual(JSON.parse(writes[0].input), { name: 'master' });
 });
 
-test('fleet audit reports and permits a canonical environment credential copy', () => {
+test('fleet audit rejects a canonical environment credential copy without writing', () => {
   const duplicate = readExecutor({ environmentSecrets: ['WORDPRESS_ORG_PASSWORD'] });
   const report = provisionFleet({ targets: [target], reviewerId: 88951, apply: false, execute: duplicate.execute });
-  assert.equal(report.failed, null);
+  assert.equal(report.failed.repository, target.repository);
+  assert.match(report.failed.reason, /audit found unsafe configuration/i);
   assert.deepEqual(report.cleanup_required, [{
     repository: target.repository,
     credential_copies: { repository: [], environment: ['WORDPRESS_ORG_PASSWORD'] },
@@ -375,10 +384,12 @@ test('fleet audit reports and permits a canonical environment credential copy', 
   assert.equal(duplicate.calls.some((call) => call.args.includes('DELETE') || call.args[0] === 'secret'), false);
 });
 
-test('fleet rejects repository credential copies and environment aliases before mutation', () => {
+test('fleet rejects all narrower credential copies and environment aliases before mutation', () => {
   for (const apply of [false, true]) {
     for (const candidate of [
       readExecutor({ repositorySecrets: ['WORDPRESS_ORG_USERNAME'] }),
+      readExecutor({ repositorySecrets: ['STUTTTER_WORDPRESS_ORG_PASSWORD'] }),
+      readExecutor({ environmentSecrets: ['WORDPRESS_ORG_PASSWORD'] }),
       readExecutor({ environmentSecrets: ['STUTTTER_WORDPRESS_ORG_USERNAME'] }),
     ]) {
       const report = provisionFleet({
@@ -468,10 +479,10 @@ test('fleet verifies release protections before exposing organization credential
   assert.equal(writes.some(({ args }) => args[0] === 'secret'), false);
 });
 
-test('fleet apply verifies organization scope and preserves canonical environment copies', () => {
+test('fleet apply verifies organization scope with no narrower credential copies', () => {
   const calls = [];
   let organizationConfigured = false;
-  let environmentSecrets = ['WORDPRESS_ORG_PASSWORD'];
+  let environmentSecrets = [];
   let repositorySecrets = [];
   const execute = (args, input) => {
     calls.push({ args, input });
@@ -503,19 +514,10 @@ test('fleet apply verifies organization scope and preserves canonical environmen
   assert.equal(report.failed, null);
   assert.deepEqual(report.applied.map((result) => result.repository), [target.repository]);
   assert.deepEqual(report.prepared.map((result) => result.repository), [target.repository]);
-  assert.deepEqual(report.applied[0].credential_copies_preserved, {
-    repository: [],
-    environment: ['WORDPRESS_ORG_PASSWORD'],
-  });
-  assert.deepEqual(report.cleanup_required, [{
-    repository: target.repository,
-    credential_copies: {
-      repository: [],
-      environment: ['WORDPRESS_ORG_PASSWORD'],
-    },
-  }]);
+  assert.deepEqual(report.applied[0].credential_copies_preserved, { repository: [], environment: [] });
+  assert.deepEqual(report.cleanup_required, []);
   assert.equal(calls.some(({ args }) => args.includes('DELETE')), false);
-  assert.equal(environmentSecrets.length, 1);
+  assert.equal(environmentSecrets.length, 0);
   assert.equal(repositorySecrets.length, 0);
 });
 
@@ -563,11 +565,11 @@ test('fleet reports prepared environment changes before a later organization fai
   assert.match(report.failed.reason, /\[REDACTED\]/);
 });
 
-test('fleet failure redacts argument credentials and leaves copies when organization setup fails', () => {
-  const duplicate = readExecutor({ environmentSecrets: ['WORDPRESS_ORG_PASSWORD'] });
+test('fleet failure redacts argument credentials when organization setup fails', () => {
+  const clean = readExecutor();
   const execute = (args, input) => {
     if (args[0] === 'secret' && args.includes('WORDPRESS_ORG_PASSWORD')) throw new Error(`executor echoed ${input}`);
-    return duplicate.execute(args, input);
+    return clean.execute(args, input);
   };
   const report = provisionFleet({
     targets: [target],
@@ -579,7 +581,7 @@ test('fleet failure redacts argument credentials and leaves copies when organiza
   });
   assert.equal(report.failed.reason.includes('argument-user'), false);
   assert.match(report.failed.reason, /\[REDACTED\]/);
-  assert.equal(duplicate.calls.some((call) => call.args.includes('DELETE')), false);
+  assert.equal(clean.calls.some((call) => call.args.includes('DELETE')), false);
   assert.deepEqual(report.prepared.map((result) => result.repository), [target.repository]);
   assert.deepEqual(report.changed, [{ scope: 'organization', name: 'WORDPRESS_ORG_USERNAME', action: 'set' }]);
 });
