@@ -21,6 +21,13 @@ on:
         required: false
         type: string
         default: wordpress.org
+    secrets:
+      WORDPRESS_ORG_USERNAME:
+        description: WordPress.org account name authorized to publish the plugin.
+        required: true
+      WORDPRESS_ORG_PASSWORD:
+        description: WordPress.org application password for Subversion publishing.
+        required: true
 concurrency:
   group: wordpress-plugin-release-${{ github.repository }}
   cancel-in-progress: false

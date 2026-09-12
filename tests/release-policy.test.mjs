@@ -22,7 +22,12 @@ test('release inputs enforce canonical SemVer and WordPress.org eligibility', ()
   assert.equal((workflow.match(/test "\$\{actual_wordpress_org\}" = 'true'/g) || []).length, 2);
 });
 
-test('WordPress.org credentials are not part of the caller interface', () => {
+test('WordPress.org credentials are explicit required caller secrets', () => {
   const interfaceBlock = workflow.slice(0, workflow.indexOf('\nconcurrency:'));
-  assert.doesNotMatch(interfaceBlock, /WORDPRESS_ORG_(?:USERNAME|PASSWORD)/);
+  const secretsBlock = interfaceBlock.slice(interfaceBlock.indexOf('    secrets:'));
+  const secretNames = [...secretsBlock.matchAll(/^      ([A-Z0-9_]+):$/gm)].map((match) => match[1]);
+  assert.deepEqual(secretNames, ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD']);
+  assert.match(interfaceBlock, /^      WORDPRESS_ORG_USERNAME:$/m);
+  assert.match(interfaceBlock, /^      WORDPRESS_ORG_PASSWORD:$/m);
+  assert.equal((interfaceBlock.match(/^        required: true$/gm) || []).length, 4);
 });

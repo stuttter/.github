@@ -113,9 +113,18 @@ before entering a protected `wordpress.org` environment. Per-release approval is
 the default and remains mandatory until centrally reviewed policy explicitly
 enables an autonomous release class for that repository.
 
-Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` only as secrets on
-that environment. Managed callers do not pass publication credentials into the
-reusable workflow, and preflight jobs cannot read them.
+Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` as organization
+Actions secrets with access limited to the inventory's release-enabled
+repositories. Managed callers pass exactly those two secrets into the reusable
+workflow; broad secret inheritance is not allowed. Do not duplicate the same
+names as environment secrets, because environment secrets override passed
+secrets in a reusable workflow.
+
+Each release-enabled repository must also have a protected `wordpress.org`
+environment. That environment supplies the deployment approval and protected
+branch gate, while the centrally managed organization secrets remain the single
+credential source. The preflight job does not reference publication credentials,
+and the publish job cannot start before the environment gate passes.
 
 After approval it may create the Git tag and GitHub release, update WordPress.org
 trunk and the matching Subversion tag, then download the generated public ZIP
