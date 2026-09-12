@@ -9,13 +9,13 @@
         "slug": "wp-user-groups",
         "main_file": "wp-user-groups.php",
         "risk": "elevated",
-        "minimum_php": "7.2",
+        "minimum_php": "7.4",
         "minimum_wordpress": "5.2",
         "tested_wordpress": "7.1",
         "wordpress_org": true,
         "multisite": true,
         "release_branch": "master",
-        "php_matrix": ["7.2", "7.4", "8.0", "8.2", "8.4"]
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
     },
     {
@@ -43,13 +43,13 @@
         "slug": "wp-media-categories",
         "main_file": "wp-media-categories.php",
         "risk": "elevated",
-        "minimum_php": "7.0",
+        "minimum_php": "7.4",
         "minimum_wordpress": "5.0",
         "tested_wordpress": "5.4",
         "wordpress_org": true,
         "multisite": false,
         "release_branch": "master",
-        "php_matrix": ["7.0", "7.2", "7.4", "8.0", "8.2", "8.4"]
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
     },
     {
