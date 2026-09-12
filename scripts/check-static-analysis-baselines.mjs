@@ -1,0 +1,596 @@
+#!/usr/bin/env node
+
+import { execFileSync } from 'node:child_process';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const BASELINE_FILES = Object.freeze({
+  'phpcs-baseline.json': parsePhpcsBaseline,
+  'phpstan-baseline.neon': parsePhpstanBaseline,
+});
+
+const ANALYZER_CONTRACTS = Object.freeze({
+  'phpcs-baseline.json': Object.freeze({
+    script: 'phpcs',
+    configurations: Object.freeze([
+      '.phpcs.xml',
+      '.phpcs.xml.dist',
+      'phpcs.xml',
+      'phpcs.xml.dist',
+    ]),
+  }),
+  'phpstan-baseline.neon': Object.freeze({
+    script: 'phpstan',
+    configurations: Object.freeze([
+      'phpstan.neon',
+      'phpstan.neon.dist',
+    ]),
+  }),
+});
+
+function parseCount(value, context) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${context} must be a non-negative integer.`);
+  }
+
+  return value;
+}
+
+function parseNeonStringScalar(value, context, requireQuoted = false) {
+  const scalar = value.trim();
+  if (scalar === '') {
+    throw new Error(`${context} must be a non-empty string scalar.`);
+  }
+
+  if (scalar.startsWith("'")) {
+    if (!/^'(?:[^']|'')*'$/u.test(scalar)) {
+      throw new Error(`${context} has an invalid single-quoted string scalar.`);
+    }
+    const decoded = scalar.slice(1, -1).replaceAll("''", "'");
+    if (decoded === '') throw new Error(`${context} must be a non-empty string scalar.`);
+    return decoded;
+  }
+
+  if (scalar.startsWith('"')) {
+    try {
+      const decoded = JSON.parse(scalar);
+      if (typeof decoded !== 'string' || decoded === '') throw new Error('empty string');
+      return decoded;
+    } catch {
+      throw new Error(`${context} has an invalid double-quoted string scalar.`);
+    }
+  }
+
+  if (requireQuoted) {
+    throw new Error(`${context} must use a quoted string scalar.`);
+  }
+
+  if (!/^[A-Za-z0-9_./%:+*?-]+$/u.test(scalar)
+    || /^(?:true|false|yes|no|on|off|null|~)$/iu.test(scalar)
+    || /^[+-]?(?:\d+\.?\d*|\.\d+)$/u.test(scalar)) {
+    throw new Error(`${context} must be a plain or quoted string scalar.`);
+  }
+
+  return scalar;
+}
+
+export function parsePhpcsBaseline(source, label = 'phpcs-baseline.json') {
+  let decoded;
+
+  try {
+    decoded = JSON.parse(source);
+  } catch (error) {
+    throw new Error(`${label} is not valid JSON: ${error.message}`);
+  }
+
+  if (decoded === null || Array.isArray(decoded) || typeof decoded !== 'object') {
+    throw new Error(`${label} must contain an object of allowance keys and counts.`);
+  }
+
+  const allowances = new Map();
+  for (const [key, count] of Object.entries(decoded)) {
+    allowances.set(key, parseCount(count, `${label}: ${key}`));
+  }
+
+  return allowances;
+}
+
+function indentation(line) {
+  const prefix = line.match(/^[\t ]*/u)[0];
+  return [...prefix].reduce((width, character) => width + (character === '\t' ? 2 : 1), 0);
+}
+
+function canonicalPhpstanEntry(lines, label, index) {
+  const properties = new Map();
+  const seen = new Set();
+  let count = null;
+
+  for (const line of lines) {
+    const match = line.trim().match(/^([A-Za-z][A-Za-z0-9_]*):\s*(.+)$/u);
+    if (!match) {
+      throw new Error(`${label}: ignoreErrors entry ${index} uses an unsupported multiline value.`);
+    }
+
+    const [, name, value] = match;
+    if (seen.has(name)) {
+      throw new Error(`${label}: ignoreErrors entry ${index} repeats ${name}.`);
+    }
+    seen.add(name);
+
+    if (!['message', 'identifier', 'count', 'path'].includes(name)) {
+      throw new Error(`${label}: ignoreErrors entry ${index} uses unsupported property ${name}.`);
+    }
+
+    if (name === 'count') {
+      if (!/^[1-9][0-9]*$/u.test(value)) {
+        throw new Error(`${label}: ignoreErrors entry ${index} must have a positive count.`);
+      }
+      count = parseCount(Number(value), `${label}: ignoreErrors entry ${index} count`);
+      continue;
+    }
+
+    const context = `${label}: ignoreErrors entry ${index} ${name}`;
+    properties.set(name, parseNeonStringScalar(value, context, name === 'message'));
+  }
+
+  if (!properties.has('message') || !properties.has('path')) {
+    throw new Error(`${label}: ignoreErrors entry ${index} must have a message and path.`);
+  }
+
+  if (count === null) {
+    throw new Error(`${label}: ignoreErrors entry ${index} must have an explicit positive count.`);
+  }
+
+  const key = [...properties.entries()]
+    .sort(([left], [right]) => left.localeCompare(right));
+
+  return [JSON.stringify(key), count];
+}
+
+export function parsePhpstanBaseline(source, label = 'phpstan-baseline.neon') {
+  if (source.includes('\r')) {
+    throw new Error(`${label} must use LF line endings.`);
+  }
+
+  const lines = source.split('\n')
+    .map((line, index) => ({
+      indent: indentation(line),
+      number: index + 1,
+      text: line.trim(),
+    }))
+    .filter((line) => line.text !== '' && !line.text.startsWith('#'));
+
+  if (lines.length === 0 || lines[0].indent !== 0 || lines[0].text !== 'parameters:') {
+    throw new Error(`${label} must begin with a canonical parameters block.`);
+  }
+
+  const marker = lines[1];
+  if (!marker || marker.indent <= lines[0].indent || marker.text !== 'ignoreErrors:') {
+    throw new Error(`${label} must contain one canonical parameters.ignoreErrors block.`);
+  }
+
+  const entries = [];
+  let entryIndent = null;
+  let propertyIndent = null;
+  let current = [];
+
+  for (const line of lines.slice(2)) {
+    if (line.indent <= marker.indent) {
+      throw new Error(`${label}: unsupported content outside parameters.ignoreErrors at line ${line.number}.`);
+    }
+
+    if (propertyIndent !== null && line.indent > propertyIndent) {
+      throw new Error(`${label}: unsupported multiline value at line ${line.number}.`);
+    }
+
+    if (line.text === '-') {
+      if (entryIndent === null) {
+        entryIndent = line.indent;
+      } else if (line.indent !== entryIndent) {
+        throw new Error(`${label}: inconsistent list indentation at line ${line.number}.`);
+      } else if (current.length === 0) {
+        throw new Error(`${label}: empty ignoreErrors entry before line ${line.number}.`);
+      }
+
+      if (current.length > 0) {
+        entries.push(current);
+      }
+      current = [];
+      propertyIndent = null;
+      continue;
+    }
+
+    if (line.text.startsWith('-')) {
+      throw new Error(`${label}: inline ignoreErrors entries are not permitted at line ${line.number}.`);
+    }
+
+    if (entryIndent === null || line.indent <= entryIndent) {
+      throw new Error(`${label}: ignoreErrors contains content outside a canonical list entry at line ${line.number}.`);
+    }
+
+    if (propertyIndent === null) {
+      propertyIndent = line.indent;
+    } else if (line.indent !== propertyIndent) {
+      throw new Error(`${label}: unsupported multiline value at line ${line.number}.`);
+    }
+
+    current.push(line.text);
+  }
+
+  if (entryIndent !== null) {
+    if (current.length === 0) {
+      throw new Error(`${label}: final ignoreErrors entry is empty.`);
+    }
+    entries.push(current);
+  }
+
+  if (entries.length === 0) {
+    throw new Error(`${label} must contain at least one counted ignoreErrors entry.`);
+  }
+
+  const allowances = new Map();
+  entries.forEach((entry, index) => {
+    const [key, count] = canonicalPhpstanEntry(entry, label, index + 1);
+    if (allowances.has(key)) {
+      throw new Error(`${label}: ignoreErrors entries ${index + 1} and an earlier entry are identical.`);
+    }
+    allowances.set(key, count);
+  });
+
+  return allowances;
+}
+
+export function compareAllowances(base, head, label) {
+  if (label.includes('phpstan-baseline.neon')) {
+    return comparePhpstanAllowances(base, head, label);
+  }
+
+  const increases = [];
+
+  for (const [key, count] of head) {
+    if (!base.has(key)) {
+      increases.push(`${label}: ${key} is a new allowance key with count ${count}.`);
+      continue;
+    }
+    const previous = base.get(key);
+    if (count > previous) {
+      increases.push(`${label}: ${key} increased from ${previous} to ${count}.`);
+    }
+  }
+
+  return increases;
+}
+
+function literalPrefixPattern(pattern) {
+  if (!pattern.startsWith('#^') || !pattern.endsWith('#')) return null;
+
+  let body = pattern.slice(2, -1);
+  let kind = 'prefix';
+  const finalDollar = body.endsWith('$') && (body.match(/\\+\$$/u)?.[0].length ?? 1) % 2 === 1;
+  if (finalDollar) {
+    kind = 'exact';
+    body = body.slice(0, -1);
+  }
+  if (body.endsWith('.*')) {
+    if (!finalDollar) return null;
+    kind = 'wildcard';
+    body = body.slice(0, -2);
+  }
+
+  let literal = '';
+  const metacharacters = new Set(['\\', '#', '.', '*', '+', '?', '[', ']', '(', ')', '{', '}', '|', '^', '$']);
+  for (let index = 0; index < body.length; index += 1) {
+    const character = body[index];
+    if (character === '\\') {
+      const escaped = body[index + 1];
+      if (escaped === undefined || /^[A-Za-z0-9]$/u.test(escaped)) return null;
+      literal += escaped;
+      index += 1;
+    } else {
+      if (metacharacters.has(character)) return null;
+      literal += character;
+    }
+  }
+
+  return { kind, literal };
+}
+
+function phpstanProperties(key) {
+  try {
+    return Object.fromEntries(JSON.parse(key));
+  } catch {
+    return null;
+  }
+}
+
+function isProvablyNarrowerPhpstanEntry(baseKey, headKey) {
+  const base = phpstanProperties(baseKey);
+  const head = phpstanProperties(headKey);
+  if (!base || !head || base.path !== head.path) return false;
+  if (base.identifier !== head.identifier && !(base.identifier === undefined && head.identifier !== undefined)) return false;
+
+  const baseMessage = literalPrefixPattern(base.message);
+  const headMessage = literalPrefixPattern(head.message);
+  if (!baseMessage || !headMessage) return false;
+  if (!headMessage.literal.startsWith(baseMessage.literal)) return false;
+  if (baseMessage.kind === 'exact') return baseMessage.literal === headMessage.literal && headMessage.kind === 'exact';
+  if (baseMessage.kind === 'wildcard') return headMessage.kind !== 'prefix';
+  return true;
+}
+
+function comparePhpstanAllowances(base, head, label) {
+  const failures = [];
+  const remaining = new Map(base);
+  const exact = [...head].filter(([key]) => base.has(key));
+  const narrowed = [...head].filter(([key]) => !base.has(key)).sort((left, right) => right[1] - left[1]);
+
+  for (const [key, count] of exact) {
+    const previous = remaining.get(key);
+    if (count > previous) {
+      failures.push(`${label}: ${key} increased from ${previous} to ${count}.`);
+    } else {
+      remaining.set(key, previous - count);
+    }
+  }
+
+  for (const [headKey, count] of narrowed) {
+    const candidates = [...remaining].filter(([baseKey, available]) => (
+      available >= count && isProvablyNarrowerPhpstanEntry(baseKey, headKey)
+    ));
+    if (candidates.length !== 1) {
+      const reason = candidates.length === 0 ? 'new or not provably narrower' : 'ambiguous between multiple base allowances';
+      failures.push(`${label}: ${headKey} is ${reason} with capacity for count ${count}.`);
+      continue;
+    }
+    const [candidate] = candidates;
+    remaining.set(candidate[0], candidate[1] - count);
+  }
+
+  return failures;
+}
+
+function readAtRevision(revision, path) {
+  try {
+    return execFileSync('git', ['show', `${revision}:${path}`], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    const stderr = String(error.stderr ?? '');
+    if (/does not exist in|exists on disk, but not in/u.test(stderr)) {
+      return null;
+    }
+    throw new Error(`Unable to read ${path} from ${revision}: ${stderr.trim() || error.message}`);
+  }
+}
+
+function readHead(path) {
+  if (!existsSync(path)) {
+    return null;
+  }
+
+  const stat = lstatSync(path);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`${path} must be a regular file.`);
+  }
+
+  return readFileSync(path, 'utf8');
+}
+
+function parseComposer(source, label) {
+  if (source === null) {
+    throw new Error(`${label} is missing composer.json.`);
+  }
+
+  let composer;
+  try {
+    composer = JSON.parse(source);
+  } catch (error) {
+    throw new Error(`${label} has invalid composer.json: ${error.message}`);
+  }
+
+  if (composer === null || Array.isArray(composer) || typeof composer !== 'object') {
+    throw new Error(`${label} composer.json must contain an object.`);
+  }
+
+  return composer;
+}
+
+function localRunnerPaths(command) {
+  const commands = Array.isArray(command) ? command : [command];
+  const paths = new Set();
+
+  for (const value of commands) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const matches = value.matchAll(/(?:^|[\s"'=;&|()<>])((?:\.\/)?(?:bin|scripts)\/[^\s"';&|()<>]*)(?=$|[\s"';&|()<>])/gu);
+    for (const match of matches) {
+      const normalized = match[1].startsWith('./') ? match[1].slice(2) : match[1];
+      if (!/^(?:bin|scripts)\/[A-Za-z0-9._/-]+$/u.test(normalized)) {
+        throw new Error(`Unsupported local runner reference: ${match[1]}.`);
+      }
+      const segments = normalized.split('/');
+      if (segments.includes('') || segments.includes('.') || segments.includes('..')) {
+        throw new Error(`Unsupported local runner reference: ${match[1]}.`);
+      }
+      paths.add(normalized);
+    }
+  }
+
+  return paths;
+}
+
+function analyzerCommands(baseComposer, headComposer, script, baselinePath) {
+  const commands = [];
+  const pending = [script];
+  const visited = new Set();
+
+  while (pending.length > 0) {
+    const name = pending.pop();
+    if (visited.has(name)) {
+      continue;
+    }
+    visited.add(name);
+
+    const baseCommand = baseComposer.scripts?.[name];
+    const headCommand = headComposer.scripts?.[name];
+    const valid = typeof baseCommand === 'string'
+      || (Array.isArray(baseCommand) && baseCommand.length > 0 && baseCommand.every((value) => typeof value === 'string'));
+
+    if (!valid || JSON.stringify(baseCommand) !== JSON.stringify(headCommand)) {
+      throw new Error(`${baselinePath}: Composer script ${name} must exist and remain unchanged.`);
+    }
+
+    commands.push(baseCommand);
+    for (const command of Array.isArray(baseCommand) ? baseCommand : [baseCommand]) {
+      for (const match of command.matchAll(/(?:^|[\s"';&|()<>])@([A-Za-z0-9:_-]+)(?=$|[\s"';&|()<>])/gu)) {
+        if (Object.hasOwn(baseComposer.scripts ?? {}, match[1])) {
+          pending.push(match[1]);
+        }
+      }
+    }
+  }
+
+  return commands;
+}
+
+function assertSameFileAtHead(baseRevision, path, context) {
+  const base = readAtRevision(baseRevision, path);
+  const head = readHead(path);
+  if (base !== head) {
+    throw new Error(`${context} may not add, remove, or change ${path} while an existing baseline is enforced.`);
+  }
+}
+
+function protectIntroducedAnalyzerContract(baselinePath) {
+  const contract = ANALYZER_CONTRACTS[baselinePath];
+  const composer = parseComposer(readHead('composer.json'), baselinePath);
+  const commands = analyzerCommands(composer, composer, contract.script, baselinePath);
+  const configurations = contract.configurations.filter((path) => readHead(path) !== null);
+  if (configurations.length === 0) {
+    throw new Error(`${baselinePath}: head revision has no conventional ${contract.script} configuration.`);
+  }
+
+  let analyzerReference = false;
+  let baselineReference = configurations.some((path) => readHead(path).includes(baselinePath));
+  for (const command of commands) {
+    for (const value of Array.isArray(command) ? command : [command]) {
+      if (new RegExp(`^\\s*(?:\\./)?(?:vendor/bin/)?${contract.script}(?=$|[\\s;&|()<>])`, 'u').test(value)) {
+        analyzerReference = true;
+      }
+    }
+
+    for (const path of localRunnerPaths(command)) {
+      const source = readHead(path);
+      if (source === null) {
+        throw new Error(`${baselinePath}: Composer script references missing head runner ${path}.`);
+      }
+      if (source.includes(`vendor/bin/${contract.script}`)) {
+        analyzerReference = true;
+      }
+      if (source.includes(baselinePath)) {
+        baselineReference = true;
+      }
+    }
+  }
+
+  if (!analyzerReference) {
+    throw new Error(`${baselinePath}: Composer script ${contract.script} does not directly reference the analyzer or a runner with its locked vendor binary.`);
+  }
+  if (!baselineReference) {
+    throw new Error(`${baselinePath}: no conventional configuration or direct runner references the introduced baseline.`);
+  }
+}
+
+function protectAnalyzerContract(baseRevision, baselinePath) {
+  const contract = ANALYZER_CONTRACTS[baselinePath];
+  const baseComposer = parseComposer(readAtRevision(baseRevision, 'composer.json'), baselinePath);
+  const headComposer = parseComposer(readHead('composer.json'), baselinePath);
+  const commands = analyzerCommands(baseComposer, headComposer, contract.script, baselinePath);
+
+  const baseConfigurations = contract.configurations.filter((path) => readAtRevision(baseRevision, path) !== null);
+  if (baseConfigurations.length === 0) {
+    throw new Error(`${baselinePath}: base revision has no conventional ${contract.script} configuration.`);
+  }
+
+  for (const path of contract.configurations) {
+    assertSameFileAtHead(baseRevision, path, baselinePath);
+  }
+
+  for (const command of commands) {
+    for (const path of localRunnerPaths(command)) {
+      if (readAtRevision(baseRevision, path) === null) {
+        throw new Error(`${baselinePath}: Composer script references missing base runner ${path}.`);
+      }
+      assertSameFileAtHead(baseRevision, path, baselinePath);
+    }
+  }
+}
+
+export function checkBaselines(baseRevision) {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${baseRevision}^{commit}`], {
+      stdio: 'ignore',
+    });
+  } catch {
+    throw new Error(`Base revision ${baseRevision} is not an available commit.`);
+  }
+
+  const failures = [];
+
+  for (const [path, parse] of Object.entries(BASELINE_FILES)) {
+    const baseSource = readAtRevision(baseRevision, path);
+    const headSource = readHead(path);
+
+    // Introducing a baseline is allowed. Once it exists on the base revision,
+    // every added allowance and count increase must fail the pull request.
+    if (baseSource === null) {
+      if (headSource !== null) {
+        protectIntroducedAnalyzerContract(path);
+        parse(headSource, path);
+        console.log(`${path}: initial baseline introduction permitted.`);
+      }
+      continue;
+    }
+
+    protectAnalyzerContract(baseRevision, path);
+
+    const base = parse(baseSource, `${path} at ${baseRevision}`);
+    const head = headSource === null ? new Map() : parse(headSource, path);
+    const fileFailures = compareAllowances(base, head, path);
+    failures.push(...fileFailures);
+
+    if (fileFailures.length === 0) {
+      console.log(`${path}: allowances did not grow (${head.size} current, ${base.size} on base).`);
+    }
+  }
+
+  return failures;
+}
+
+function main(argv) {
+  const [baseRevision, ...extra] = argv;
+  if (!baseRevision || extra.length > 0 || !/^[0-9a-f]{40}$/u.test(baseRevision)) {
+    console.error('Usage: check-static-analysis-baselines.mjs <40-character-base-commit>');
+    return 2;
+  }
+
+  try {
+    const failures = checkBaselines(baseRevision);
+    if (failures.length > 0) {
+      console.error('Static-analysis baselines may not grow in a pull request:');
+      failures.forEach((failure) => console.error(`- ${failure}`));
+      return 1;
+    }
+    return 0;
+  } catch (error) {
+    console.error(error.message);
+    return 2;
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  process.exitCode = main(process.argv.slice(2));
+}

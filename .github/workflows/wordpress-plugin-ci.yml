@@ -85,6 +85,35 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Validate pull request base reference
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: '[[ "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]'
+
+      - name: Fetch pull request base commit
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: git fetch --no-tags --depth=1 origin "${BASE_SHA}"
+
+      - name: Check out portfolio standard
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          ref: ${{ job.workflow_sha }}
+          path: .portfolio-standard
+          persist-credentials: false
+
+      - name: Reject static-analysis baseline growth
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node .portfolio-standard/scripts/check-static-analysis-baselines.mjs "${BASE_SHA}"
+
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
