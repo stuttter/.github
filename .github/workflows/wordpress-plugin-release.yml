@@ -22,11 +22,11 @@ on:
         type: string
         default: wordpress.org
     secrets:
-      WORDPRESS_ORG_USERNAME:
-        description: WordPress.org username inherited from the selected-repository organization secret.
+      STUTTTER_WORDPRESS_ORG_USERNAME:
+        description: WordPress.org username explicitly mapped from the selected-repository organization secret.
         required: true
-      WORDPRESS_ORG_PASSWORD:
-        description: WordPress.org password inherited from the selected-repository organization secret.
+      STUTTTER_WORDPRESS_ORG_PASSWORD:
+        description: WordPress.org password explicitly mapped from the selected-repository organization secret.
         required: true
 concurrency:
   group: wordpress-plugin-release-${{ github.repository }}
@@ -271,8 +271,8 @@ jobs:
       - name: Publish one atomic WordPress.org changeset
         if: ${{ env.WPORG_TAG_EXISTS != 'true' }}
         env:
-          WORDPRESS_ORG_USERNAME: ${{ secrets.WORDPRESS_ORG_USERNAME }}
-          WORDPRESS_ORG_PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}
+          WORDPRESS_ORG_USERNAME: ${{ secrets.STUTTTER_WORDPRESS_ORG_USERNAME }}
+          WORDPRESS_ORG_PASSWORD: ${{ secrets.STUTTTER_WORDPRESS_ORG_PASSWORD }}
         shell: bash
         run: |
           svn_root="${RUNNER_TEMP}/wordpress-org"
