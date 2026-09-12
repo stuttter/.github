@@ -172,7 +172,12 @@ function desiredFiles(root, target, policyRef) {
   const managed = new Set(target.managed_paths);
   if (managed.has('ci')) files.set('.github/workflows/ci.yml', render(template('ci.yml'), values));
   if (managed.has('release')) files.set('.github/workflows/release.yml', render(template('release.yml'), values));
-  if (managed.has('dependabot')) files.set('.github/dependabot.yml', template(existsSync(resolve(root, 'composer.json')) ? 'dependabot-composer.yml' : 'dependabot.yml'));
+  if (managed.has('dependabot')) {
+    const hasComposer = existsSync(resolve(root, 'composer.json'));
+    const hasNpm = existsSync(resolve(root, 'package.json'));
+    const suffix = hasComposer && hasNpm ? '-composer-npm' : hasComposer ? '-composer' : hasNpm ? '-npm' : '';
+    files.set('.github/dependabot.yml', template(`dependabot${suffix}.yml`));
+  }
   return files;
 }
 
