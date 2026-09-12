@@ -17,6 +17,8 @@ automation to approve its own work or publish unverified releases.
 - `docs/fleet-synchronization.md` documents safe audit and draft-PR automation.
 - `.github/workflows/` contains reusable workflows called by plugin repositories.
 - `scripts/` contains deterministic validation and release helpers.
+- `CODE_OF_CONDUCT.md` supplies the organization default when a public
+  repository does not yet have its own copy.
 
 This repository is intentionally public so its community-health files and
 reusable workflows can be shared by public repositories in the organization.
