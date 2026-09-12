@@ -21,6 +21,13 @@ on:
         required: false
         type: string
         default: wordpress.org
+    secrets:
+      WORDPRESS_ORG_USERNAME:
+        description: WordPress.org username inherited from the selected-repository organization secret.
+        required: true
+      WORDPRESS_ORG_PASSWORD:
+        description: WordPress.org password inherited from the selected-repository organization secret.
+        required: true
 concurrency:
   group: wordpress-plugin-release-${{ github.repository }}
   cancel-in-progress: false

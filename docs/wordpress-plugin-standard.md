@@ -113,9 +113,15 @@ before entering a protected `wordpress.org` environment. Per-release approval is
 the default and remains mandatory until centrally reviewed policy explicitly
 enables an autonomous release class for that repository.
 
-Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` only as secrets on
-that environment. Managed callers do not pass publication credentials into the
-reusable workflow, and preflight jobs cannot read them.
+Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` as Stuttter
+organization Actions secrets with selected-repository visibility restricted to
+the centrally approved release-managed repositories. Do not create repository
+or `wordpress.org` environment copies: narrower scopes override organization
+secrets. Managed callers explicitly pass only these two names to the immutable
+reusable workflow. Organization secrets are repository-accessible; the protected
+environment gates the central publish job rather than access by every workflow
+in the repository. Protect all workflow files accordingly, and never reference
+the credentials outside that gated publish job.
 
 After approval it may create the Git tag and GitHub release, update WordPress.org
 trunk and the matching Subversion tag, then download the generated public ZIP

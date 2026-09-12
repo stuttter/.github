@@ -110,7 +110,8 @@ Protect `.github/workflows/`, `.github/plugin-standard.json`,
 security policy with repository rules and required owner review. Protect the
 release branch from direct pushes and require signed commits and successful CI.
 Keep the `fleet-standards` and `wordpress.org` environments reviewer-gated, and
-limit their secrets to the jobs that require them.
+limit organization credentials to the selected repositories and pinned workflow
+jobs that require them.
 
 Fleet automation does not approve its own protected-file changes. Changes to
 the templates, synchronizer, reusable workflows, inventories, signing policy,
@@ -119,32 +120,65 @@ before they can propagate to plugin repositories.
 
 ## Release environments
 
-WordPress.org credentials remain environment secrets in each release-enabled
-repository. They are never passed through a reusable-workflow caller or stored
-as broader repository or organization secrets. The publish job cannot read them
-until the fixed `wordpress.org` environment gate passes.
+WordPress.org credentials are Stuttter organization Actions secrets with
+selected-repository visibility. Their allowlist must exactly match the enabled,
+release-managed WordPress.org repositories in `portfolio/plugins.json`. Managed
+callers pass only these two names through the reusable-workflow interface. An
+organization secret is available to workflows in every selected repository, so
+the environment is not a repository-wide secret-access boundary. The immutable
+central workflow references the credentials only in its publish job, and that
+job remains blocked by the fixed `wordpress.org` environment gate. Protect the
+managed caller and all workflow files from unreviewed changes.
 
 Create the environment in GitHub first, require JJJ's review, disable
 administrator bypass, and restrict deployment to the inventory's exact release
-branch. Then use `scripts/provision-release-environments.mjs` to audit or rotate
-credentials without copying values into files or command arguments. The script
+branch. Repository or environment copies of `WORDPRESS_ORG_USERNAME` or
+`WORDPRESS_ORG_PASSWORD` override the organization value. The audit reports
+those copies as incomplete migration, but apply deliberately preserves them
+until the staged canary below proves the actual organization values. Then use
+`scripts/provision-release-environments.mjs` to audit or rotate credentials
+without copying values into files or command arguments. The script
 selects only enabled WordPress.org release targets from the validated inventory,
 rejects forks, archives, owner drift, branch drift, administrator bypass,
-incomplete API results, and unexpected deployment policies, and preserves any
-stronger wait, self-review, or reviewer protections already present.
+incomplete API results, unexpected deployment policies, and duplicate
+repository or environment credential copies. It also preserves stronger wait,
+self-review, and reviewer protections already present.
 
 Supply `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` through a trusted
-secret provider such as `op run`. Run `npm run release:provision -- audit all`
-first; audit mode never writes. Apply mode inspects every selected repository
-before the first write, requires both credentials, and sends each value to
-GitHub CLI only through standard input. Invoke it as
-`npm run release:provision -- apply owner/repository` or replace the repository
-with `all`. Keep any 1Password environment template outside the repository.
+secret provider such as `op run`. GitHub CLI must target `github.com` and have
+enough access to inspect repository and environment secrets and manage Stuttter
+organization Actions secrets. A classic token needs the `repo` and `admin:org`
+scopes; the current everyday token may not include `admin:org`. Keep any
+1Password environment template outside the repository.
+
+Run `npm run release:provision -- audit all` first; audit mode never writes and
+may target one repository for diagnosis. Apply mode always reconciles the full
+approved allowlist, so its only valid target is `all`. It inspects every target
+before the first write, sets both organization secrets with selected-repository
+visibility through standard input, and verifies their names and exact scope.
+This metadata verification cannot prove either credential value. Apply reports
+each environment it prepared and every confirmed mutation, including work
+completed before a later failure. Its `cleanup_required` result keeps every
+narrower copy visible; apply never deletes those copies. Run
+`npm run release:provision -- --help` for the compact operator reminder.
 
 GitHub does not provide an atomic multi-secret or multi-repository update. If an
-apply fails after writing begins, the structured report identifies completed,
-failed, and pending repositories. Rerun the same apply to converge and verify
-both secret names; values are never returned.
+apply fails after writing begins, existing narrower copies remain in place. The
+structured report identifies prepared targets, confirmed changes, the failure,
+and pending repositories. Rerun the same apply to converge; secret values are
+never returned.
+
+There is no trustworthy read-only authentication probe for the WordPress.org
+Subversion credentials: repository reads and HTTP capability requests are
+public and do not validate the supplied username or password. Cleanup is a
+separate future or manual phase. First choose an approved repository without
+narrower copies and complete a normal protected release started after the
+organization secrets were last updated. The `Publish one atomic WordPress.org
+changeset` step must actually run and succeed; a skipped or reconciliation-only
+run is not proof. Only after that can a separately reviewed cleanup remove
+remaining copies, rechecking both organization-secret allowlists immediately
+before each removal. This provisioner has no cleanup mode and issues no secret
+deletion requests. Until this proof exists, leave every fallback copy intact.
 
 ## Adding a plugin
 

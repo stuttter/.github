@@ -20,6 +20,9 @@ jobs:
     uses: stuttter/.github/.github/workflows/wordpress-plugin-release.yml@0000000000000000000000000000000000000000
     permissions:
       contents: write
+    secrets:
+      WORDPRESS_ORG_USERNAME: ${{ secrets.WORDPRESS_ORG_USERNAME }}
+      WORDPRESS_ORG_PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}
     with:
       version: ${{ inputs.version }}
       commit: ${{ inputs.commit }}

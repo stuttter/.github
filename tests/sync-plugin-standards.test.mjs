@@ -231,7 +231,7 @@ test('managed paths are explicit and WordPress.org release callers require WordP
   }
 });
 
-test('rendered callers pin policy and keep WordPress.org secrets environment-only', () => {
+test('rendered callers pin policy and inherit centrally scoped WordPress.org secrets', () => {
   const { root, cleanup } = fixture();
   try {
     synchronize({ root, target, policyRef, mode: 'apply' });
@@ -240,8 +240,8 @@ test('rendered callers pin policy and keep WordPress.org secrets environment-onl
     assert.match(ci, /wordpress-plugin-ci\.yml@a{40}/);
     assert.match(release, /wordpress-plugin-release\.yml@a{40}/);
     assert.doesNotMatch(release, /secrets:\s+inherit/);
-    assert.doesNotMatch(release, /WORDPRESS_ORG_USERNAME:/);
-    assert.doesNotMatch(release, /WORDPRESS_ORG_PASSWORD:/);
+    assert.match(release, /WORDPRESS_ORG_USERNAME: \$\{\{ secrets\.WORDPRESS_ORG_USERNAME \}\}/);
+    assert.match(release, /WORDPRESS_ORG_PASSWORD: \$\{\{ secrets\.WORDPRESS_ORG_PASSWORD \}\}/);
   } finally {
     cleanup();
   }
