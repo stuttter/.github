@@ -10,6 +10,7 @@ const organization = 'stuttter';
 const environmentName = 'wordpress.org';
 const reviewerLogin = 'JJJ';
 const secretNames = ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'];
+const reusableWorkflowSecretNames = ['STUTTTER_WORDPRESS_ORG_USERNAME', 'STUTTTER_WORDPRESS_ORG_PASSWORD'];
 const apiHeaders = ['-H', 'Accept: application/vnd.github+json', '-H', 'X-GitHub-Api-Version: 2026-03-10'];
 export const provisionUsage = `Usage:
   npm run release:provision -- audit [all|owner/repository]
@@ -247,7 +248,13 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
       `${repository} environment secrets`,
     );
     environmentSecrets = collection(secretPayload, 'secrets', `${repository} environment secrets`).map((secret) => secret.name);
-    const unexpectedSecrets = environmentSecrets.filter((name) => !secretNames.includes(name));
+    const conflictingAliases = environmentSecrets.filter((name) => reusableWorkflowSecretNames.includes(name));
+    if (conflictingAliases.length > 0) {
+      errors.push(`${repository} has ${environmentName} secrets that shadow the reusable-workflow credential inputs.`);
+    }
+    const unexpectedSecrets = environmentSecrets.filter((name) =>
+      !secretNames.includes(name) && !reusableWorkflowSecretNames.includes(name)
+    );
     if (unexpectedSecrets.length > 0) errors.push(`${repository} has unexpected ${environmentName} secrets.`);
   }
 
@@ -264,6 +271,9 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
     repository: repositorySecrets.filter((name) => secretNames.includes(name)),
     environment: environmentSecrets.filter((name) => secretNames.includes(name)),
   };
+  if (credentialCopies.repository.length > 0) {
+    errors.push(`${repository} has repository credential copies that shadow the organization secrets.`);
+  }
 
   const desired = current && validProtectionMetadata
     ? protectedEnvironment(reviewerId, current)
@@ -451,10 +461,9 @@ export function provisionFleet({
     return report;
   }
   const unsafeInspection = inspections.find((inspection) => inspection.errors.length > 0);
-  const duplicateInspection = inspections.find(hasCredentialCopies);
   const organizationDrift = organizationCredentials.errors.length > 0;
-  if (unsafeInspection || (!apply && (duplicateInspection || organizationDrift))) {
-    const subject = unsafeInspection?.repository || duplicateInspection?.repository || organization;
+  if (unsafeInspection || (!apply && organizationDrift)) {
+    const subject = unsafeInspection?.repository || organization;
     report.failed = {
       repository: subject,
       reason: `Read-only ${apply ? 'preflight' : 'audit'} found unsafe configuration; no changes were made.`,

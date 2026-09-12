@@ -24,6 +24,11 @@ test('release inputs enforce canonical SemVer and WordPress.org eligibility', ()
 
 test('WordPress.org credentials use an explicit required reusable-workflow interface', () => {
   const interfaceBlock = workflow.slice(0, workflow.indexOf('\nconcurrency:'));
-  assert.match(interfaceBlock, /WORDPRESS_ORG_USERNAME:[\s\S]*?required: true/);
-  assert.match(interfaceBlock, /WORDPRESS_ORG_PASSWORD:[\s\S]*?required: true/);
+  assert.match(interfaceBlock, /STUTTTER_WORDPRESS_ORG_USERNAME:[\s\S]*?required: true/);
+  assert.match(interfaceBlock, /STUTTTER_WORDPRESS_ORG_PASSWORD:[\s\S]*?required: true/);
+  assert.doesNotMatch(interfaceBlock, /^      WORDPRESS_ORG_(?:USERNAME|PASSWORD):$/m);
+  assert.match(workflow, /WORDPRESS_ORG_USERNAME: \$\{\{ secrets\.STUTTTER_WORDPRESS_ORG_USERNAME \}\}/);
+  assert.match(workflow, /WORDPRESS_ORG_PASSWORD: \$\{\{ secrets\.STUTTTER_WORDPRESS_ORG_PASSWORD \}\}/);
+  assert.doesNotMatch(workflow, /WORDPRESS_ORG_USERNAME: \$\{\{ secrets\.WORDPRESS_ORG_USERNAME \}\}/);
+  assert.doesNotMatch(workflow, /WORDPRESS_ORG_PASSWORD: \$\{\{ secrets\.WORDPRESS_ORG_PASSWORD \}\}/);
 });

@@ -287,11 +287,16 @@ test('inspection rejects missing, malformed, and non-exact deployment branch pol
   }
 });
 
-test('inspection rejects duplicate policies and unrelated environment secrets', () => {
+test('inspection rejects duplicate policies, unrelated environment secrets, and callee aliases', () => {
   const duplicate = readExecutor({ policies: [{ name: 'master', type: 'branch' }, { name: 'master', type: 'branch' }] });
   assert.match(inspectReleaseEnvironment({ target, reviewerId: 88951, execute: duplicate.execute }).errors.join(' '), /duplicate wordpress\.org release branch policies/i);
   const extraSecret = readExecutor({ environmentSecrets: ['WORDPRESS_ORG_USERNAME', 'UNRELATED_SECRET'] });
   assert.match(inspectReleaseEnvironment({ target, reviewerId: 88951, execute: extraSecret.execute }).errors.join(' '), /unexpected wordpress\.org secrets/i);
+  const shadowingAlias = readExecutor({ environmentSecrets: ['STUTTTER_WORDPRESS_ORG_PASSWORD'] });
+  assert.match(
+    inspectReleaseEnvironment({ target, reviewerId: 88951, execute: shadowingAlias.execute }).errors.join(' '),
+    /shadow the reusable-workflow credential inputs/i,
+  );
 });
 
 test('inspection rejects a seventh required reviewer before mutation', () => {
@@ -303,7 +308,7 @@ test('inspection rejects a seventh required reviewer before mutation', () => {
   assert.equal(full.calls.some((call) => call.args.includes('PUT') || call.args[0] === 'secret'), false);
 });
 
-test('inspection reports repository and environment credential copies separately', () => {
+test('inspection reports environment copies and rejects repository copies', () => {
   const duplicate = readExecutor({
     environmentSecrets: ['WORDPRESS_ORG_PASSWORD'],
     repositorySecrets: ['WORDPRESS_ORG_USERNAME', 'UNRELATED_SECRET'],
@@ -313,7 +318,7 @@ test('inspection reports repository and environment credential copies separately
     repository: ['WORDPRESS_ORG_USERNAME'],
     environment: ['WORDPRESS_ORG_PASSWORD'],
   });
-  assert.deepEqual(inspection.errors, []);
+  assert.match(inspection.errors.join(' '), /repository credential copies that shadow the organization secrets/i);
 });
 
 test('organization credential audit requires both secrets and the exact repository allowlist', () => {
@@ -359,12 +364,38 @@ test('release-environment apply only creates a missing exact branch policy', () 
   assert.deepEqual(JSON.parse(writes[0].input), { name: 'master' });
 });
 
-test('fleet audit fails on credential copies without writing', () => {
+test('fleet audit reports and permits a canonical environment credential copy', () => {
   const duplicate = readExecutor({ environmentSecrets: ['WORDPRESS_ORG_PASSWORD'] });
   const report = provisionFleet({ targets: [target], reviewerId: 88951, apply: false, execute: duplicate.execute });
-  assert.equal(report.failed.repository, target.repository);
-  assert.match(report.failed.reason, /audit found unsafe configuration/);
+  assert.equal(report.failed, null);
+  assert.deepEqual(report.cleanup_required, [{
+    repository: target.repository,
+    credential_copies: { repository: [], environment: ['WORDPRESS_ORG_PASSWORD'] },
+  }]);
   assert.equal(duplicate.calls.some((call) => call.args.includes('DELETE') || call.args[0] === 'secret'), false);
+});
+
+test('fleet rejects repository credential copies and environment aliases before mutation', () => {
+  for (const apply of [false, true]) {
+    for (const candidate of [
+      readExecutor({ repositorySecrets: ['WORDPRESS_ORG_USERNAME'] }),
+      readExecutor({ environmentSecrets: ['STUTTTER_WORDPRESS_ORG_USERNAME'] }),
+    ]) {
+      const report = provisionFleet({
+        targets: [target],
+        reviewerId: 88951,
+        username: apply ? 'release-user' : undefined,
+        password: apply ? 'release-password' : undefined,
+        apply,
+        execute: candidate.execute,
+      });
+      assert.equal(report.failed.repository, target.repository);
+      assert.match(report.failed.reason, new RegExp(`${apply ? 'preflight' : 'audit'} found unsafe configuration`));
+      assert.equal(candidate.calls.some(
+        (call) => call.args.includes('POST') || call.args.includes('DELETE') || call.args[0] === 'secret'
+      ), false);
+    }
+  }
 });
 
 test('fleet apply rejects a partial allowlist before reading or writing', () => {
@@ -437,11 +468,11 @@ test('fleet verifies release protections before exposing organization credential
   assert.equal(writes.some(({ args }) => args[0] === 'secret'), false);
 });
 
-test('fleet apply verifies organization scope and preserves duplicate copies', () => {
+test('fleet apply verifies organization scope and preserves canonical environment copies', () => {
   const calls = [];
   let organizationConfigured = false;
   let environmentSecrets = ['WORDPRESS_ORG_PASSWORD'];
-  let repositorySecrets = ['WORDPRESS_ORG_USERNAME'];
+  let repositorySecrets = [];
   const execute = (args, input) => {
     calls.push({ args, input });
     const endpoint = args.find((argument) => argument.startsWith('repos/') || argument.startsWith('orgs/')) || '';
@@ -473,19 +504,19 @@ test('fleet apply verifies organization scope and preserves duplicate copies', (
   assert.deepEqual(report.applied.map((result) => result.repository), [target.repository]);
   assert.deepEqual(report.prepared.map((result) => result.repository), [target.repository]);
   assert.deepEqual(report.applied[0].credential_copies_preserved, {
-    repository: ['WORDPRESS_ORG_USERNAME'],
+    repository: [],
     environment: ['WORDPRESS_ORG_PASSWORD'],
   });
   assert.deepEqual(report.cleanup_required, [{
     repository: target.repository,
     credential_copies: {
-      repository: ['WORDPRESS_ORG_USERNAME'],
+      repository: [],
       environment: ['WORDPRESS_ORG_PASSWORD'],
     },
   }]);
   assert.equal(calls.some(({ args }) => args.includes('DELETE')), false);
   assert.equal(environmentSecrets.length, 1);
-  assert.equal(repositorySecrets.length, 1);
+  assert.equal(repositorySecrets.length, 0);
 });
 
 test('fleet reports prepared environment changes before a later organization failure', () => {
