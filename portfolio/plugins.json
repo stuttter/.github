@@ -111,13 +111,13 @@
         "slug": "wp-reset-filters",
         "main_file": "wp-reset-filters.php",
         "risk": "standard",
-        "minimum_php": "5.2",
+        "minimum_php": "7.4",
         "minimum_wordpress": "4.3",
-        "tested_wordpress": "4.4",
+        "tested_wordpress": "7.1",
         "wordpress_org": true,
         "multisite": false,
         "release_branch": "master",
-        "php_matrix": ["5.2"]
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
     }
   ]
