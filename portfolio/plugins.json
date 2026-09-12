@@ -88,19 +88,19 @@
     },
     {
       "repository": "stuttter/wp-user-profiles",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "dependabot"],
       "manifest": {
         "slug": "wp-user-profiles",
         "main_file": "wp-user-profiles.php",
         "risk": "critical",
-        "minimum_php": "7.2",
+        "minimum_php": "7.4",
         "minimum_wordpress": "5.2",
-        "tested_wordpress": "6.6",
+        "tested_wordpress": "7.1",
         "wordpress_org": true,
         "multisite": true,
         "release_branch": "master",
-        "php_matrix": ["7.2", "7.4", "8.0", "8.2", "8.4"]
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
     }
   ]
