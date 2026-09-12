@@ -6,10 +6,19 @@ import { fileURLToPath } from 'node:url';
 import { loadInventory } from './sync-plugin-standards.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const organization = 'stuttter';
 const environmentName = 'wordpress.org';
 const reviewerLogin = 'JJJ';
 const secretNames = ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'];
 const apiHeaders = ['-H', 'Accept: application/vnd.github+json', '-H', 'X-GitHub-Api-Version: 2026-03-10'];
+export const provisionUsage = `Usage:
+  npm run release:provision -- audit [all|owner/repository]
+  npm run release:provision -- apply all
+
+GitHub CLI authentication must be pinned to github.com and authorized to read
+repository and environment secrets and to manage Stuttter organization Actions
+secrets. A classic token needs repo and admin:org scopes.
+`;
 
 function apiArguments(endpoint, method = 'GET', input = false) {
   const args = ['api', '--hostname', 'github.com', '--method', method, ...apiHeaders, endpoint];
@@ -54,12 +63,18 @@ export function releaseReviewerId(metadata) {
 }
 
 export function commandArguments(argumentsList) {
+  if (argumentsList.length === 1 && ['--help', '-h'].includes(argumentsList[0])) {
+    return { help: true, mode: 'audit', requested: 'all' };
+  }
   if (argumentsList.length > 2) {
     throw new Error('Expected at most one mode and one repository target.');
   }
   const [mode = 'audit', requested = 'all'] = argumentsList;
   if (!['audit', 'apply'].includes(mode)) throw new Error('Mode must be audit or apply.');
-  return { mode, requested };
+  if (mode === 'apply' && requested !== 'all') {
+    throw new Error(`${mode} mode must reconcile the complete approved release repository allowlist.`);
+  }
+  return { help: false, mode, requested };
 }
 
 function normalizedReviewers(reviewers) {
@@ -177,7 +192,7 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
   const environments = collection(environmentsPayload, 'environments', `${repository} environments`);
   const current = environments.find((environment) => environment.name === environmentName) || null;
   let policies = [];
-  let configuredSecrets = [];
+  let environmentSecrets = [];
   let validProtectionMetadata = true;
   if (!current) {
     errors.push(`${repository} is missing its protected ${environmentName} environment.`);
@@ -231,10 +246,24 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
       execute(apiArguments(`repos/${repository}/environments/${environmentName}/secrets?per_page=100`)),
       `${repository} environment secrets`,
     );
-    configuredSecrets = collection(secretPayload, 'secrets', `${repository} environment secrets`).map((secret) => secret.name);
-    const unexpectedSecrets = configuredSecrets.filter((name) => !secretNames.includes(name));
+    environmentSecrets = collection(secretPayload, 'secrets', `${repository} environment secrets`).map((secret) => secret.name);
+    const unexpectedSecrets = environmentSecrets.filter((name) => !secretNames.includes(name));
     if (unexpectedSecrets.length > 0) errors.push(`${repository} has unexpected ${environmentName} secrets.`);
   }
+
+  const repositorySecretPayload = parseJson(
+    execute(apiArguments(`repos/${repository}/actions/secrets?per_page=100`)),
+    `${repository} repository secrets`,
+  );
+  const repositorySecrets = collection(
+    repositorySecretPayload,
+    'secrets',
+    `${repository} repository secrets`,
+  ).map((secret) => secret.name);
+  const credentialCopies = {
+    repository: repositorySecrets.filter((name) => secretNames.includes(name)),
+    environment: environmentSecrets.filter((name) => secretNames.includes(name)),
+  };
 
   const desired = current && validProtectionMetadata
     ? protectedEnvironment(reviewerId, current)
@@ -252,14 +281,15 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
     release_branch: releaseBranch,
     current,
     policies,
-    configured_secrets: configuredSecrets,
+    environment_secrets: environmentSecrets,
+    repository_secrets: repositorySecrets,
+    credential_copies: credentialCopies,
     desired,
     errors,
   };
 }
 
-export function applyReleaseEnvironment({ inspection, username, password, execute = runGitHub }) {
-  if (!username || !password) throw new Error('Both WordPress.org credentials are required.');
+export function applyReleaseEnvironment({ inspection, execute = runGitHub }) {
   if (inspection.errors.length > 0 || !inspection.current || !inspection.desired) {
     throw new Error(`${inspection.repository} did not pass the read-only release-environment inspection.`);
   }
@@ -276,12 +306,113 @@ export function applyReleaseEnvironment({ inspection, username, password, execut
     );
   }
 
-  execute(['secret', 'set', secretNames[0], '--repo', repository, '--env', environmentName], username);
-  execute(['secret', 'set', secretNames[1], '--repo', repository, '--env', environmentName], password);
-  return { repository, environment: environmentName, release_branch: inspection.release_branch };
+  return {
+    repository,
+    environment: environmentName,
+    release_branch: inspection.release_branch,
+    changed: hasExpectedPolicy ? [] : ['deployment_branch_policy'],
+  };
 }
 
-export function provisionFleet({ targets, reviewerId, username, password, apply = false, execute = runGitHub }) {
+export function inspectOrganizationCredentials({ approvedRepositories, execute = runGitHub }) {
+  const expectedRepositories = [...approvedRepositories].sort();
+  const payload = parseJson(
+    execute(apiArguments(`orgs/${organization}/actions/secrets?per_page=100`)),
+    `${organization} organization secrets`,
+  );
+  const available = collection(payload, 'secrets', `${organization} organization secrets`);
+  const secrets = [];
+  const errors = [];
+  for (const name of secretNames) {
+    const metadata = available.find((secret) => secret.name === name) || null;
+    let selectedRepositories = [];
+    if (metadata?.visibility === 'selected') {
+      const selectedPayload = parseJson(
+        execute(apiArguments(`orgs/${organization}/actions/secrets/${name}/repositories?per_page=100`)),
+        `${name} selected repositories`,
+      );
+      selectedRepositories = collection(
+        selectedPayload,
+        'repositories',
+        `${name} selected repositories`,
+      ).map((repository) => repository.full_name).sort();
+    }
+    if (!metadata) {
+      errors.push(`${organization} is missing the ${name} organization secret.`);
+    } else if (metadata.visibility !== 'selected') {
+      errors.push(`${name} does not use selected-repository visibility.`);
+    } else if (JSON.stringify(selectedRepositories) !== JSON.stringify(expectedRepositories)) {
+      errors.push(`${name} is not scoped to the exact approved release repositories.`);
+    }
+    secrets.push({
+      name,
+      visibility: metadata?.visibility || null,
+      updated_at: metadata?.updated_at || null,
+      selected_repositories: selectedRepositories,
+    });
+  }
+  return { organization, expected_repositories: expectedRepositories, secrets, errors };
+}
+
+export function applyOrganizationCredentials({ approvedRepositories, username, password, execute = runGitHub, onChange = () => {} }) {
+  if (!username || !password) throw new Error('Both WordPress.org credentials are required.');
+  const sortedRepositories = [...approvedRepositories].sort();
+  if (sortedRepositories.some((repository) => !repository.startsWith(`${organization}/`))) {
+    throw new Error('The organization secret allowlist must contain only Stuttter repositories.');
+  }
+  const repositoryNames = sortedRepositories
+    .map((repository) => repository.slice(`${organization}/`.length));
+  if (repositoryNames.length === 0 || repositoryNames.some((repository) => !repository)) {
+    throw new Error('The organization secret allowlist must contain approved Stuttter repositories.');
+  }
+  const repositoryList = repositoryNames.join(',');
+  execute(['secret', 'set', secretNames[0], '--org', organization, '--repos', repositoryList], username);
+  onChange({ scope: 'organization', name: secretNames[0], action: 'set' });
+  execute(['secret', 'set', secretNames[1], '--org', organization, '--repos', repositoryList], password);
+  onChange({ scope: 'organization', name: secretNames[1], action: 'set' });
+}
+
+function hasCredentialCopies(inspection) {
+  return inspection.credential_copies.repository.length > 0 || inspection.credential_copies.environment.length > 0;
+}
+
+export function provisionFleet({
+  targets,
+  approvedRepositories = targets.map((target) => target.repository),
+  reviewerId,
+  username,
+  password,
+  apply = false,
+  execute = runGitHub,
+}) {
+  const targetRepositories = targets.map((target) => target.repository).sort();
+  const expectedRepositories = [...approvedRepositories].sort();
+  if (apply && JSON.stringify(targetRepositories) !== JSON.stringify(expectedRepositories)) {
+    return {
+      mode: 'apply',
+      organization_credentials: null,
+      inspected: [],
+      prepared: [],
+      changed: [],
+      cleanup_required: [],
+      applied: [],
+      failed: { organization, reason: 'Apply requires the complete approved release repository allowlist.' },
+      pending: expectedRepositories,
+    };
+  }
+  if (apply && (!username || !password)) {
+    return {
+      mode: 'apply',
+      organization_credentials: null,
+      inspected: [],
+      prepared: [],
+      changed: [],
+      cleanup_required: [],
+      applied: [],
+      failed: { organization, reason: 'Apply requires both WordPress.org credentials before any write phase.' },
+      pending: expectedRepositories,
+    };
+  }
   const inspections = [];
   let inspectionFailure = null;
   for (const target of targets) {
@@ -293,16 +424,39 @@ export function provisionFleet({ targets, reviewerId, username, password, apply 
       inspectionFailure ||= { repository: target.repository, reason };
     }
   }
-  const report = { mode: apply ? 'apply' : 'audit', inspected: inspections, applied: [], failed: null, pending: [] };
+  let organizationCredentials = null;
+  try {
+    organizationCredentials = inspectOrganizationCredentials({ approvedRepositories, execute });
+  } catch (error) {
+    const reason = redactCredentials(error.message, process.env, [username, password]);
+    inspectionFailure ||= { organization, reason };
+  }
+  const report = {
+    mode: apply ? 'apply' : 'audit',
+    organization_credentials: organizationCredentials,
+    inspected: inspections,
+    prepared: [],
+    changed: [],
+    cleanup_required: inspections.filter(hasCredentialCopies).map((inspection) => ({
+      repository: inspection.repository,
+      credential_copies: inspection.credential_copies,
+    })),
+    applied: [],
+    failed: null,
+    pending: [],
+  };
   if (inspectionFailure) {
     report.failed = inspectionFailure;
     if (apply) report.pending = targets.map((target) => target.repository);
     return report;
   }
   const unsafeInspection = inspections.find((inspection) => inspection.errors.length > 0);
-  if (unsafeInspection) {
+  const duplicateInspection = inspections.find(hasCredentialCopies);
+  const organizationDrift = organizationCredentials.errors.length > 0;
+  if (unsafeInspection || (!apply && (duplicateInspection || organizationDrift))) {
+    const subject = unsafeInspection?.repository || duplicateInspection?.repository || organization;
     report.failed = {
-      repository: unsafeInspection.repository,
+      repository: subject,
       reason: `Read-only ${apply ? 'preflight' : 'audit'} found unsafe configuration; no changes were made.`,
     };
     if (apply) report.pending = inspections.map((inspection) => inspection.repository);
@@ -315,13 +469,15 @@ export function provisionFleet({ targets, reviewerId, username, password, apply 
       const target = targets.find((candidate) => candidate.repository === inspection.repository);
       const fresh = inspectReleaseEnvironment({ target, reviewerId, execute });
       if (fresh.errors.length > 0) throw new Error(`Pre-write reinspection failed for ${inspection.repository}.`);
-      applyReleaseEnvironment({ inspection: fresh, username, password, execute });
+      const preparation = applyReleaseEnvironment({ inspection: fresh, execute });
+      for (const change of preparation.changed) {
+        report.changed.push({ scope: 'environment', repository: inspection.repository, change });
+      }
       const verified = inspectReleaseEnvironment({
         target,
         reviewerId,
         execute,
       });
-      const missingSecrets = secretNames.filter((name) => !verified.configured_secrets.includes(name));
       const reviewerRule = verified.current?.protection_rules?.find((rule) => rule.type === 'required_reviewers');
       const hasReviewer = reviewerRule?.reviewers?.some(
         ({ type, reviewer }) => type === 'User' && reviewer.id === reviewerId,
@@ -331,19 +487,18 @@ export function provisionFleet({ targets, reviewerId, username, password, apply 
       );
       if (
         verified.errors.length > 0 ||
-        missingSecrets.length > 0 ||
         !hasReviewer ||
         !verified.current?.deployment_branch_policy?.custom_branch_policies ||
         !hasPolicy ||
         JSON.stringify(currentEnvironmentConfiguration(verified.current)) !== JSON.stringify(fresh.desired)
       ) {
-        throw new Error(`Post-write verification failed for ${inspection.repository}.`);
+        throw new Error(`Release-environment verification failed for ${inspection.repository}.`);
       }
-      report.applied.push({
+      report.prepared.push({
         repository: inspection.repository,
         environment: environmentName,
         release_branch: inspection.release_branch,
-        secrets: secretNames,
+        changed: preparation.changed,
       });
     } catch (error) {
       report.failed = {
@@ -355,12 +510,47 @@ export function provisionFleet({ targets, reviewerId, username, password, apply 
       break;
     }
   }
+  if (report.failed) return report;
+
+  try {
+    applyOrganizationCredentials({
+      approvedRepositories,
+      username,
+      password,
+      execute,
+      onChange: (change) => report.changed.push(change),
+    });
+    const verifiedOrganization = inspectOrganizationCredentials({ approvedRepositories, execute });
+    if (verifiedOrganization.errors.length > 0) {
+      throw new Error('Post-write verification failed for the organization credentials.');
+    }
+    report.organization_credentials = verifiedOrganization;
+  } catch (error) {
+    report.failed = {
+      organization,
+      reason: redactCredentials(error.message, process.env, [username, password]),
+    };
+    report.pending = inspections.map((inspection) => inspection.repository);
+    return report;
+  }
+
+  report.applied = report.prepared.map((preparation) => ({
+    ...preparation,
+    organization_secrets: secretNames,
+    credential_copies_preserved: inspections.find(
+      (inspection) => inspection.repository === preparation.repository,
+    ).credential_copies,
+  }));
   return report;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    const { mode, requested } = commandArguments(process.argv.slice(2));
+    const { help, mode, requested } = commandArguments(process.argv.slice(2));
+    if (help) {
+      process.stdout.write(provisionUsage);
+      process.exit(0);
+    }
     const username = process.env.WORDPRESS_ORG_USERNAME;
     const password = process.env.WORDPRESS_ORG_PASSWORD;
     if (mode === 'apply' && (!username || !password)) {
@@ -370,8 +560,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const reviewer = parseJson(runGitHub(apiArguments(`users/${reviewerLogin}`)), 'Release reviewer');
     const reviewerId = releaseReviewerId(reviewer);
     const inventory = loadInventory(resolve(repositoryRoot, 'portfolio/plugins.json'));
+    const approvedTargets = selectReleaseTargets(inventory);
     const targets = selectReleaseTargets(inventory, requested);
-    const report = provisionFleet({ targets, reviewerId, username, password, apply: mode === 'apply' });
+    const report = provisionFleet({
+      targets,
+      approvedRepositories: approvedTargets.map((target) => target.repository),
+      reviewerId,
+      username,
+      password,
+      apply: mode === 'apply',
+    });
     process.stdout.write(`${JSON.stringify(report, (key, value) => key === 'current' ? undefined : value, 2)}\n`);
     if (report.failed) process.exitCode = 2;
   } catch (error) {
