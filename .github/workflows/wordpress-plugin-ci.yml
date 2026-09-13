@@ -401,7 +401,11 @@ jobs:
           PLUGIN_DIRECTORY: ${{ steps.integration-build.outputs.plugin_directory }}
         shell: bash
         run: |
-          config="${RUNNER_TEMP}/wp-env-integration.json"
+          config="${GITHUB_WORKSPACE}/wp-env-integration.json"
+          if [[ -e "${config}" || -L "${config}" ]]; then
+            echo 'WordPress integration requires a centrally generated root configuration.' >&2
+            exit 1
+          fi
           slug="$(node .portfolio-standard/scripts/configure-wordpress-integration.mjs \
             --repository-root . \
             --plugin-directory "${PLUGIN_DIRECTORY}" \
