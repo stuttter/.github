@@ -230,6 +230,41 @@
         "release_branch": "master",
         "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
+    },
+    {
+      "repository": "stuttter/wp-term-images",
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "e431d9aed0f0b39bc4e1729e0e6da64dc4da5e859ea032c7feb44489837310fc" },
+            { "path": "composer.lock", "sha256": "f83d953a43c60c7b6e22290078ccad0b33466e11a7a5d5fd7c13f3dadd5fe4dd" },
+            { "path": "phpunit.xml.dist", "sha256": "78d45dc8e6316665d752afa2ed801c82742201f512d06bc76464556d5445baa6" },
+            { "path": "tests/bootstrap.php", "sha256": "bc0b39cc0112ef0ca478c026febd9f5f3da6e1e5c16236076a9e8505f3cebc85" }
+          ]
+        }
+      },
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "aa30bdf596ea7bb91bced06ae5934a967bca16d515ecd7f4ba1afce3d782c344"
+        }
+      },
+      "manifest": {
+        "slug": "wp-term-images",
+        "main_file": "wp-term-images.php",
+        "risk": "elevated",
+        "minimum_php": "7.4",
+        "minimum_wordpress": "4.4",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": false,
+        "release_branch": "master",
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
+      }
     }
   ]
 }

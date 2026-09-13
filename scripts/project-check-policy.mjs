@@ -285,7 +285,7 @@ function parseArguments(argv) {
   return options;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     const options = parseArguments(process.argv.slice(2));
     const inventory = JSON.parse(readFileSync(resolve(scriptRoot, 'portfolio/plugins.json'), 'utf8'));
