@@ -23,5 +23,5 @@ test('quality gate checks pull requests against the immutable base commit', () =
 
 test('production artifacts remain gated by quality and project-specific checks', () => {
   const artifact = workflow.slice(workflow.indexOf('\n  artifact:'));
-  assert.match(artifact, /needs: \[metadata, syntax, quality, project-checks\]/u);
+  assert.match(artifact, /needs: \[metadata, syntax, quality, project-checks, plugin-check, wordpress-integration\]/u);
 });

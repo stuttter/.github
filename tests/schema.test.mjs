@@ -124,3 +124,19 @@ test('portfolio schema keeps executable project checks centrally bounded', () =>
   lineBreak.repositories[0].checks.smoke = { single_site: 'tests/run.sh\n', files: [{ path: 'tests/run.sh', sha256: 'a'.repeat(64) }] };
   assert.match(validate(lineBreak, portfolioSchema).join('\n'), /does not match/u);
 });
+
+test('portfolio schema accepts only declarative integration gates', () => {
+  const valid = structuredClone(portfolio);
+  valid.repositories[0].integration = {
+    plugin_check: true,
+    wordpress: { path: 'tests/integration/smoke.php', sha256: 'a'.repeat(64) },
+  };
+  assert.deepEqual(validate(valid, portfolioSchema), []);
+
+  valid.repositories[0].integration = { command: 'npm run surprise' };
+  assert.match(validate(valid, portfolioSchema).join('\n'), /command is not allowed/u);
+
+  const unbound = structuredClone(portfolio);
+  unbound.repositories[0].integration = { wordpress: true };
+  assert.match(validate(unbound, portfolioSchema).join('\n'), /must be object/u);
+});

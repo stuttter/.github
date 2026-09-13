@@ -16,6 +16,7 @@
           ]
         }
       },
+      "integration": {},
       "manifest": {
         "slug": "wp-user-groups",
         "main_file": "wp-user-groups.php",
@@ -44,6 +45,7 @@
           ]
         }
       },
+      "integration": {},
       "manifest": {
         "slug": "wp-user-signups",
         "main_file": "wp-user-signups.php",
@@ -59,8 +61,8 @@
     },
     {
       "repository": "stuttter/wp-media-categories",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
@@ -70,6 +72,13 @@
             { "path": "phpunit.xml.dist", "sha256": "a51a3fb9d0a54d88f2f3d1ab04dda9375cf6700966f1b8f2b4fd0715936365c7" },
             { "path": "tests/bootstrap.php", "sha256": "9f4b7324331e280942c4daa895282efc88f3fc87a1d5355c7b78eb6edb2292b4" }
           ]
+        }
+      },
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "4a7e89f6edb6d0d2cf11159eeed7826f08eaf8bddf7ba0b2df9b216b0a53d3c0"
         }
       },
       "manifest": {
@@ -87,8 +96,8 @@
     },
     {
       "repository": "stuttter/wp-user-activity",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
@@ -98,6 +107,13 @@
             { "path": "phpunit.xml.dist", "sha256": "6b702f7ef2c2aa46ba9cc3990037e33e0616c7b6403ca8b7c1fc87dd6073d369" },
             { "path": "tests/bootstrap.php", "sha256": "9325c7aaff7c462e8ad91ac707310d2f31e93253c1ca1d2517a1b6925586aa34" }
           ]
+        }
+      },
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03"
         }
       },
       "manifest": {
@@ -128,6 +144,7 @@
           ]
         }
       },
+      "integration": {},
       "manifest": {
         "slug": "wp-chosen",
         "main_file": "wp-chosen.php",
@@ -149,8 +166,8 @@
         "phpunit": {
           "config": "phpunit.xml.dist",
           "files": [
-            { "path": "composer.json", "sha256": "622fa9b10d34d4da364b7dac65efa0e4aaf7324eda75133442cc948432f9f00f" },
-            { "path": "composer.lock", "sha256": "342cfb151bfe55029a3efb73e3cd65e801b1659e62f39365030efd462f22dbd8" },
+            { "path": "composer.json", "sha256": "6d3ae9a05024894613523f41bfb89c3b69978614c0a48e004d76b410074542ee" },
+            { "path": "composer.lock", "sha256": "da8bf62f5bc6326816c1cf1b344e327658cc2abb87c7a58e07d7c0fc482301a1" },
             { "path": "phpunit.xml.dist", "sha256": "32de4282a5c1bf7b2a9d2b819d7524ce9e2cde8cf759c962bba667b69f6b8319" },
             { "path": "tests/bootstrap.php", "sha256": "524d50a91c79e12246a1566e7bb0f30adbc23cc75d4ed9675cec8e1b7987051b" }
           ]
@@ -171,6 +188,7 @@
           ]
         }
       },
+      "integration": {},
       "manifest": {
         "slug": "wp-user-profiles",
         "main_file": "wp-user-profiles.php",
@@ -199,6 +217,7 @@
           ]
         }
       },
+      "integration": {},
       "manifest": {
         "slug": "wp-reset-filters",
         "main_file": "wp-reset-filters.php",

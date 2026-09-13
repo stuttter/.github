@@ -4,6 +4,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateProjectChecks } from './project-check-policy.mjs';
+import { validateIntegrationPolicy } from './integration-check-policy.mjs';
 
 const managedMarker = '# Managed by stuttter/.github fleet standards. Do not edit locally.';
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -74,7 +75,7 @@ export function loadInventory(path) {
       errors.push(`${context} must be an object.`);
       continue;
     }
-    for (const key of Object.keys(item)) if (!['repository', 'enabled', 'managed_paths', 'manifest', 'checks'].includes(key)) errors.push(`${context} has unsupported key ${key}.`);
+    for (const key of Object.keys(item)) if (!['repository', 'enabled', 'managed_paths', 'manifest', 'checks', 'integration'].includes(key)) errors.push(`${context} has unsupported key ${key}.`);
     if (typeof item.repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(item.repository)) errors.push(`${context} repository is invalid.`);
     const repositoryIdentity = typeof item.repository === 'string' ? item.repository.toLowerCase() : item.repository;
     if (seen.has(repositoryIdentity)) errors.push(`${context} duplicates ${item.repository}.`);
@@ -85,6 +86,7 @@ export function loadInventory(path) {
       errors.push(`${context} managed_paths is invalid.`);
     }
     if (item.managed_paths?.includes('release') && item.manifest?.wordpress_org !== true) errors.push(`${context} cannot manage a WordPress.org release caller when wordpress_org is false.`);
+    errors.push(...validateIntegrationPolicy(item.integration, `${context}.integration`));
     errors.push(...validateManifest(item.manifest, `${context}.manifest`));
     errors.push(...validateProjectChecks(item.checks, `${context}.checks`, item.manifest?.multisite === true));
   }

@@ -21,6 +21,8 @@ const result = synchronize({
     repository: 'stuttter/workflow-fixture',
     enabled: true,
     managed_paths: ['ci', 'release', 'dependabot'],
+    checks: { phpunit: false },
+    integration: {},
     manifest: {
       slug: 'workflow-fixture',
       main_file: 'workflow-fixture.php',
