@@ -27,6 +27,9 @@ test('real WordPress cells use a fixed smoke path and no configured command', ()
   );
   assert.match(job, /Run repository smoke test in real WordPress/u);
   assert.match(job, /run-wordpress-integration\.sh/u);
+  assert.match(job, /config="\$\{GITHUB_WORKSPACE\}\/wp-env-integration\.json"/u);
+  assert.match(job, /WordPress integration requires a centrally generated root configuration/u);
+  assert.doesNotMatch(job, /config="\$\{RUNNER_TEMP\}\/wp-env-integration\.json"/u);
   assert.doesNotMatch(job, /matrix\.(?:command|script|path)/u);
 
   const runner = readFileSync(new URL('../scripts/run-wordpress-integration.sh', import.meta.url), 'utf8');
