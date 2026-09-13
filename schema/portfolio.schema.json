@@ -15,7 +15,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["repository", "enabled", "managed_paths", "manifest", "checks"],
+        "required": ["repository", "enabled", "managed_paths", "manifest", "checks", "integration"],
         "allOf": [
           {
             "if": {
@@ -191,6 +191,25 @@
                         "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
                       }
                     }
+                  }
+                }
+              }
+            }
+          },
+          "integration": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "plugin_check": { "const": true },
+              "wordpress": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["path", "sha256"],
+                "properties": {
+                  "path": { "const": "tests/integration/smoke.php" },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
                   }
                 }
               }

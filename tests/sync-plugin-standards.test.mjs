@@ -10,6 +10,7 @@ const target = {
   enabled: true,
   managed_paths: ['ci', 'release', 'dependabot'],
   checks: { phpunit: false },
+  integration: {},
   manifest: {
     slug: 'example-plugin',
     main_file: 'example-plugin.php',

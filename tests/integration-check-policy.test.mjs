@@ -1,0 +1,124 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
+
+import {
+  resolveIntegrationPolicy,
+  validateIntegrationPolicy,
+  verifyWordPressSmoke,
+} from '../scripts/integration-check-policy.mjs';
+
+const smokePath = 'tests/integration/smoke.php';
+const smokeSource = '<?php\n';
+const wordpress = () => ({
+  path: smokePath,
+  sha256: createHash('sha256').update(smokeSource).digest('hex'),
+});
+
+function target(repository, integration = {}, multisite = false) {
+  return {
+    repository,
+    integration,
+    manifest: {
+      minimum_php: '7.4',
+      minimum_wordpress: '5.2',
+      multisite,
+    },
+  };
+}
+
+test('undeclared integration produces one inert matrix cell', () => {
+  const policy = resolveIntegrationPolicy({ repositories: [target('example/plugin')] }, 'example/plugin');
+
+  assert.equal(policy.pluginCheck, false);
+  assert.deepEqual(policy.matrix.include, [{
+    name: 'WordPress integration not declared',
+    target: 'disabled',
+    wordpress: '',
+    php: '',
+    topology: 'disabled',
+  }]);
+});
+
+test('single-site policy schedules oldest, stable, and trunk', () => {
+  const policy = resolveIntegrationPolicy({
+    repositories: [target('example/plugin', { plugin_check: true, wordpress: wordpress() })],
+  }, 'example/plugin');
+
+  assert.equal(policy.pluginCheck, true);
+  assert.deepEqual(policy.matrix.include.map(({ target: name }) => name), ['oldest', 'stable', 'trunk']);
+  assert.deepEqual(policy.matrix.include.map(({ wordpress }) => wordpress), ['5.2', 'latest', 'trunk']);
+  assert.deepEqual(policy.matrix.include.map(({ php }) => php), ['7.4', '8.4', '8.4']);
+  assert.ok(policy.matrix.include.every(({ topology }) => topology === 'single-site'));
+});
+
+test('multisite declaration controls every WordPress integration cell', () => {
+  const policy = resolveIntegrationPolicy({
+    repositories: [target('example/network-plugin', { wordpress: wordpress() }, true)],
+  }, 'example/network-plugin');
+
+  assert.ok(policy.matrix.include.every(({ topology }) => topology === 'multisite'));
+});
+
+test('integration policy rejects arbitrary keys and false declarations', () => {
+  assert.match(validateIntegrationPolicy({ command: 'npm run surprise' }).join('\n'), /unsupported key command/u);
+  assert.match(validateIntegrationPolicy({ wordpress: false }).join('\n'), /wordpress must be an object when declared/u);
+  assert.match(validateIntegrationPolicy({ wordpress: { path: '../smoke.php', sha256: 'a'.repeat(64) } }).join('\n'), /path must be tests\/integration\/smoke\.php/u);
+  assert.match(validateIntegrationPolicy({ wordpress: { path: smokePath, sha256: 'A'.repeat(64) } }).join('\n'), /lowercase SHA-256/u);
+  assert.match(validateIntegrationPolicy(null).join('\n'), /must be an object/u);
+});
+
+test('WordPress smoke enrollment verifies the exact regular payload', () => {
+  const root = mkdtempSync(join(tmpdir(), 'integration-policy-'));
+  const integration = join(root, 'tests', 'integration');
+  mkdirSync(integration, { recursive: true });
+  writeFileSync(join(integration, 'smoke.php'), smokeSource);
+  try {
+    assert.doesNotThrow(() => verifyWordPressSmoke(root, wordpress()));
+    writeFileSync(join(integration, 'smoke.php'), '<?php // changed\n');
+    assert.throws(() => verifyWordPressSmoke(root, wordpress()), /does not match its centrally approved SHA-256/u);
+  } finally {
+    rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test('WordPress smoke enrollment rejects missing files and symbolic links', () => {
+  const root = mkdtempSync(join(tmpdir(), 'integration-policy-'));
+  const integration = join(root, 'tests', 'integration');
+  mkdirSync(integration, { recursive: true });
+  try {
+    assert.throws(() => verifyWordPressSmoke(root, wordpress()), /is missing/u);
+    const outside = join(root, 'outside.php');
+    writeFileSync(outside, smokeSource);
+    symlinkSync(outside, join(integration, 'smoke.php'));
+    assert.throws(() => verifyWordPressSmoke(root, wordpress()), /no symbolic-link components/u);
+  } finally {
+    rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test('integration policy requires one exact inventory identity', () => {
+  const inventory = { repositories: [target('example/plugin')] };
+  assert.throws(() => resolveIntegrationPolicy(inventory, 'example/missing'), /exactly one portfolio entry/u);
+  inventory.repositories.push(target('example/plugin'));
+  assert.throws(() => resolveIntegrationPolicy(inventory, 'example/plugin'), /exactly one portfolio entry/u);
+});
+
+test('only WP Media Categories and WP User Activity are enrolled as pilots', () => {
+  const inventory = JSON.parse(readFileSync(new URL('../portfolio/plugins.json', import.meta.url), 'utf8'));
+  const enrolled = inventory.repositories
+    .filter(({ integration }) => integration.plugin_check || integration.wordpress)
+    .map(({ repository }) => repository);
+
+  assert.deepEqual(enrolled, [
+    'stuttter/wp-media-categories',
+    'stuttter/wp-user-activity',
+  ]);
+  assert.equal(inventory.repositories[2].integration.wordpress.sha256, '4a7e89f6edb6d0d2cf11159eeed7826f08eaf8bddf7ba0b2df9b216b0a53d3c0');
+  assert.equal(inventory.repositories[3].integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
+  assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-media-categories').matrix.include[0].topology, 'single-site');
+  assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-activity').matrix.include[0].topology, 'multisite');
+});

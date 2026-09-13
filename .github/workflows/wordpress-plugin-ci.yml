@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       project-check-matrix: ${{ steps.project-policy.outputs.matrix }}
+      plugin_check: ${{ steps.integration-policy.outputs.plugin_check }}
+      integration_matrix: ${{ steps.integration-policy.outputs.matrix }}
     steps:
       - name: Validate immutable policy reference
         env:
@@ -57,6 +59,12 @@ jobs:
         env:
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . >> "${GITHUB_OUTPUT}"
+
+      - name: Resolve trusted integration policy
+        id: integration-policy
+        env:
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node .portfolio-standard/scripts/integration-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . >> "${GITHUB_OUTPUT}"
 
   syntax:
     name: PHP ${{ matrix.php }} syntax
@@ -251,10 +259,175 @@ jobs:
         if: ${{ matrix.kind == 'none' }}
         run: echo 'No additional project-specific checks are enrolled.'
 
+  plugin-check:
+    name: WordPress Plugin Check
+    needs: metadata
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Report undeclared Plugin Check
+        if: ${{ needs.metadata.outputs.plugin_check != 'true' }}
+        run: echo 'WordPress Plugin Check is not enabled for this pilot profile.'
+
+      - name: Check out plugin
+        if: ${{ needs.metadata.outputs.plugin_check == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Reject repository-controlled wp-env configuration
+        if: ${{ needs.metadata.outputs.plugin_check == 'true' }}
+        shell: bash
+        run: |
+          for path in .wp-env.json .wp-env.override.json; do
+            if [[ -e "${path}" || -L "${path}" ]]; then
+              echo "Plugin Check requires centrally generated wp-env configuration; remove ${path}." >&2
+              exit 1
+            fi
+          done
+
+      - name: Check out portfolio standard
+        if: ${{ needs.metadata.outputs.plugin_check == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          ref: ${{ job.workflow_sha }}
+          path: .portfolio-standard
+          persist-credentials: false
+
+      - name: Set up PHP
+        if: ${{ needs.metadata.outputs.plugin_check == 'true' }}
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: none
+
+      - name: Build plugin for Plugin Check
+        if: ${{ needs.metadata.outputs.plugin_check == 'true' }}
+        id: plugin-check-build
+        shell: bash
+        run: |
+          plugin_directory="$(bash .portfolio-standard/scripts/prepare-plugin-build.sh . "${RUNNER_TEMP}/plugin-check-build")"
+          echo "plugin_directory=${plugin_directory}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run WordPress Plugin Check
+        if: ${{ needs.metadata.outputs.plugin_check == 'true' }}
+        uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+        with:
+          build-dir: ${{ steps.plugin-check-build.outputs.plugin_directory }}
+          include-experimental: 'false'
+          repo-token: ''
+
+  wordpress-integration:
+    name: ${{ matrix.name }}
+    needs: metadata
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.metadata.outputs.integration_matrix) }}
+    steps:
+      - name: Report undeclared WordPress integration
+        if: ${{ matrix.target == 'disabled' }}
+        run: echo 'A real WordPress integration profile is not declared for this repository.'
+
+      - name: Check out plugin
+        if: ${{ matrix.target != 'disabled' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out portfolio standard
+        if: ${{ matrix.target != 'disabled' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          ref: ${{ job.workflow_sha }}
+          path: .portfolio-standard
+          persist-credentials: false
+
+      - name: Verify the centrally approved smoke payload
+        if: ${{ matrix.target != 'disabled' }}
+        env:
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node .portfolio-standard/scripts/integration-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root .
+
+      - name: Set up PHP for the deterministic build
+        if: ${{ matrix.target != 'disabled' }}
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: none
+
+      - name: Set up the locked WordPress runtime
+        if: ${{ matrix.target != 'disabled' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: .portfolio-standard/runtime/wordpress/package-lock.json
+
+      - name: Install the locked WordPress runtime
+        if: ${{ matrix.target != 'disabled' }}
+        working-directory: .portfolio-standard/runtime/wordpress
+        run: npm ci --ignore-scripts
+
+      - name: Apply audited WordPress 5.0 runtime compatibility
+        if: ${{ matrix.target != 'disabled' }}
+        run: >-
+          node .portfolio-standard/scripts/patch-wordpress-env.mjs
+          .portfolio-standard/runtime/wordpress/node_modules/@wordpress/env/lib/runtime/docker/wordpress.js
+
+      - name: Build plugin for WordPress integration
+        if: ${{ matrix.target != 'disabled' }}
+        id: integration-build
+        shell: bash
+        run: |
+          plugin_directory="$(bash .portfolio-standard/scripts/prepare-plugin-build.sh . "${RUNNER_TEMP}/integration-build")"
+          echo "plugin_directory=${plugin_directory}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate isolated WordPress configuration
+        if: ${{ matrix.target != 'disabled' }}
+        id: integration-config
+        env:
+          INTEGRATION_PHP: ${{ matrix.php }}
+          INTEGRATION_TARGET: ${{ matrix.target }}
+          INTEGRATION_TOPOLOGY: ${{ matrix.topology }}
+          INTEGRATION_WORDPRESS: ${{ matrix.wordpress }}
+          PLUGIN_DIRECTORY: ${{ steps.integration-build.outputs.plugin_directory }}
+        shell: bash
+        run: |
+          config="${RUNNER_TEMP}/wp-env-integration.json"
+          slug="$(node .portfolio-standard/scripts/configure-wordpress-integration.mjs \
+            --repository-root . \
+            --plugin-directory "${PLUGIN_DIRECTORY}" \
+            --output "${config}" \
+            --target "${INTEGRATION_TARGET}" \
+            --wordpress "${INTEGRATION_WORDPRESS}" \
+            --php "${INTEGRATION_PHP}" \
+            --topology "${INTEGRATION_TOPOLOGY}")"
+          echo "config=${config}" >> "${GITHUB_OUTPUT}"
+          echo "slug=${slug}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run repository smoke test in real WordPress
+        if: ${{ matrix.target != 'disabled' }}
+        env:
+          WP_ENV_HOME: ${{ runner.temp }}/wp-env-${{ matrix.target }}
+        run: >-
+          bash .portfolio-standard/scripts/run-wordpress-integration.sh
+          .portfolio-standard/runtime/wordpress/node_modules/.bin/wp-env
+          "${{ steps.integration-config.outputs.config }}"
+          "${{ steps.integration-config.outputs.slug }}"
+          "${{ matrix.topology }}"
+
   artifact:
     name: Production artifact
     if: ${{ inputs.build-artifact }}
-    needs: [metadata, syntax, quality, project-checks]
+    needs: [metadata, syntax, quality, project-checks, plugin-check, wordpress-integration]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

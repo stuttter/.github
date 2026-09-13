@@ -153,6 +153,35 @@ centrally maintained WordPress-version environments described in issue #8 are
 available. Their dedicated runners provide isolation between smoke profiles;
 they must not depend on state from another matrix cell.
 
+### WordPress runtime gates
+
+The immutable portfolio inventory enables WordPress Plugin Check and real
+WordPress integration independently for each repository. The plugin checkout's
+manifest cannot select commands, paths, WordPress sources, PHP versions, or
+topology. WordPress Plugin Check scans the deterministic production build and
+rejects repository-controlled wp-env configuration before starting its isolated
+environment.
+
+A declared WordPress integration profile always runs the fixed
+`tests/integration/smoke.php` entry point against the manifest's oldest
+supported WordPress and PHP versions, current stable WordPress on PHP 8.4, and
+WordPress trunk on PHP 8.4. The manifest's existing `multisite` value selects
+the topology for every cell. The immutable inventory binds that fixed payload
+to its reviewed SHA-256 digest; missing, changed, symbolic-link, or misplaced
+smoke tests fail the declared profile rather than silently skipping it.
+
+The integration runner installs an exact locked wp-env runtime, builds the
+plugin through the same deterministic artifact script, maps only the built
+plugin and fixed smoke-test directory, and destroys its environment after each
+matrix cell. A source-hash-bound compatibility patch corrects wp-env's legacy
+WordPress configuration anchor: current Docker images use modern spacing in
+`wp-config.php` even when the selected WordPress source predates 5.1. Any
+upstream source drift rejects that patch and requires review. These jobs have
+no repository permissions, persist no checkout
+credential, and receive no secrets. WP Media Categories and WP User Activity
+are the initial single-site and multisite pilots; other repositories remain
+inert until their central profile is deliberately enabled.
+
 ## AI implementation lane
 
 An owner-applied `codex: ready` label authorizes work on one implementation-ready

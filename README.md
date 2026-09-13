@@ -13,10 +13,10 @@ automation to approve its own work or publish unverified releases.
 - `docs/visual-system.md` defines the shared icon and banner language.
 - `docs/namespace-migration.md` defines the safe path away from the legacy
   organization name.
-- `portfolio/plugins.json` records project-specific compatibility and risk.
-- `portfolio/plugins.json` also enrolls established PHPUnit suites and
-  authorizes fixed generated-asset and live-smoke checks that pull-request
-  manifests cannot enable or redefine.
+- `portfolio/plugins.json` records project-specific compatibility and risk,
+  enrolls established PHPUnit and generated-asset checks, and authorizes fixed
+  live-smoke and real-WordPress integration gates that pull-request manifests
+  cannot enable or redefine.
 - `docs/fleet-synchronization.md` documents safe audit and draft-PR automation.
 - `.github/workflows/` contains reusable workflows called by plugin repositories.
 - `scripts/` contains deterministic validation and release helpers.

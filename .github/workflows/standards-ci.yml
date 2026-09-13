@@ -37,6 +37,12 @@ jobs:
       - name: Install locked visual tooling
         run: npm ci
 
+      - name: Validate locked WordPress integration runtime
+        run: |
+          npm ci --ignore-scripts --prefix runtime/wordpress
+          npm audit --audit-level=moderate --prefix runtime/wordpress
+          node scripts/patch-wordpress-env.mjs runtime/wordpress/node_modules/@wordpress/env/lib/runtime/docker/wordpress.js
+
       - name: Check scripts
         run: |
           php -l scripts/validate-plugin.php
@@ -50,6 +56,11 @@ jobs:
           node --check scripts/render-workflow-fixtures.mjs
           node --check scripts/check-static-analysis-baselines.mjs
           node --check scripts/project-check-policy.mjs
+          node --check scripts/integration-check-policy.mjs
+          node --check scripts/configure-wordpress-integration.mjs
+          node --check scripts/patch-wordpress-env.mjs
+          bash -n scripts/prepare-plugin-build.sh
+          bash -n scripts/run-wordpress-integration.sh
 
       - name: Run fleet synchronization tests
         run: npm test
@@ -59,6 +70,8 @@ jobs:
           php -r 'json_decode(file_get_contents("schema/plugin-standard.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("schema/portfolio.schema.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("portfolio/plugins.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("runtime/wordpress/package.json"), true, 512, JSON_THROW_ON_ERROR);'
+          php -r 'json_decode(file_get_contents("runtime/wordpress/package-lock.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("examples/plugin-standard.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("brand/tokens.json"), true, 512, JSON_THROW_ON_ERROR);'
           php -r 'json_decode(file_get_contents("brand/plugins.json"), true, 512, JSON_THROW_ON_ERROR);'
