@@ -15,7 +15,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["repository", "enabled", "managed_paths", "manifest"],
+        "required": ["repository", "enabled", "managed_paths", "manifest", "checks"],
         "allOf": [
           {
             "if": {
@@ -35,6 +35,28 @@
                 }
               }
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "checks": {
+                  "properties": {
+                    "smoke": { "required": ["multisite"] }
+                  },
+                  "required": ["smoke"]
+                }
+              },
+              "required": ["checks"]
+            },
+            "then": {
+              "properties": {
+                "manifest": {
+                  "properties": {
+                    "multisite": { "const": true }
+                  }
+                }
+              }
+            }
           }
         ],
         "properties": {
@@ -48,6 +70,130 @@
             "uniqueItems": true,
             "items": {
               "enum": ["ci", "release", "dependabot"]
+            }
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["phpunit"],
+            "properties": {
+              "phpunit": {
+                "oneOf": [
+                  { "const": false },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["config", "files"],
+                    "properties": {
+                      "config": { "const": "phpunit.xml.dist" },
+                      "files": {
+                        "type": "array",
+                        "minItems": 4,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["path", "sha256"],
+                          "properties": {
+                            "path": {
+                              "type": "string",
+                              "pattern": "^(?!.*[\\r\\n])(?:composer\\.(?:json|lock)|phpunit\\.xml\\.dist|(?:bin|scripts|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+)$"
+                            },
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "node": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["version", "script", "scripts", "files"],
+                "properties": {
+                  "version": { "enum": ["22", "24"] },
+                  "script": { "const": "build:check" },
+                  "scripts": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "propertyNames": { "pattern": "^[A-Za-z0-9:_-]+$" },
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9_./:@=-]+(?: +[A-Za-z0-9_./:@=-]+)*(?: +&& +[A-Za-z0-9_./:@=-]+(?: +[A-Za-z0-9_./:@=-]+)*)*$"
+                    }
+                  },
+                  "files": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["path", "sha256"],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^(?!.*[\\r\\n])(?!/)(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]*$"
+                        },
+                        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                      }
+                    }
+                  }
+                }
+              },
+              "smoke": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["payloads", "files"],
+                "minProperties": 2,
+                "properties": {
+                  "single_site": {
+                    "type": "string",
+                    "pattern": "^(?!.*[\\r\\n])(?:bin|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+\\.sh$"
+                  },
+                  "multisite": {
+                    "type": "string",
+                    "pattern": "^(?!.*[\\r\\n])(?:bin|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+\\.sh$"
+                  },
+                  "payloads": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "minProperties": 1,
+                    "properties": {
+                      "single_site": {
+                        "type": "string",
+                        "pattern": "^(?!.*[\\r\\n])(?:bin|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+\\.php$"
+                      },
+                      "multisite": {
+                        "type": "string",
+                        "pattern": "^(?!.*[\\r\\n])(?:bin|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+\\.php$"
+                      }
+                    }
+                  },
+                  "files": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["path", "sha256"],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "pattern": "^(?!.*[\\r\\n])(?:composer\\.(?:json|lock)|phpunit\\.xml\\.dist|(?:bin|scripts|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+)$"
+                        },
+                        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                      }
+                    }
+                  }
+                }
+              }
             }
           },
           "manifest": {

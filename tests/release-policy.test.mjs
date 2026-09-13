@@ -8,7 +8,7 @@ test('release authorization hard-codes its protected environment and binds its b
   assert.match(workflow, /^    environment: wordpress\.org$/m);
   assert.doesNotMatch(workflow, /\$\{\{ inputs\.environment \}\}/);
   assert.doesNotMatch(workflow, /RELEASE_ENVIRONMENT/);
-  assert.equal((workflow.match(/test "\$\{RELEASE_BRANCH\}" = "\$\{expected_branch\}"/g) || []).length, 2);
+  assert.equal((workflow.match(/test "\$\{RELEASE_BRANCH\}" = "\$\{expected_branch\}"/g) || []).length, 3);
 });
 
 test('legacy release callers may pass an ignored environment input during migration', () => {
@@ -19,7 +19,7 @@ test('legacy release callers may pass an ignored environment input during migrat
 
 test('release inputs enforce canonical SemVer and WordPress.org eligibility', () => {
   assert.match(workflow, /\^\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$/);
-  assert.equal((workflow.match(/test "\$\{actual_wordpress_org\}" = 'true'/g) || []).length, 2);
+  assert.equal((workflow.match(/test "\$\{actual_wordpress_org\}" = 'true'/g) || []).length, 3);
 });
 
 test('WordPress.org credentials use an explicit required reusable-workflow interface', () => {

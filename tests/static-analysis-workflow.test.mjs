@@ -9,7 +9,7 @@ const workflow = readFileSync(
 
 test('quality gate checks pull requests against the immutable base commit', () => {
   const jobStart = workflow.indexOf('\n  quality:');
-  const jobEnd = workflow.indexOf('\n  artifact:', jobStart);
+  const jobEnd = workflow.indexOf('\n  project-checks:', jobStart);
   const job = workflow.slice(jobStart, jobEnd);
 
   assert.notEqual(jobStart, -1);
@@ -21,7 +21,7 @@ test('quality gate checks pull requests against the immutable base commit', () =
   assert.doesNotMatch(job, /php .*\$\{BASE_SHA\}|npm (?:ci|install)/u);
 });
 
-test('production artifacts remain gated by the existing quality status', () => {
+test('production artifacts remain gated by quality and project-specific checks', () => {
   const artifact = workflow.slice(workflow.indexOf('\n  artifact:'));
-  assert.match(artifact, /needs: \[metadata, syntax, quality\]/u);
+  assert.match(artifact, /needs: \[metadata, syntax, quality, project-checks\]/u);
 });

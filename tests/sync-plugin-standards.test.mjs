@@ -9,6 +9,7 @@ const target = {
   repository: 'stuttter/example-plugin',
   enabled: true,
   managed_paths: ['ci', 'release', 'dependabot'],
+  checks: { phpunit: false },
   manifest: {
     slug: 'example-plugin',
     main_file: 'example-plugin.php',

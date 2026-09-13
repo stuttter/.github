@@ -27,6 +27,8 @@ jobs:
     name: Metadata
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      project-check-matrix: ${{ steps.project-policy.outputs.matrix }}
     steps:
       - name: Validate immutable policy reference
         env:
@@ -49,6 +51,12 @@ jobs:
 
       - name: Validate plugin metadata
         run: php .portfolio-standard/scripts/validate-plugin.php .
+
+      - name: Resolve trusted project checks
+        id: project-policy
+        env:
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . >> "${GITHUB_OUTPUT}"
 
   syntax:
     name: PHP ${{ matrix.php }} syntax
@@ -139,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          for script in phpcs phpstan test; do
+          for script in phpcs phpstan; do
             # The PHP program is intentionally single-quoted for the shell.
             # shellcheck disable=SC2016
             if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
@@ -147,10 +155,106 @@ jobs:
             fi
           done
 
+  project-checks:
+    name: ${{ matrix.name }}
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.metadata.outputs.project-check-matrix) }}
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out portfolio standard for project checks
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          ref: ${{ job.workflow_sha }}
+          path: .portfolio-standard
+          persist-credentials: false
+
+      - name: Set up minimum PHP
+        if: ${{ matrix.kind == 'minimum-php' }}
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer
+
+      - name: Run PHPUnit on minimum PHP
+        if: ${{ matrix.kind == 'minimum-php' }}
+        env:
+          PHPUNIT_CONFIG: ${{ matrix.config }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test "${PHPUNIT_CONFIG}" = 'phpunit.xml.dist'
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . --mode verify
+          composer validate --strict
+          composer install --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . --mode verify-installed
+          junit_result="${RUNNER_TEMP}/phpunit-junit.xml"
+          set +e
+          vendor/bin/phpunit --configuration "${PHPUNIT_CONFIG}" --log-junit "${junit_result}"
+          phpunit_status=$?
+          set -e
+          php .portfolio-standard/scripts/validate-phpunit-junit.php "${junit_result}"
+          test "${phpunit_status}" -eq 0
+
+      - name: Set up approved Node.js
+        if: ${{ matrix.kind == 'node-assets' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Verify deterministic generated assets
+        if: ${{ matrix.kind == 'node-assets' }}
+        env:
+          NODE_BUILD_SCRIPT: ${{ matrix.script }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${NODE_BUILD_SCRIPT}" = 'build:check'
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . --mode verify
+          npm ci --ignore-scripts
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . --mode verify
+          npm run-script "${NODE_BUILD_SCRIPT}"
+
+      - name: Run isolated live smoke check
+        if: ${{ matrix.kind == 'live-smoke' }}
+        env:
+          SMOKE_SCRIPT: ${{ matrix.script }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${SMOKE_SCRIPT}" =~ ^(bin|tests)/[A-Za-z0-9._/-]+\.sh$ ]]
+          [[ "${SMOKE_SCRIPT}" != *$'\r'* ]]
+          [[ "${SMOKE_SCRIPT}" != *$'\n'* ]]
+          [[ "${SMOKE_SCRIPT}" != *'//'* ]]
+          [[ "${SMOKE_SCRIPT}" != *'/../'* ]]
+          test -f "${SMOKE_SCRIPT}"
+          test ! -L "${SMOKE_SCRIPT}"
+          resolved_script="$(realpath "${SMOKE_SCRIPT}")"
+          [[ "${resolved_script}" == "${GITHUB_WORKSPACE}/"* ]]
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . --mode verify
+          bash -- "${SMOKE_SCRIPT}"
+
+      - name: Confirm no project-specific checks are enrolled
+        if: ${{ matrix.kind == 'none' }}
+        run: echo 'No additional project-specific checks are enrolled.'
+
   artifact:
     name: Production artifact
     if: ${{ inputs.build-artifact }}
-    needs: [metadata, syntax, quality]
+    needs: [metadata, syntax, quality, project-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
