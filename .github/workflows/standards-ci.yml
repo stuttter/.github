@@ -47,6 +47,7 @@ jobs:
           node --check scripts/fleet-matrix.mjs
           node --check scripts/validate-workflow-pins.mjs
           node --check scripts/render-workflow-fixtures.mjs
+          node --check scripts/check-static-analysis-baselines.mjs
 
       - name: Run fleet synchronization tests
         run: npm test

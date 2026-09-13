@@ -63,7 +63,52 @@ The shared gate should verify:
 11. A deterministic production ZIP with development-only files excluded.
 
 Jobs may report a deliberately introduced legacy baseline separately, but new
-changes cannot increase that baseline.
+changes cannot increase that baseline. Pull requests may introduce the canonical
+`phpcs-baseline.json` and `phpstan-baseline.neon` files when the base revision
+has none. After introduction, the shared gate permits removed allowances, lower
+counts, and the conservative PHPStan narrowing relation documented below. It
+rejects new PHPCS keys, broader or unrecognized PHPStan rewrites, and count
+increases without executing files from the base revision. PHPStan
+baselines must use the complete canonical generated form: one
+`parameters.ignoreErrors` list containing only an explicitly quoted message,
+optional string identifier, positive integer count, and string path. Quoted
+values use single-quoted NEON or JSON-compatible double quotes; unquoted path
+and identifier values are limited to plain filename/token characters. Inline or
+unbounded ignores, typed values, collections, includes, alternate collections,
+and unrelated trailing configuration fail closed.
+
+PHPStan message-pattern narrowing recognizes only `#^literal#`,
+`#^literal$#`, and `#^literal.*$#`. In this deliberately small grammar, regular
+expression metacharacters must be backslash-escaped as literals, and backslash
+escapes are accepted only for non-alphanumeric characters. A head prefix must
+extend one unique base prefix, keep the same path, preserve or add (but never
+change or remove) an identifier, and consume no more than the base entry's
+remaining count. Multiple narrowed entries may split one base count, but their
+combined count cannot exceed it. An exact base remains exact; a `.*` base may
+narrow only to a longer `.*` or exact pattern; and a start-anchored prefix may
+narrow to any recognized longer form. This keeps newline-sensitive PCRE
+matching within the subset relation. Character classes, alternation, quantified
+groups, lookarounds, backreferences, modifiers, ambiguous parent matches, and
+every other regex rewrite are rejected rather than guessed to be narrower.
+
+On initial introduction, the head must already contain a valid corresponding
+Composer script and conventional analyzer configuration. The command must name
+the analyzer as its first command token or name a regular `bin/` or `scripts/`
+runner containing an explicit reference to its locked `vendor/bin/` analyzer.
+When a baseline
+already exists on the pull request base, the corresponding
+Composer analyzer command, conventional analyzer configuration, and directly
+named `bin/` or `scripts/` runner must remain byte-for-byte unchanged. This
+prevents a pull request from bypassing the gate by removing or replacing the
+analyzer. That narrow check does not recursively interpret helper files loaded
+by a runner or configuration, dependency changes that alter the resolved
+analyzer executable, or analyzer behavior changed outside the repository.
+For an initial baseline, it also cannot prove that arbitrary new runner code
+executes a vendor path merely mentioned in a comment or string. Initial baseline
+introductions therefore require maintainer review and are not an autonomous
+home-run change. After merge, the runner is protected byte for byte.
+Repositories must protect those transitive analysis inputs through ownership
+rules, dependency review, and the locked toolchain checks in the quality suite.
 
 ## AI implementation lane
 
