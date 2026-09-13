@@ -250,7 +250,7 @@
         "plugin_check": true,
         "wordpress": {
           "path": "tests/integration/smoke.php",
-          "sha256": "aa30bdf596ea7bb91bced06ae5934a967bca16d515ecd7f4ba1afce3d782c344"
+          "sha256": "55c265fcf4ea7a2de1c08a8c97af1dfc3dffdf55c5c7a9fd19ad38b3c41d8f40"
         }
       },
       "manifest": {
