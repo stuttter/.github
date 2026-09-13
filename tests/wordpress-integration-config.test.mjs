@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -39,7 +39,7 @@ test('oldest single-site configuration uses declared compatibility floors', () =
     assert.equal(result.config.multisite, false);
     assert.equal(result.config.autoPort, true);
     assert.equal(result.config.testsEnvironment, false);
-    assert.deepEqual(result.config.plugins, [value.pluginDirectory]);
+    assert.deepEqual(result.config.plugins, [realpathSync(value.pluginDirectory)]);
     assert.equal(result.config.lifecycleScripts, undefined);
   } finally {
     value.cleanup();
