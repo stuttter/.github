@@ -33,15 +33,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  preflight:
-    name: Verify and build exact release
+  checks:
+    name: Run credential-free release checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
-    outputs:
-      slug: ${{ steps.metadata.outputs.slug }}
-      archive: ${{ steps.metadata.outputs.archive }}
     steps:
       - name: Check out exact commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,15 +108,40 @@ jobs:
           test "${actual_wordpress_org}" = 'true'
           test "${RELEASE_BRANCH}" = "${expected_branch}"
 
+      - name: Resolve trusted project checks
+        id: project-policy
+        env:
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . >> "${GITHUB_OUTPUT}"
+
+      - name: Set up approved Node.js
+        if: ${{ steps.project-policy.outputs.node_enabled == 'true' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ steps.project-policy.outputs.node_version }}
+
+      - name: Verify deterministic generated assets
+        if: ${{ steps.project-policy.outputs.node_enabled == 'true' }}
+        env:
+          NODE_BUILD_SCRIPT: ${{ steps.project-policy.outputs.node_script }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${NODE_BUILD_SCRIPT}" = 'build:check'
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${GITHUB_REPOSITORY}" --project-root . --mode verify
+          npm ci --ignore-scripts
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${GITHUB_REPOSITORY}" --project-root . --mode verify
+          npm run-script "${NODE_BUILD_SCRIPT}"
+
       - name: Run locked project checks without secrets
         shell: bash
         run: |
           if [[ -f composer.json ]]; then
             test -f composer.lock
             composer validate --strict
-            composer install --no-interaction --no-progress --prefer-dist
+            composer install --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
             composer audit --locked
-            for script in phpcs phpstan test; do
+            for script in phpcs phpstan; do
               # shellcheck disable=SC2016
               if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
                 composer run-script "${script}"
@@ -127,13 +149,105 @@ jobs:
             done
           fi
 
-      - name: Build production artifact
+      - name: Run approved PHPUnit contract without secrets
+        if: ${{ steps.project-policy.outputs.phpunit_enabled == 'true' }}
+        env:
+          PHPUNIT_CONFIG: ${{ steps.project-policy.outputs.phpunit_config }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${PHPUNIT_CONFIG}" = 'phpunit.xml.dist'
+          node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . --mode verify-installed
+          junit_result="${RUNNER_TEMP}/release-phpunit-junit.xml"
+          set +e
+          vendor/bin/phpunit --configuration "${PHPUNIT_CONFIG}" --log-junit "${junit_result}"
+          phpunit_status=$?
+          set -e
+          php .portfolio-standard/scripts/validate-phpunit-junit.php "${junit_result}"
+          test "${phpunit_status}" -eq 0
+
+  artifact:
+    name: Build exact release artifact
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      slug: ${{ steps.metadata.outputs.slug }}
+      archive: ${{ steps.metadata.outputs.archive }}
+    steps:
+      - name: Check out exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP for central validation only
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: none
+
+      - name: Check out immutable portfolio policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: stuttter/.github
+          ref: ${{ job.workflow_sha }}
+          path: .portfolio-policy
+          persist-credentials: false
+
+      - name: Re-verify exact artifact source
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+          POLICY_REF: ${{ job.workflow_sha }}
+          RELEASE_BRANCH: ${{ inputs.release-branch }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${POLICY_REF}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse HEAD)" = "${EXPECTED_COMMIT}"
+          git fetch --no-tags origin "${RELEASE_BRANCH}"
+          test "$(git rev-parse FETCH_HEAD)" = "${EXPECTED_COMMIT}"
+          php .portfolio-policy/scripts/validate-plugin.php . "${VERSION}"
+
+          expected_slug="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(
+              .repository == $repository and
+              .enabled == true and
+              .manifest.wordpress_org == true
+            ) | .manifest.slug] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-policy/portfolio/plugins.json)"
+          expected_branch="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(
+              .repository == $repository and
+              .enabled == true and
+              .manifest.wordpress_org == true
+            ) | (.manifest.release_branch // "main")] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-policy/portfolio/plugins.json)"
+          actual_slug="$(jq --raw-output '.slug' .github/plugin-standard.json)"
+          actual_wordpress_org="$(jq --raw-output '.wordpress_org' .github/plugin-standard.json)"
+          test -n "${expected_slug}"
+          test -n "${expected_branch}"
+          test "${actual_slug}" = "${expected_slug}"
+          test "${actual_wordpress_org}" = 'true'
+          test "${RELEASE_BRANCH}" = "${expected_branch}"
+
+      - name: Build production artifact from Git objects
         env:
           VERSION: ${{ inputs.version }}
         id: metadata
         shell: bash
         run: |
-          bash .portfolio-standard/scripts/build-plugin.sh . build
+          bash .portfolio-policy/scripts/build-plugin.sh . build
           # shellcheck disable=SC2016
           slug="$(php -r '$manifest = json_decode(file_get_contents(".github/plugin-standard.json"), true, 512, JSON_THROW_ON_ERROR); echo $manifest["slug"];')"
           archive="${slug}-${VERSION}.zip"
@@ -153,7 +267,7 @@ jobs:
 
   publish:
     name: Publish approved release
-    needs: preflight
+    needs: artifact
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: wordpress.org
@@ -163,8 +277,8 @@ jobs:
       VERSION: ${{ inputs.version }}
       RELEASE_COMMIT: ${{ inputs.commit }}
       RELEASE_BRANCH: ${{ inputs.release-branch }}
-      PLUGIN_SLUG: ${{ needs.preflight.outputs.slug }}
-      ARCHIVE: ${{ needs.preflight.outputs.archive }}
+      PLUGIN_SLUG: ${{ needs.artifact.outputs.slug }}
+      ARCHIVE: ${{ needs.artifact.outputs.archive }}
     steps:
       - name: Check out exact commit without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

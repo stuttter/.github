@@ -5,6 +5,17 @@
       "repository": "stuttter/wp-user-groups",
       "enabled": false,
       "managed_paths": ["release", "dependabot"],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "2a86fefc11dacc40abccb5d81fa181969ed249d56271c33832a7d271421342ff" },
+            { "path": "composer.lock", "sha256": "24418414a9cbb488fe4cb760ef1404bd2ef5a97ea48db6ab1dcfa8752a0da7d2" },
+            { "path": "phpunit.xml.dist", "sha256": "5f91d0a818fe95020feccdeaa2bedf676297657e91b096ab96b97432375c5366" },
+            { "path": "tests/bootstrap.php", "sha256": "baca90cd6df0c70c64cc4791ed69cefbf3d4b36a41c7c8a3e667ed55e9d74736" }
+          ]
+        }
+      },
       "manifest": {
         "slug": "wp-user-groups",
         "main_file": "wp-user-groups.php",
@@ -22,6 +33,17 @@
       "repository": "stuttter/wp-user-signups",
       "enabled": false,
       "managed_paths": [],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "f323bf5c9daffa7547f820f5fcf5646a98c23d0ca2a3a6c9c124d6b5c6375e6f" },
+            { "path": "composer.lock", "sha256": "234ed8efc8d004e1a2d1bd2ffa52cc6059ad9e4bbf2c852e41e6d9ded05ddc33" },
+            { "path": "phpunit.xml.dist", "sha256": "1e9f6232d0f55f82fc4211c1689c3a8db80cc1f8aa7959eca9a2c0b0b4d65327" },
+            { "path": "tests/bootstrap.php", "sha256": "e4403cfe2f517b3788879831c55536bfc471abd9b616afa61899d9ebf1875b8b" }
+          ]
+        }
+      },
       "manifest": {
         "slug": "wp-user-signups",
         "main_file": "wp-user-signups.php",
@@ -39,6 +61,17 @@
       "repository": "stuttter/wp-media-categories",
       "enabled": false,
       "managed_paths": [],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "43d28c89a7b687fb0cda5c372e8f2bd7e3be06f353fd9607fc19d29df42c8fd7" },
+            { "path": "composer.lock", "sha256": "6c33b8043b52baeb16d5fbea644c12ca0ac53e7781582b54fea7012bf9d9cc76" },
+            { "path": "phpunit.xml.dist", "sha256": "a51a3fb9d0a54d88f2f3d1ab04dda9375cf6700966f1b8f2b4fd0715936365c7" },
+            { "path": "tests/bootstrap.php", "sha256": "9f4b7324331e280942c4daa895282efc88f3fc87a1d5355c7b78eb6edb2292b4" }
+          ]
+        }
+      },
       "manifest": {
         "slug": "wp-media-categories",
         "main_file": "wp-media-categories.php",
@@ -56,6 +89,17 @@
       "repository": "stuttter/wp-user-activity",
       "enabled": false,
       "managed_paths": [],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "1d3528d9ecaa36b5911fdb0ea48f7c6bb1acb6f28a6b75c3e11377c47f28d470" },
+            { "path": "composer.lock", "sha256": "64eea1a772612dff0be6696243a747c0f874b0976f7da440e6dc92b17f1fd98b" },
+            { "path": "phpunit.xml.dist", "sha256": "6b702f7ef2c2aa46ba9cc3990037e33e0616c7b6403ca8b7c1fc87dd6073d369" },
+            { "path": "tests/bootstrap.php", "sha256": "9325c7aaff7c462e8ad91ac707310d2f31e93253c1ca1d2517a1b6925586aa34" }
+          ]
+        }
+      },
       "manifest": {
         "slug": "wp-user-activity",
         "main_file": "wp-user-activity.php",
@@ -73,6 +117,17 @@
       "repository": "stuttter/wp-chosen",
       "enabled": true,
       "managed_paths": ["ci", "release", "dependabot"],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "b731fd784932b9c2ed239e1aef5fb4cdcd01f9e6c949b7a2f1dfe416ab604152" },
+            { "path": "composer.lock", "sha256": "4c18ed167cc85e1e6eb0e8c5b90f9ed66095372e3ba7f396a38a8c35e914ff3b" },
+            { "path": "phpunit.xml.dist", "sha256": "b3d7ea362089a835aedb77e47f647d413f06f020578aefa2fc009836530e43ba" },
+            { "path": "tests/bootstrap.php", "sha256": "8915f7184852b960c0eabcd2c7883c2cb7dc15193b530bb17720af62ebd507ea" }
+          ]
+        }
+      },
       "manifest": {
         "slug": "wp-chosen",
         "main_file": "wp-chosen.php",
@@ -90,6 +145,32 @@
       "repository": "stuttter/wp-user-profiles",
       "enabled": true,
       "managed_paths": ["ci", "dependabot"],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "622fa9b10d34d4da364b7dac65efa0e4aaf7324eda75133442cc948432f9f00f" },
+            { "path": "composer.lock", "sha256": "342cfb151bfe55029a3efb73e3cd65e801b1659e62f39365030efd462f22dbd8" },
+            { "path": "phpunit.xml.dist", "sha256": "32de4282a5c1bf7b2a9d2b819d7524ce9e2cde8cf759c962bba667b69f6b8319" },
+            { "path": "tests/bootstrap.php", "sha256": "524d50a91c79e12246a1566e7bb0f30adbc23cc75d4ed9675cec8e1b7987051b" }
+          ]
+        },
+        "smoke": {
+          "single_site": "tests/integration/run-single-site.sh",
+          "multisite": "tests/integration/run-multisite.sh",
+          "payloads": {
+            "single_site": "tests/integration/single-site-smoke.php",
+            "multisite": "tests/integration/multisite-smoke.php"
+          },
+          "files": [
+            { "path": "tests/integration/run-single-site.sh", "sha256": "cd197dbabaa06be0ef0e8fbdadd6585e8328a408ea48933adce7a0441dc6862f" },
+            { "path": "tests/integration/run-multisite.sh", "sha256": "a0066c2998d9acaba08de9092a724b839103a962795407bd86dfe4289d27de76" },
+            { "path": "tests/integration/run-wordpress-smoke.sh", "sha256": "8259ffb577b6138ce3de17f3d7e2bc5a896023d7a9e14552c448e95ae7c968fa" },
+            { "path": "tests/integration/single-site-smoke.php", "sha256": "addfc1a985fead02a3de07825ac0f4512c0b2eb03544c3d42e6b1e3a37cb0615" },
+            { "path": "tests/integration/multisite-smoke.php", "sha256": "d62847aeaf7310785ec881aa3985be54deb989f42495414e9b1356085f9ec42f" }
+          ]
+        }
+      },
       "manifest": {
         "slug": "wp-user-profiles",
         "main_file": "wp-user-profiles.php",
@@ -107,6 +188,17 @@
       "repository": "stuttter/wp-reset-filters",
       "enabled": true,
       "managed_paths": ["ci", "release", "dependabot"],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "184e63eddd9ea61eb9f39e58e918798767535cb5c8ac71c4ff48ace433bdbe19" },
+            { "path": "composer.lock", "sha256": "cd508765eb8870da29ba6ac8021d30feca2264895adff8242a26c9f812ed4c4c" },
+            { "path": "phpunit.xml.dist", "sha256": "3e0a40a7d519b655d28bfe84c1e1018d9363f61a321bf005a07c4968de944066" },
+            { "path": "tests/bootstrap.php", "sha256": "3e9ce13d43d8fb1742634de5dad4a6388700c23419d461279232113c4cae4d77" }
+          ]
+        }
+      },
       "manifest": {
         "slug": "wp-reset-filters",
         "main_file": "wp-reset-filters.php",

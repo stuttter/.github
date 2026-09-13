@@ -40,6 +40,7 @@ jobs:
       - name: Check scripts
         run: |
           php -l scripts/validate-plugin.php
+          php -l scripts/validate-phpunit-junit.php
           bash -n scripts/build-plugin.sh
           bash -n brand/export.sh
           bash -n brand/validate.sh
@@ -48,6 +49,7 @@ jobs:
           node --check scripts/validate-workflow-pins.mjs
           node --check scripts/render-workflow-fixtures.mjs
           node --check scripts/check-static-analysis-baselines.mjs
+          node --check scripts/project-check-policy.mjs
 
       - name: Run fleet synchronization tests
         run: npm test

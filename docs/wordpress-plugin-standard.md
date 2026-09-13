@@ -110,6 +110,49 @@ home-run change. After merge, the runner is protected byte for byte.
 Repositories must protect those transitive analysis inputs through ownership
 rules, dependency review, and the locked toolchain checks in the quality suite.
 
+### Trusted project checks
+
+The immutable portfolio inventory—not a pull-request-edited plugin manifest—
+explicitly enrolls existing PHPUnit suites and selects optional generated-asset
+and live-smoke checks. A `checks.phpunit` enrollment adds a minimum-PHP matrix
+cell, fixes the Composer manifests, conventional `phpunit.xml.dist`
+configuration, and bootstrap or runner hashes, and requires `phpunit/phpunit`
+in the lockfile. CI installs the
+locked tools without Composer scripts and invokes `vendor/bin/phpunit` directly;
+the repository's Composer `test` alias is never trusted. PHPUnit must emit a
+bounded, valid JUnit document containing at least one non-skipped test.
+Repositories without an established suite declare `phpunit: false`; the
+inventory must not imply coverage that does not exist.
+
+An approved Node.js profile selects Node.js 22 or 24 and records the exact
+package script-name-to-command map, including `build:check` and every transitive
+npm alias it invokes. The package manifest, lockfile, and every local executable
+or configuration file in the approved command closure are
+protected by SHA-256; extra or changed package scripts fail closed. CI installs
+dependencies with `npm ci --ignore-scripts`, and credential-free release checks
+repeat both the contract verification and check before a separate artifact job
+runs. Approved commands use a small non-shell grammar: declared npm aliases,
+local Node helpers, fixed PostCSS input/output/environment/configuration
+arguments, and `git diff --exit-code --` with fixed paths, joined only by `&&`.
+PostCSS configuration directory arguments bind to and hash their conventional
+`postcss.config.js` file.
+Quoting, substitution, redirection, globbing, pipelines, other shell punctuation,
+and unapproved executables fail closed. Every repository-relative executable,
+source, configuration, and generated-output path in that command closure must
+have a central SHA-256 contract. An approved smoke profile names individual `bin/` or
+`tests/` shell scripts for single-site or multisite behavior and records the
+SHA-256 of each entry point, PHP payload, and transitive local helper. Each smoke
+script runs on a fresh matrix runner with read-only repository permissions, no
+persisted checkout credential, no release secrets, and no shell evaluation of
+its path.
+Missing or changed manifests, lockfiles, package commands, configuration files,
+bootstrap files, smoke entry points, or helpers fail the declared check.
+
+Smoke scripts own their disposable WordPress setup and teardown until the
+centrally maintained WordPress-version environments described in issue #8 are
+available. Their dedicated runners provide isolation between smoke profiles;
+they must not depend on state from another matrix cell.
+
 ## AI implementation lane
 
 An owner-applied `codex: ready` label authorizes work on one implementation-ready
@@ -152,9 +195,13 @@ produced an inert patch artifact.
 
 ## Release policy
 
-Releases begin from an exact commit after required checks pass. The release job
-must validate versions, build the production artifact, and publish its checksum
-before entering a protected `wordpress.org` environment. Per-release approval is
+Releases begin from an exact commit after required checks pass. Project dependency
+installation and project code execution happen only in a credential-free checks
+job. A fresh artifact job then checks out the exact commit, re-verifies the release
+branch and central inventory binding, and builds the production archive from Git
+objects without installing dependencies or executing repository code. Publishing
+uses only that uploaded archive and its checksum before entering a protected
+`wordpress.org` environment. Per-release approval is
 the default and remains mandatory until centrally reviewed policy explicitly
 enables an autonomous release class for that repository.
 
