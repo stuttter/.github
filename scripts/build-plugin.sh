@@ -37,6 +37,11 @@ for forbidden_path in .git .github tests node_modules vendor composer.json compo
 	fi
 done
 
+if find "${temporary_directory}/${slug}" -type l -print -quit | grep -q .; then
+	echo "Release artifact contains a symbolic link. Remove symbolic links before publishing." >&2
+	exit 1
+fi
+
 TZ=UTC git -C "${repository_path}" archive --format=zip --prefix="${slug}/" --output="${archive_path}" HEAD
 (cd "${output_directory}" && shasum -a 256 "$(basename "${archive_path}")" > "$(basename "${archive_path}").sha256")
 echo "${archive_path}"

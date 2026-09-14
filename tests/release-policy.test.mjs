@@ -1,18 +1,57 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/wordpress-plugin-release.yml', import.meta.url), 'utf8');
-const builder = readFileSync(new URL('../scripts/build-plugin.sh', import.meta.url), 'utf8');
+const builderUrl = new URL('../scripts/build-plugin.sh', import.meta.url);
+const builderPath = fileURLToPath(builderUrl);
+const builder = readFileSync(builderUrl, 'utf8');
 
 test('production archives use Git ordering and UTC timestamps', () => {
-  assert.match(builder, /\bTZ=UTC\b/u);
-  assert.match(builder, /\bgit\b[\s\S]*?\barchive\b/u);
-  assert.match(builder, /--format(?:=|\s+)zip\b/u);
-  assert.match(builder, /--prefix(?:=|\s+)"\$\{slug\}\/"/u);
-  assert.match(builder, /--output(?:=|\s+)"\$\{archive_path\}"/u);
-  assert.match(builder, /(?:^|\s)HEAD(?:\s|$)/u);
+  const commands = builder.replace(/\\\n[ \t]*/gu, ' ').split('\n').map((command) => command.trim());
+  const zipArchives = commands.filter((command) => (
+    /^(?:TZ=UTC\s+|env\s+TZ=UTC\s+)git(?:\s|$)/u.test(command)
+    && /\barchive\b/u.test(command)
+    && /--format(?:=|\s+)zip\b/u.test(command)
+  ));
+
+  assert.equal(zipArchives.length, 1);
+  const [zipArchive] = zipArchives;
+  assert.match(zipArchive, /--prefix(?:=|\s+)"\$\{slug\}\/"/u);
+  assert.match(zipArchive, /--output(?:=|\s+)"\$\{archive_path\}"/u);
+  assert.match(zipArchive, /\sHEAD\s*$/u);
   assert.doesNotMatch(builder, /(?:^|\n)\s*(?:env\s+\S+\s+)*zip\s+-|&&\s*zip\s+-/u);
+});
+
+test('production archive builder rejects tracked symbolic links before writing a ZIP', () => {
+  const root = mkdtempSync(join(tmpdir(), 'plugin-archive-symlink-'));
+  const output = join(root, 'output');
+  try {
+    mkdirSync(join(root, '.github'), { recursive: true });
+    writeFileSync(join(root, '.github/plugin-standard.json'), '{"slug":"fixture-plugin","main_file":"fixture-plugin.php"}\n');
+    writeFileSync(join(root, '.gitattributes'), '.github export-ignore\noutput export-ignore\n');
+    writeFileSync(join(root, 'fixture-plugin.php'), '<?php\n/*\n * Version: 1.0.0\n */\n');
+    writeFileSync(join(root, 'target.txt'), 'target\n');
+    symlinkSync('target.txt', join(root, 'linked.txt'));
+
+    execFileSync('git', ['init', '--quiet', root]);
+    execFileSync('git', ['-C', root, 'config', 'user.name', 'Archive Fixture']);
+    execFileSync('git', ['-C', root, 'config', 'user.email', 'fixture@example.test']);
+    execFileSync('git', ['-C', root, 'add', '.']);
+    execFileSync('git', ['-C', root, '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'Fixture']);
+
+    const result = spawnSync('bash', [builderPath, root, output], { encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Release artifact contains a symbolic link/u);
+    assert.equal(existsSync(join(output, 'fixture-plugin-1.0.0.zip')), false);
+    assert.equal(existsSync(join(output, 'fixture-plugin-1.0.0.zip.sha256')), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('release authorization hard-codes its protected environment and binds its branch', () => {
