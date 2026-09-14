@@ -3,6 +3,13 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/wordpress-plugin-release.yml', import.meta.url), 'utf8');
+const builder = readFileSync(new URL('../scripts/build-plugin.sh', import.meta.url), 'utf8');
+
+test('production archives use Git ordering and UTC timestamps', () => {
+  assert.match(builder, /TZ=UTC git -C "\$\{repository_path\}" archive --format=zip/);
+  assert.match(builder, /--prefix="\$\{slug\}\/" --output="\$\{archive_path\}" HEAD/);
+  assert.doesNotMatch(builder, /&&\s+zip\s+-/u);
+});
 
 test('release authorization hard-codes its protected environment and binds its branch', () => {
   assert.match(workflow, /^    environment: wordpress\.org$/m);
