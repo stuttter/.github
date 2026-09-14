@@ -39,15 +39,22 @@ function currentEnvironment(overrides = {}) {
   };
 }
 
-function organizationResponse(args, repositories = [target.repository], names = ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD']) {
+function organizationResponse(
+  args,
+  repositories = [target.repository],
+  names = ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'],
+  repositoriesBySecret = {},
+) {
   const endpoint = args.find((argument) => argument.startsWith('orgs/')) || '';
   if (endpoint === 'orgs/stuttter/actions/secrets?per_page=100') {
     return JSON.stringify({ total_count: names.length, secrets: names.map((name) => ({ name, visibility: 'selected' })) });
   }
-  if (endpoint.includes('/repositories?')) {
+  const match = endpoint.match(/^orgs\/stuttter\/actions\/secrets\/(WORDPRESS_ORG_(?:USERNAME|PASSWORD))\/repositories\?per_page=100$/u);
+  if (match) {
+    const selectedRepositories = repositoriesBySecret[match[1]] || repositories;
     return JSON.stringify({
-      total_count: repositories.length,
-      repositories: repositories.map((full_name) => ({ full_name })),
+      total_count: selectedRepositories.length,
+      repositories: selectedRepositories.map((full_name) => ({ full_name })),
     });
   }
   return null;
@@ -60,6 +67,7 @@ function readExecutor({
   repositorySecrets = [],
   organizationRepositories = [target.repository],
   organizationSecrets = ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'],
+  organizationRepositoriesBySecret = {},
 } = {}) {
   const calls = [];
   const execute = (args, input) => {
@@ -72,7 +80,7 @@ function readExecutor({
     if (endpoint.includes('/deployment-branch-policies?')) return JSON.stringify({ total_count: policies.length, branch_policies: policies });
     if (endpoint.includes(`/environments/wordpress.org/secrets?`)) return JSON.stringify({ total_count: environmentSecrets.length, secrets: environmentSecrets.map((name) => ({ name })) });
     if (endpoint.includes('/actions/secrets?')) return JSON.stringify({ total_count: repositorySecrets.length, secrets: repositorySecrets.map((name) => ({ name })) });
-    const organizationOutput = organizationResponse(args, organizationRepositories, organizationSecrets);
+    const organizationOutput = organizationResponse(args, organizationRepositories, organizationSecrets, organizationRepositoriesBySecret);
     if (organizationOutput !== null) return organizationOutput;
     return '{}';
   };
@@ -344,6 +352,17 @@ test('organization credential audit requires both secrets and the exact reposito
   const fleetInspection = inspectOrganizationCredentials({ approvedRepositories: approved, execute: fleet.execute });
   assert.deepEqual(fleetInspection.expected_repositories, approved);
   assert.deepEqual(fleetInspection.errors, []);
+});
+
+test('organization credential audit rejects duplicate secret metadata', () => {
+  const duplicate = readExecutor({
+    organizationSecrets: ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'],
+  });
+
+  const inspection = inspectOrganizationCredentials({ approvedRepositories: [target.repository], execute: duplicate.execute });
+
+  assert.deepEqual(inspection.errors, ['stuttter returned duplicate metadata for the WORDPRESS_ORG_USERNAME organization secret.']);
+  assert.deepEqual(inspection.secrets.map((secret) => secret.selected_repositories), [[], [target.repository]]);
 });
 
 test('organization credential apply uses stdin and an exact selected-repository allowlist', () => {

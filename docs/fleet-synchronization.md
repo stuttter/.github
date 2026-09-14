@@ -171,6 +171,15 @@ each environment it prepared and every confirmed mutation, including work
 completed before a later failure. It never deletes secrets. Run
 `npm run release:provision -- --help` for the compact operator reminder.
 
+Run `npm run release:credential-access:audit` for the narrower fleet safeguard
+after changing release enrollment or organization-secret access. It derives the
+complete eligible set only from enabled, release-managed WordPress.org entries
+in `portfolio/plugins.json`, then verifies that both organization secrets use
+selected-repository visibility with exactly that set. Each secret is checked
+independently, and duplicate secret metadata is rejected. The audit performs
+only GitHub API reads, never requests secret values, and fails closed on
+missing, extra, incomplete, malformed, or unavailable metadata.
+
 GitHub does not provide an atomic multi-secret or multi-repository update. The
 structured report identifies prepared targets, confirmed changes, the failure,
 and pending repositories. Rerun the same apply to converge; secret values are
