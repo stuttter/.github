@@ -37,19 +37,35 @@ function runBuilder(root, output, timezone, mask) {
   );
 }
 
-test('production archives use Git ordering and UTC timestamps', () => {
+test('production archives bind HEAD once and use that immutable commit', () => {
   const commands = builder.replace(/\\\n[ \t]*/gu, ' ').split('\n').map((command) => command.trim());
+  const headResolutions = commands.filter((command) => (
+    /^commit_sha="\$\(git(?:\s|$)/u.test(command)
+    && /\brev-parse\b/u.test(command)
+    && /--verify(?:\s|=)/u.test(command)
+    && /['"]HEAD\^\{commit\}['"]/u.test(command)
+  ));
+  const tarArchives = commands.filter((command) => (
+    /^git(?:\s|$)/u.test(command)
+    && /\barchive\b/u.test(command)
+    && /--format(?:=|\s+)tar\b/u.test(command)
+  ));
   const zipArchives = commands.filter((command) => (
     /^(?:TZ=UTC\s+|env\s+TZ=UTC\s+)git(?:\s|$)/u.test(command)
     && /\barchive\b/u.test(command)
     && /--format(?:=|\s+)zip\b/u.test(command)
   ));
 
+  assert.equal(headResolutions.length, 1);
+  assert.equal(tarArchives.length, 1);
   assert.equal(zipArchives.length, 1);
+  const [tarArchive] = tarArchives;
   const [zipArchive] = zipArchives;
+  assert.match(tarArchive.split(/\s+\|\s+/u, 1)[0], /\s"\$\{commit_sha\}"\s*$/u);
   assert.match(zipArchive, /--prefix(?:=|\s+)"\$\{slug\}\/"/u);
   assert.match(zipArchive, /--output(?:=|\s+)"\$\{archive_path\}"/u);
-  assert.match(zipArchive, /\sHEAD\s*$/u);
+  assert.match(zipArchive, /\s"\$\{commit_sha\}"\s*$/u);
+  assert.doesNotMatch(`${tarArchive}\n${zipArchive}`, /\bHEAD\b/u);
   assert.doesNotMatch(builder, /(?:^|\n)\s*(?:env\s+\S+\s+)*zip\s+-|&&\s*zip\s+-/u);
 });
 
@@ -72,10 +88,14 @@ test('production archive builder emits deterministic bytes and expected entries'
   const firstOutput = join(root, 'output-first');
   const secondOutput = join(root, 'output-second');
   try {
+    assert.equal(existsSync(firstOutput), false);
+    assert.equal(existsSync(secondOutput), false);
     const first = runBuilder(root, firstOutput, 'America/Chicago', '022');
     const second = runBuilder(root, secondOutput, 'Pacific/Auckland', '077');
     assert.equal(first.status, 0, first.stderr);
     assert.equal(second.status, 0, second.stderr);
+    assert.equal(existsSync(firstOutput), true);
+    assert.equal(existsSync(secondOutput), true);
 
     const firstArchive = join(firstOutput, 'fixture-plugin-1.0.0.zip');
     const secondArchive = join(secondOutput, 'fixture-plugin-1.0.0.zip');
