@@ -32,8 +32,8 @@
     },
     {
       "repository": "stuttter/wp-user-signups",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
@@ -45,7 +45,9 @@
           ]
         }
       },
-      "integration": {},
+      "integration": {
+        "plugin_check": true
+      },
       "manifest": {
         "slug": "wp-user-signups",
         "main_file": "wp-user-signups.php",

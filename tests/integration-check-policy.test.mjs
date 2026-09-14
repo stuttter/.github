@@ -114,6 +114,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     .map(({ repository }) => repository);
 
   assert.deepEqual(enrolled, [
+    'stuttter/wp-user-signups',
     'stuttter/wp-media-categories',
     'stuttter/wp-user-activity',
     'stuttter/wp-term-images',
