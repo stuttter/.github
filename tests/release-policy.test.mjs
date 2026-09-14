@@ -43,3 +43,23 @@ test('the protected publisher installs Subversion before release target verifica
   assert.ok(installStep < verifyStep);
   assert.ok(verifyStep < publishStep);
 });
+
+test('the protected publisher stages trunk and its tag independently from the approved artifact', () => {
+  const publishStep = workflow.indexOf('      - name: Publish one atomic WordPress.org changeset');
+  const verifyStep = workflow.indexOf('      - name: Verify public WordPress.org ZIP');
+  const publishBlock = workflow.slice(publishStep, verifyStep);
+
+  assert.match(publishBlock, /svn update --set-depth infinity "\$\{svn_root\}\/trunk"/);
+  assert.match(
+    publishBlock,
+    /rsync --archive --delete "\$\{stage_root\}\/\$\{PLUGIN_SLUG\}\/" "\$\{svn_root\}\/trunk\/"/,
+  );
+  assert.match(publishBlock, /tag_root="\$\{svn_root\}\/tags\/\$\{VERSION\}"/);
+  assert.match(
+    publishBlock,
+    /rsync --archive "\$\{stage_root\}\/\$\{PLUGIN_SLUG\}\/" "\$\{tag_root\}\/"/,
+  );
+  assert.match(publishBlock, /svn add --force "\$\{tag_root\}"/);
+  assert.doesNotMatch(publishBlock, /svn copy/);
+  assert.match(publishBlock, /svn commit[\s\S]*?"\$\{svn_root\}\/trunk"[\s\S]*?"\$\{tag_root\}"/);
+});
