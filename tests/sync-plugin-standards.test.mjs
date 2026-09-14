@@ -135,6 +135,29 @@ test('managed review skill preserves repository-specific skills and neighboring 
   }
 });
 
+test('apply refreshes a stale managed review skill and subsequent audit is clean', () => {
+  const { root, cleanup } = fixture();
+  try {
+    mkdirSync(join(root, '.github/skills/code-review'), { recursive: true });
+    writeFileSync(
+      join(root, '.github/skills/code-review/SKILL.md'),
+      '---\n# Managed by stuttter/.github fleet standards. Do not edit locally.\nname: code-review\ndescription: Stale managed review policy.\nlicense: GPL-2.0-or-later\n---\n\nStale content.\n',
+    );
+
+    const applied = synchronize({ root, target, policyRef, mode: 'apply' });
+    assert.equal(applied.conflicts.length, 0);
+    assert.equal(
+      readFileSync(join(root, '.github/skills/code-review/SKILL.md'), 'utf8'),
+      readFileSync(new URL('../.github/skills/code-review/SKILL.md', import.meta.url), 'utf8'),
+    );
+
+    const audited = synchronize({ root, target, policyRef, mode: 'audit' });
+    assert.equal(audited.clean, true);
+  } finally {
+    cleanup();
+  }
+});
+
 test('disabled targets do not receive the managed review skill', () => {
   const { root, cleanup } = fixture();
   try {
