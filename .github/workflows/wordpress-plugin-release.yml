@@ -410,7 +410,7 @@ jobs:
             --password "${WORDPRESS_ORG_PASSWORD}" \
             "https://plugins.svn.wordpress.org/${PLUGIN_SLUG}" \
             "${svn_root}"
-          svn update --depth infinity "${svn_root}/trunk"
+          svn update --set-depth infinity "${svn_root}/trunk"
 
           rsync --archive --delete "${stage_root}/${PLUGIN_SLUG}/" "${svn_root}/trunk/"
           svn add --force "${svn_root}/trunk"
@@ -421,7 +421,10 @@ jobs:
             fi
           done < "${RUNNER_TEMP}/svn-missing.txt"
 
-          svn copy "${svn_root}/trunk" "${svn_root}/tags/${VERSION}"
+          tag_root="${svn_root}/tags/${VERSION}"
+          mkdir "${tag_root}"
+          rsync --archive "${stage_root}/${PLUGIN_SLUG}/" "${tag_root}/"
+          svn add --force "${tag_root}"
           svn commit \
             --non-interactive \
             --no-auth-cache \
@@ -429,7 +432,7 @@ jobs:
             --password "${WORDPRESS_ORG_PASSWORD}" \
             --message "Tag ${VERSION}." \
             "${svn_root}/trunk" \
-            "${svn_root}/tags/${VERSION}"
+            "${tag_root}"
 
       - name: Verify public WordPress.org ZIP
         shell: bash
