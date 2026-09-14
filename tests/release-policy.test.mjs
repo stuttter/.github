@@ -32,3 +32,14 @@ test('WordPress.org credentials use an explicit required reusable-workflow inter
   assert.doesNotMatch(workflow, /WORDPRESS_ORG_USERNAME: \$\{\{ secrets\.WORDPRESS_ORG_USERNAME \}\}/);
   assert.doesNotMatch(workflow, /WORDPRESS_ORG_PASSWORD: \$\{\{ secrets\.WORDPRESS_ORG_PASSWORD \}\}/);
 });
+
+test('the protected publisher installs Subversion before release target verification', () => {
+  const installStep = workflow.indexOf('      - name: Install Subversion client');
+  const verifyStep = workflow.indexOf('      - name: Re-verify artifact and release targets');
+  const publishStep = workflow.indexOf('      - name: Publish one atomic WordPress.org changeset');
+
+  assert.notEqual(installStep, -1);
+  assert.match(workflow.slice(installStep, verifyStep), /apt-get install --yes --no-install-recommends subversion/);
+  assert.ok(installStep < verifyStep);
+  assert.ok(verifyStep < publishStep);
+});

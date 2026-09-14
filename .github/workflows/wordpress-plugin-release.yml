@@ -330,6 +330,13 @@ jobs:
           name: wordpress-plugin-release-${{ inputs.version }}-${{ github.run_id }}
           path: ${{ runner.temp }}/approved
 
+      - name: Install Subversion client
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends subversion
+          svn --version --quiet
+
       - name: Re-verify artifact and release targets
         shell: bash
         run: |
