@@ -28,7 +28,13 @@ archive_path="${output_directory}/${slug}-${version}.zip"
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf "${temporary_directory}"' EXIT
 
-git -C "${repository_path}" archive --format=tar --prefix="${slug}/" HEAD | tar -xf - -C "${temporary_directory}"
+commit_sha="$(git -C "${repository_path}" rev-parse --verify 'HEAD^{commit}')"
+if [[ ! "${commit_sha}" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+	echo "Unable to resolve an immutable release commit." >&2
+	exit 1
+fi
+
+git -C "${repository_path}" archive --format=tar --prefix="${slug}/" "${commit_sha}" | tar -xf - -C "${temporary_directory}"
 
 for forbidden_path in .git .github tests node_modules vendor composer.json composer.lock package.json package-lock.json phpunit.xml phpunit.xml.dist phpcs.xml phpcs.xml.dist phpstan.neon phpstan.neon.dist; do
 	if [[ -e "${temporary_directory}/${slug}/${forbidden_path}" ]]; then
@@ -37,6 +43,11 @@ for forbidden_path in .git .github tests node_modules vendor composer.json compo
 	fi
 done
 
-(cd "${temporary_directory}" && zip -X -q -r "${archive_path}" "${slug}")
+if find "${temporary_directory}/${slug}" -type l -print -quit | grep -q .; then
+	echo "Release artifact contains a symbolic link. Remove symbolic links before publishing." >&2
+	exit 1
+fi
+
+TZ=UTC git -C "${repository_path}" archive --format=zip --prefix="${slug}/" --output="${archive_path}" "${commit_sha}"
 (cd "${output_directory}" && shasum -a 256 "$(basename "${archive_path}")" > "$(basename "${archive_path}").sha256")
 echo "${archive_path}"
