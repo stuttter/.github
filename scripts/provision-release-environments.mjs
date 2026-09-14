@@ -338,9 +338,10 @@ export function inspectOrganizationCredentials({ approvedRepositories, execute =
   const secrets = [];
   const errors = [];
   for (const name of secretNames) {
-    const metadata = available.find((secret) => secret.name === name) || null;
+    const matchingMetadata = available.filter((secret) => secret?.name === name);
+    const metadata = matchingMetadata.length === 1 ? matchingMetadata[0] : null;
     let selectedRepositories = [];
-    if (metadata?.visibility === 'selected') {
+    if (matchingMetadata.length === 1 && metadata.visibility === 'selected') {
       const selectedPayload = parseJson(
         execute(apiArguments(`orgs/${organization}/actions/secrets/${name}/repositories?per_page=100`)),
         `${name} selected repositories`,
@@ -351,7 +352,9 @@ export function inspectOrganizationCredentials({ approvedRepositories, execute =
         `${name} selected repositories`,
       ).map((repository) => repository.full_name).sort();
     }
-    if (!metadata) {
+    if (matchingMetadata.length > 1) {
+      errors.push(`${organization} returned duplicate metadata for the ${name} organization secret.`);
+    } else if (!metadata) {
       errors.push(`${organization} is missing the ${name} organization secret.`);
     } else if (metadata.visibility !== 'selected') {
       errors.push(`${name} does not use selected-repository visibility.`);

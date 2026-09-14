@@ -17,6 +17,7 @@ function executor({
   names = ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'],
   visibility = 'selected',
   repositories = ['stuttter/wp-chosen'],
+  repositoriesByName = {},
   failAt = null,
 } = {}) {
   const calls = [];
@@ -32,9 +33,10 @@ function executor({
     }
     const match = endpoint.match(/^orgs\/stuttter\/actions\/secrets\/(WORDPRESS_ORG_(?:USERNAME|PASSWORD))\/repositories\?per_page=100$/u);
     if (match) {
+      const selectedRepositories = repositoriesByName[match[1]] || repositories;
       return JSON.stringify({
-        total_count: repositories.length,
-        repositories: repositories.map((full_name) => ({ full_name })),
+        total_count: selectedRepositories.length,
+        repositories: selectedRepositories.map((full_name) => ({ full_name })),
       });
     }
     throw new Error(`Unexpected GitHub API call: ${endpoint}`);
@@ -56,15 +58,23 @@ test('audit accepts selected visibility with the exact eligible repository set',
 });
 
 test('audit fails when either organization secret omits an eligible repository', () => {
-  const github = executor({ repositories: ['stuttter/wp-chosen'] });
+  const github = executor({
+    repositoriesByName: {
+      WORDPRESS_ORG_USERNAME: ['stuttter/wp-chosen', 'stuttter/wp-user-groups'],
+      WORDPRESS_ORG_PASSWORD: ['stuttter/wp-chosen'],
+    },
+  });
   const report = auditWordPressOrgSecretAccess({
     inventory: inventory(eligible('stuttter/wp-chosen'), eligible('stuttter/wp-user-groups')),
     execute: github.execute,
   });
 
   assert.equal(report.status, 'drift');
-  assert.equal(report.errors.length, 2);
-  assert.match(report.errors.join(' '), /exact approved release repositories/u);
+  assert.deepEqual(report.errors, ['WORDPRESS_ORG_PASSWORD is not scoped to the exact approved release repositories.']);
+  assert.deepEqual(report.secrets.map((secret) => secret.selected_repositories), [
+    ['stuttter/wp-chosen', 'stuttter/wp-user-groups'],
+    ['stuttter/wp-chosen'],
+  ]);
 });
 
 test('audit rejects extra selected repositories', () => {
