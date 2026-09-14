@@ -37,6 +37,7 @@ test('audit reports missing managed files without writing', () => {
     const result = synchronize({ root, target, policyRef, mode: 'audit' });
     assert.deepEqual(result.changes.map(({ path }) => path), [
       '.github/plugin-standard.json',
+      '.github/skills/code-review/SKILL.md',
       '.github/workflows/ci.yml',
       '.github/workflows/release.yml',
       '.github/dependabot.yml',
@@ -53,10 +54,14 @@ test('apply creates deterministic files and becomes clean', () => {
   const { root, cleanup } = fixture();
   try {
     const first = synchronize({ root, target, policyRef, mode: 'apply' });
-    assert.equal(first.changes.length, 4);
+    assert.equal(first.changes.length, 5);
     const second = synchronize({ root, target, policyRef, mode: 'audit' });
     assert.equal(second.clean, true);
     assert.match(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8'), /php-versions: '\["7\.2","8\.4"\]'/);
+    assert.equal(
+      readFileSync(join(root, '.github/skills/code-review/SKILL.md'), 'utf8'),
+      readFileSync(new URL('../.github/skills/code-review/SKILL.md', import.meta.url), 'utf8'),
+    );
   } finally {
     cleanup();
   }
@@ -112,6 +117,54 @@ test('managed files update while repository-owned files are preserved', () => {
   }
 });
 
+test('managed review skill preserves repository-specific skills and neighboring files', () => {
+  const { root, cleanup } = fixture();
+  try {
+    mkdirSync(join(root, '.github/skills/code-review'), { recursive: true });
+    mkdirSync(join(root, '.github/skills/plugin-specific'), { recursive: true });
+    writeFileSync(join(root, '.github/skills/code-review/notes.md'), 'repository notes\n');
+    writeFileSync(join(root, '.github/skills/plugin-specific/SKILL.md'), 'repository skill\n');
+
+    synchronize({ root, target, policyRef, mode: 'apply' });
+
+    assert.equal(readFileSync(join(root, '.github/skills/code-review/notes.md'), 'utf8'), 'repository notes\n');
+    assert.equal(readFileSync(join(root, '.github/skills/plugin-specific/SKILL.md'), 'utf8'), 'repository skill\n');
+    assert.equal(existsSync(join(root, '.github/skills/code-review/SKILL.md')), true);
+  } finally {
+    cleanup();
+  }
+});
+
+test('disabled targets do not receive the managed review skill', () => {
+  const { root, cleanup } = fixture();
+  try {
+    const disabled = structuredClone(target);
+    disabled.enabled = false;
+    synchronize({ root, target: disabled, policyRef, mode: 'apply' });
+    assert.equal(existsSync(join(root, '.github/skills/code-review/SKILL.md')), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('repository-owned code-review skill is reported as a conflict and not overwritten', () => {
+  const { root, cleanup } = fixture();
+  try {
+    mkdirSync(join(root, '.github/skills/code-review'), { recursive: true });
+    const localSkill = '---\nname: code-review\ndescription: Local review policy.\n---\n\nKeep this file.\n';
+    writeFileSync(join(root, '.github/skills/code-review/SKILL.md'), localSkill);
+
+    const result = synchronize({ root, target, policyRef, mode: 'apply' });
+
+    assert.equal(result.conflicts.length, 1);
+    assert.equal(result.conflicts[0].path, '.github/skills/code-review/SKILL.md');
+    assert.equal(readFileSync(join(root, '.github/skills/code-review/SKILL.md'), 'utf8'), localSkill);
+    assert.equal(existsSync(join(root, '.github/plugin-standard.json')), false);
+  } finally {
+    cleanup();
+  }
+});
+
 test('audit and apply reject a symbolic link in a managed path', () => {
   const { root, cleanup } = fixture();
   const outside = mkdtempSync(join(tmpdir(), 'fleet-sync-outside-'));
@@ -120,11 +173,11 @@ test('audit and apply reject a symbolic link in a managed path', () => {
 
     const audit = synchronize({ root, target, policyRef, mode: 'audit' });
     assert.equal(audit.changes.length, 0);
-    assert.equal(audit.conflicts.length, 4);
+    assert.equal(audit.conflicts.length, 5);
     assert.match(audit.conflicts[0].reason, /symbolic link: \.github/);
 
     const applied = synchronize({ root, target, policyRef, mode: 'apply' });
-    assert.equal(applied.conflicts.length, 4);
+    assert.equal(applied.conflicts.length, 5);
     assert.equal(existsSync(join(outside, 'plugin-standard.json')), false);
     assert.equal(existsSync(join(outside, 'workflows/ci.yml')), false);
   } finally {
@@ -220,6 +273,7 @@ test('managed paths are explicit and WordPress.org release callers require WordP
     assert.equal(existsSync(join(root, '.github/workflows/release.yml')), false);
     assert.deepEqual(result.changes.map(({ path }) => path), [
       '.github/plugin-standard.json',
+      '.github/skills/code-review/SKILL.md',
       '.github/workflows/ci.yml',
       '.github/dependabot.yml',
     ]);

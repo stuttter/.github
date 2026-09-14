@@ -10,15 +10,19 @@ topic, name pattern, or search result is intentionally not supported.
 The synchronizer manages only these paths:
 
 - `.github/plugin-standard.json` when it does not exist;
+- `.github/skills/code-review/SKILL.md` for enabled repositories;
 - `.github/workflows/ci.yml`;
 - `.github/workflows/release.yml`;
 - `.github/dependabot.yml`.
 
-Managed YAML begins with a visible ownership marker. An existing YAML file
-without that marker is repository-owned and produces a conflict instead of an
-update. An existing plugin manifest is never overwritten. It is validated and
-compared with the inventory; differences require a deliberate compatibility
-decision in a normal pull request.
+Managed YAML begins with a visible ownership marker. The review skill carries
+the same marker as a comment inside its YAML frontmatter so GitHub Copilot can
+parse the required skill metadata. An existing managed-path file without its
+expected marker is repository-owned and produces a conflict instead of an
+update. Files beside the exact managed skill path, including repository-specific
+skills, are not changed. An existing plugin manifest is never overwritten. It
+is validated and compared with the inventory; differences require a deliberate
+compatibility decision in a normal pull request.
 
 The tool does not delete files, execute plugin code, alter dependencies, merge,
 tag, release, or change repository settings.
@@ -105,10 +109,11 @@ the local file merely to make the audit green.
 
 ## Protected files and settings
 
-Protect `.github/workflows/`, `.github/plugin-standard.json`,
-`.github/dependabot.yml`, `.github/CODEOWNERS`, `AGENTS.md`, release tooling, and
-security policy with repository rules and required owner review. Protect the
-release branch from direct pushes and require signed commits and successful CI.
+Protect `.github/workflows/`, `.github/skills/code-review/SKILL.md`,
+`.github/plugin-standard.json`, `.github/dependabot.yml`, `.github/CODEOWNERS`,
+`AGENTS.md`, release tooling, and security policy with repository rules and
+required owner review. Protect the release branch from direct pushes and require
+signed commits and successful CI.
 Keep the `fleet-standards` and `wordpress.org` environments reviewer-gated, and
 limit organization credentials to the selected repositories and pinned workflow
 jobs that require them.

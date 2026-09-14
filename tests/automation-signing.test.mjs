@@ -144,3 +144,10 @@ test('fleet cleanup tracks ambiguous pushes and only removes its exact remote co
   assert.match(fleetWorkflow, /":refs\/heads\/\$\{branch\}"/);
   assert.doesNotMatch(fleetWorkflow, /git push origin --delete/);
 });
+
+test('fleet publishing stages only the exact centrally managed review skill', () => {
+  const publishBlock = fleetWorkflow.slice(fleetWorkflow.indexOf("git switch -c \"${branch}\""));
+  assert.match(publishBlock, /\.github\/skills\/code-review\/SKILL\.md/u);
+  assert.doesNotMatch(publishBlock, /\.github\/skills\/\*/u);
+  assert.match(publishBlock, /Refusing unexpected synchronized path/u);
+});
