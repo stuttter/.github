@@ -267,7 +267,7 @@ jobs:
           git switch -c "${branch}"
           while IFS= read -r path; do
             case "${path}" in
-              .github/plugin-standard.json|.github/dependabot.yml|.github/workflows/ci.yml|.github/workflows/release.yml)
+              .github/plugin-standard.json|.github/dependabot.yml|.github/skills/code-review/SKILL.md|.github/workflows/ci.yml|.github/workflows/release.yml)
                 git add -- "${path}"
                 ;;
               *)

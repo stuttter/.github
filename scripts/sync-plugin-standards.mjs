@@ -7,6 +7,7 @@ import { validateProjectChecks } from './project-check-policy.mjs';
 import { validateIntegrationPolicy } from './integration-check-policy.mjs';
 
 const managedMarker = '# Managed by stuttter/.github fleet standards. Do not edit locally.';
+const managedSkillPath = '.github/skills/code-review/SKILL.md';
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function isUriReference(value) {
@@ -173,6 +174,7 @@ function desiredFiles(root, target, policyRef) {
   const files = new Map([
     ['.github/plugin-standard.json', `${JSON.stringify({ $schema: 'https://raw.githubusercontent.com/stuttter/.github/main/schema/plugin-standard.schema.json', ...manifest }, null, 2)}\n`],
   ]);
+  if (target.enabled) files.set(managedSkillPath, readFileSync(resolve(scriptRoot, managedSkillPath), 'utf8'));
   const managed = new Set(target.managed_paths);
   if (managed.has('ci')) files.set('.github/workflows/ci.yml', render(template('ci.yml'), values));
   if (managed.has('release')) files.set('.github/workflows/release.yml', render(template('release.yml'), values));
@@ -224,7 +226,10 @@ export function synchronize({ root, target, policyRef, mode = 'audit' }) {
     }
 
     if (current === desired) continue;
-    if (!current.startsWith(`${managedMarker}\n`)) {
+    const hasManagedMarker = relativePath === managedSkillPath
+      ? current.startsWith(`---\n${managedMarker}\n`)
+      : current.startsWith(`${managedMarker}\n`);
+    if (!hasManagedMarker) {
       conflicts.push({ path: relativePath, reason: 'existing repository-owned file has no fleet-managed marker' });
       continue;
     }
