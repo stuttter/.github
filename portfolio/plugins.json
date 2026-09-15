@@ -112,7 +112,6 @@
         }
       },
       "integration": {
-        "plugin_check": true,
         "wordpress": {
           "path": "tests/integration/smoke.php",
           "sha256": "07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03"
