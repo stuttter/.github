@@ -43,6 +43,10 @@ change as infrastructure work.
 - Do not ignore Composer platform requirements to make a matrix job pass.
 - Release artifacts must exclude tests, development dependencies, local files,
   and repository automation unless the plugin explicitly requires them.
+- Every WordPress.org `readme.txt` must include one plain-text short description
+  of no more than 150 characters after the header fields and before
+  `== Description ==`. Do not replace it with a `== Short Description ==`
+  heading; the directory parser expects an unheaded line in the readme preamble.
 
 ## Visual system
 
