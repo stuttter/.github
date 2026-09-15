@@ -141,6 +141,15 @@ jobs:
             composer validate --strict
             composer install --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
             composer audit --locked
+
+            if [[ -x vendor/bin/phpcs ]]; then
+              phpcs_paths="$(php .portfolio-standard/scripts/phpcs-standard-paths.php .)"
+
+              if [[ -n "${phpcs_paths}" ]]; then
+                vendor/bin/phpcs --config-set installed_paths "${phpcs_paths}"
+              fi
+            fi
+
             for script in phpcs phpstan; do
               # shellcheck disable=SC2016
               if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
