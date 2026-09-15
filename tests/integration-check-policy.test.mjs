@@ -114,18 +114,22 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     .map(({ repository }) => repository);
 
   assert.deepEqual(enrolled, [
+    'stuttter/wp-user-groups',
     'stuttter/wp-user-signups',
     'stuttter/wp-media-categories',
     'stuttter/wp-user-activity',
     'stuttter/wp-user-profiles',
     'stuttter/wp-term-images',
   ]);
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.plugin_check, true);
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.wordpress.sha256, '4f0069c407dcc34f19ec2bf06ce7690fae5b14e9fb1a94268519509f7a460e80');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-media-categories').integration.wordpress.sha256, '4a7e89f6edb6d0d2cf11159eeed7826f08eaf8bddf7ba0b2df9b216b0a53d3c0');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-profiles').integration.wordpress.sha256, 'a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-images').integration.wordpress.sha256, '55c265fcf4ea7a2de1c08a8c97af1dfc3dffdf55c5c7a9fd19ad38b3c41d8f40');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-media-categories').matrix.include[0].topology, 'single-site');
+  assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-groups').matrix.include[0].topology, 'multisite');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-activity').matrix.include[0].topology, 'multisite');
   const termImages = resolveIntegrationPolicy(inventory, 'stuttter/wp-term-images');
   assert.equal(termImages.pluginCheck, true);
