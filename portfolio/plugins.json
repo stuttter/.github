@@ -163,7 +163,7 @@
     {
       "repository": "stuttter/wp-user-profiles",
       "enabled": true,
-      "managed_paths": ["ci", "dependabot"],
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
@@ -190,7 +190,13 @@
           ]
         }
       },
-      "integration": {},
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd"
+        }
+      },
       "manifest": {
         "slug": "wp-user-profiles",
         "main_file": "wp-user-profiles.php",
