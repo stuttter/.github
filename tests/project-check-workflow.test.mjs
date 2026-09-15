@@ -27,6 +27,8 @@ test('minimum PHP tests use a hashed config and the locked binary directly', () 
 
 test('credential-free release checks disable Composer plugins and scripts', () => {
   assert.match(releaseChecks, /composer install[^\n]+--no-plugins --no-scripts/u);
+  assert.match(releaseChecks, /php \.portfolio-standard\/scripts\/phpcs-standard-paths\.php \./u);
+  assert.match(releaseChecks, /vendor\/bin\/phpcs --config-set installed_paths "\$\{phpcs_paths\}"/u);
 });
 
 test('repositories without an enrolled project suite retain a successful explicit matrix cell', () => {
