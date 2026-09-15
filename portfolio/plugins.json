@@ -107,11 +107,12 @@
             { "path": "composer.json", "sha256": "1d3528d9ecaa36b5911fdb0ea48f7c6bb1acb6f28a6b75c3e11377c47f28d470" },
             { "path": "composer.lock", "sha256": "64eea1a772612dff0be6696243a747c0f874b0976f7da440e6dc92b17f1fd98b" },
             { "path": "phpunit.xml.dist", "sha256": "6b702f7ef2c2aa46ba9cc3990037e33e0616c7b6403ca8b7c1fc87dd6073d369" },
-            { "path": "tests/bootstrap.php", "sha256": "9325c7aaff7c462e8ad91ac707310d2f31e93253c1ca1d2517a1b6925586aa34" }
+            { "path": "tests/bootstrap.php", "sha256": "de7eebc01a4b314ed5df0325f2f9aa98cb8496ca8667035c6fdca855dbb79f09" }
           ]
         }
       },
       "integration": {
+        "plugin_check": true,
         "wordpress": {
           "path": "tests/integration/smoke.php",
           "sha256": "07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03"
