@@ -99,7 +99,7 @@
     {
       "repository": "stuttter/wp-user-activity",
       "enabled": true,
-      "managed_paths": ["ci"],
+      "managed_paths": ["ci", "release"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
