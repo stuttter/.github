@@ -3,8 +3,8 @@
   "repositories": [
     {
       "repository": "stuttter/wp-user-groups",
-      "enabled": false,
-      "managed_paths": ["release", "dependabot"],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
@@ -16,7 +16,13 @@
           ]
         }
       },
-      "integration": {},
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "4f0069c407dcc34f19ec2bf06ce7690fae5b14e9fb1a94268519509f7a460e80"
+        }
+      },
       "manifest": {
         "slug": "wp-user-groups",
         "main_file": "wp-user-groups.php",
