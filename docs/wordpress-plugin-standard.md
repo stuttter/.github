@@ -59,8 +59,15 @@ The shared gate should verify:
 7. PHPUnit against WordPress trunk on a current PHP version.
 8. Multisite behavior for plugins that declare it.
 9. WordPress Plugin Check.
-10. Plugin header, readme, changelog, Git tag, and artifact consistency.
+10. Plugin header, readme short description, changelog, Git tag, and artifact
+    consistency.
 11. A deterministic production ZIP with development-only files excluded.
+
+For WordPress.org plugins, `readme.txt` must contain exactly one plain-text
+short description after the header fields and before `== Description ==`. It
+must be non-empty, contain no markup, and be no longer than 150 characters.
+Despite the importer calling this a section, do not add a
+`== Short Description ==` heading; that is not the WordPress.org readme format.
 
 Jobs may report a deliberately introduced legacy baseline separately, but new
 changes cannot increase that baseline. Pull requests may introduce the canonical

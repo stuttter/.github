@@ -120,6 +120,96 @@ if ($manifest['wordpress_org'] && ! is_file($readme_path)) {
 		}
 	}
 
+	if ($manifest['wordpress_org']) {
+		$description_offset = null;
+		if (preg_match('/^== Description ==\s*$/mi', $readme, $description_match, PREG_OFFSET_CAPTURE)) {
+			$description_offset = $description_match[0][1];
+		}
+
+		$short_descriptions = array();
+		$preamble_headers   = array();
+		if (null === $description_offset) {
+			$errors[] = 'readme.txt is missing the == Description == heading.';
+		} else {
+			$preamble       = substr($readme, 0, $description_offset);
+			$lines          = preg_split('/\R/u', $preamble) ?: array();
+			$header_pattern = '/^(Contributors|Donate link|Tags|Requires at least|Tested up to|Stable tag|Requires PHP|Requires Plugins|License|License URI|Author|Author URI|Plugin URI):\s*(.*)$/iu';
+			$in_headers     = true;
+			$seen_header    = false;
+			foreach ($lines as $line_number => $line) {
+				$raw_line = $line;
+				$line = preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', $line) ?? trim($line);
+				if (0 === $line_number) {
+					continue;
+				}
+				if ($in_headers && preg_match($header_pattern, $line, $header_match)) {
+					$seen_header                                      = true;
+					$preamble_headers[strtolower($header_match[1])] = trim($header_match[2]);
+					continue;
+				}
+				if ('' === $line) {
+					if ($seen_header) {
+						$in_headers = false;
+					}
+					continue;
+				}
+				$in_headers = false;
+				$short_descriptions[] = $raw_line;
+			}
+		}
+
+		$required_preamble_headers = array('requires at least', 'tested up to', 'requires php', 'stable tag');
+		$missing_preamble_headers  = array_filter(
+			$required_preamble_headers,
+			static fn($header) => ! isset($preamble_headers[$header]) || '' === $preamble_headers[$header]
+		);
+		if (null !== $description_offset && $missing_preamble_headers) {
+			$errors[] = 'readme.txt required metadata headers must precede its short description.';
+		}
+
+		if (1 !== count($short_descriptions)) {
+			$errors[] = 'readme.txt must contain exactly one plain-text short description after its headers and before == Description ==.';
+		} else {
+			$short_description = $short_descriptions[0];
+			$character_count   = preg_match_all('/./us', $short_description, $characters);
+			if (false === $character_count || $character_count > 150) {
+				$errors[] = 'readme.txt short description must be no more than 150 characters.';
+			}
+			$markup_pattern = '/(?:<!--|<![^>]*>|<\?|<\/?[A-Za-z][^>]*>|!?\[[^\r\n]*\]\s*(?:\([^\r\n]*\)|\[[^\r\n]*\])|`|^(?: {4}| {0,3}\t)|^ {0,3}(?:`{3,}|~{3,})[^\r\n]*$|^ {0,3}(?:\[[^\]]+\]:\s*\S|#{1,6}(?:\s|$)|>\s?|[-+*]\s|\d+[.)]\s|=.+=$|(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$))/u';
+			$has_markup     = 1 === preg_match($markup_pattern, $short_description);
+
+			$url_spans = array();
+			if (preg_match_all('/\bhttps?:\/\/\S+/iu', $short_description, $urls, PREG_OFFSET_CAPTURE)) {
+				foreach ($urls[0] as $url) {
+					$url_spans[] = array($url[1], $url[1] + strlen($url[0]));
+				}
+			}
+
+			$delimiter_pattern = '/(?:~~(?=\S)[^\r\n]*?\S~~|\*\*(?=\S)[^\r\n]*?\S\*\*|(?<![\p{L}\p{N}])__(?=\S)[^\r\n]*?\S__(?![\p{L}\p{N}])|\*(?=\S)[^*\r\n]*?\S\*|(?<![\p{L}\p{N}_])_(?!_)(?=\S)[^\r\n]*?\S_(?![_\p{L}\p{N}]))/u';
+			if (! $has_markup && preg_match_all($delimiter_pattern, $short_description, $delimiter_matches, PREG_OFFSET_CAPTURE)) {
+				foreach ($delimiter_matches[0] as $delimiter_match) {
+					$match_start = $delimiter_match[1];
+					$match_end   = $match_start + strlen($delimiter_match[0]);
+					$inside_url  = false;
+					foreach ($url_spans as $url_span) {
+						if ($match_start >= $url_span[0] && $match_end <= $url_span[1]) {
+							$inside_url = true;
+							break;
+						}
+					}
+					if (! $inside_url) {
+						$has_markup = true;
+						break;
+					}
+				}
+			}
+
+			if ($has_markup) {
+				$errors[] = 'readme.txt short description must not contain markup.';
+			}
+		}
+	}
+
 	if ($expected_version) {
 		if (! preg_match('/^Stable tag:\s*(.+)$/mi', $readme, $match)) {
 			$errors[] = 'readme.txt is missing Stable tag.';
