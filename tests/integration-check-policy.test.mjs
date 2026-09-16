@@ -24,7 +24,7 @@ function target(repository, integration = {}, multisite = false) {
     integration,
     manifest: {
       minimum_php: '7.4',
-      minimum_wordpress: '5.2',
+      minimum_wordpress: '6.4',
       multisite,
     },
   };
@@ -50,7 +50,7 @@ test('single-site policy schedules oldest, stable, and trunk', () => {
 
   assert.equal(policy.pluginCheck, true);
   assert.deepEqual(policy.matrix.include.map(({ target: name }) => name), ['oldest', 'stable', 'trunk']);
-  assert.deepEqual(policy.matrix.include.map(({ wordpress }) => wordpress), ['5.2', 'latest', 'trunk']);
+  assert.deepEqual(policy.matrix.include.map(({ wordpress }) => wordpress), ['6.4', 'latest', 'trunk']);
   assert.deepEqual(policy.matrix.include.map(({ php }) => php), ['7.4', '8.4', '8.4']);
   assert.ok(policy.matrix.include.every(({ topology }) => topology === 'single-site'));
 });
@@ -107,6 +107,24 @@ test('integration policy requires one exact inventory identity', () => {
   assert.throws(() => resolveIntegrationPolicy(inventory, 'example/plugin'), /exactly one portfolio entry/u);
 });
 
+test('integration resolution rejects enabled repositories below fleet baselines', () => {
+  const legacy = target('example/legacy', { wordpress: wordpress() });
+  legacy.enabled = true;
+  legacy.manifest.minimum_wordpress = '6.3';
+
+  assert.throws(
+    () => resolveIntegrationPolicy({ repositories: [legacy] }, legacy.repository),
+    /minimum_wordpress must be 6\.4 or newer/u,
+  );
+
+  legacy.manifest.minimum_wordpress = '6.4';
+  legacy.manifest.minimum_php = '7.3';
+  assert.throws(
+    () => resolveIntegrationPolicy({ repositories: [legacy] }, legacy.repository),
+    /minimum_php must be 7\.4 or newer/u,
+  );
+});
+
 test('only reviewed WordPress integration pilots are enrolled', () => {
   const inventory = JSON.parse(readFileSync(new URL('../portfolio/plugins.json', import.meta.url), 'utf8'));
   const enrolled = inventory.repositories
@@ -134,9 +152,9 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   const termImages = resolveIntegrationPolicy(inventory, 'stuttter/wp-term-images');
   assert.equal(termImages.pluginCheck, true);
   assert.deepEqual(termImages.matrix.include[0], {
-    name: 'WordPress 4.4 / PHP 7.4 / single-site',
+    name: 'WordPress 6.4 / PHP 7.4 / single-site',
     target: 'oldest',
-    wordpress: '4.4',
+    wordpress: '6.4',
     php: '7.4',
     topology: 'single-site',
   });

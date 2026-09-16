@@ -26,7 +26,7 @@ const target = {
   protection: { extra_required_checks: ['Repository-specific gate'] },
   manifest: {
     minimum_php: '7.4',
-    minimum_wordpress: '5.2',
+    minimum_wordpress: '6.4',
     multisite: true,
     php_matrix: ['7.4', '8.4'],
     release_branch: 'master',
@@ -133,7 +133,7 @@ test('required checks are deterministic and preserve declared local gates', () =
     'validate / Production artifact',
     'validate / Project quality suite',
     'validate / Single-site smoke',
-    'validate / WordPress 5.2 / PHP 7.4 / multisite',
+    'validate / WordPress 6.4 / PHP 7.4 / multisite',
     'validate / WordPress Plugin Check',
     'validate / WordPress stable / PHP 8.4 / multisite',
     'validate / WordPress trunk / PHP 8.4 / multisite',

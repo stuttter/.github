@@ -41,7 +41,6 @@ jobs:
         run: |
           npm ci --ignore-scripts --prefix runtime/wordpress
           npm audit --audit-level=moderate --prefix runtime/wordpress
-          node scripts/patch-wordpress-env.mjs runtime/wordpress/node_modules/@wordpress/env/lib/runtime/docker/wordpress.js
 
       - name: Check scripts
         run: |
@@ -51,6 +50,8 @@ jobs:
           bash -n brand/export.sh
           bash -n brand/validate.sh
           node --check scripts/sync-plugin-standards.mjs
+          node --check scripts/compatibility-policy.mjs
+          node --check scripts/verify-manifest-policy.mjs
           node --check scripts/fleet-matrix.mjs
           node --check scripts/validate-workflow-pins.mjs
           node --check scripts/render-workflow-fixtures.mjs
@@ -58,12 +59,13 @@ jobs:
           node --check scripts/project-check-policy.mjs
           node --check scripts/integration-check-policy.mjs
           node --check scripts/configure-wordpress-integration.mjs
-          node --check scripts/patch-wordpress-env.mjs
           bash -n scripts/prepare-plugin-build.sh
           bash -n scripts/run-wordpress-integration.sh
 
       - name: Run fleet synchronization tests
-        run: npm test
+        run: |
+          npm test
+          node scripts/fleet-matrix.mjs >/dev/null
 
       - name: Check JSON
         run: |

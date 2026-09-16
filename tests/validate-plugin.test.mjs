@@ -16,7 +16,7 @@ function fixture(shortDescription, { emptyOptionalHeader = false, emptyStableTag
     main_file: 'example-plugin.php',
     risk: 'standard',
     minimum_php: '7.4',
-    minimum_wordpress: '5.2',
+    minimum_wordpress: '6.4',
     tested_wordpress: '7.1',
     wordpress_org: true,
     multisite: false,
@@ -30,7 +30,7 @@ function fixture(shortDescription, { emptyOptionalHeader = false, emptyStableTag
  */
 `);
   const shortDescriptionBlock = null === shortDescription ? '' : `\n${shortDescription}\n${trailingHeader ? 'License: GPLv2 or later\n' : ''}`;
-  const headers = `Requires at least: 5.2
+  const headers = `Requires at least: 6.4
 ${emptyOptionalHeader ? 'Donate link:\n' : ''}Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: ${emptyStableTag ? '' : '1.0.0'}

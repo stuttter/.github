@@ -15,13 +15,13 @@ const target = {
     slug: 'example-plugin',
     main_file: 'example-plugin.php',
     risk: 'standard',
-    minimum_php: '7.2',
-    minimum_wordpress: '5.2',
+    minimum_php: '7.4',
+    minimum_wordpress: '6.4',
     tested_wordpress: '7.1',
     wordpress_org: true,
     multisite: false,
     release_branch: 'master',
-    php_matrix: ['7.2', '8.4'],
+    php_matrix: ['7.4', '8.4'],
   },
 };
 const policyRef = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -57,7 +57,7 @@ test('apply creates deterministic files and becomes clean', () => {
     assert.equal(first.changes.length, 5);
     const second = synchronize({ root, target, policyRef, mode: 'audit' });
     assert.equal(second.clean, true);
-    assert.match(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8'), /php-versions: '\["7\.2","8\.4"\]'/);
+    assert.match(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8'), /php-versions: '\["7\.4","8\.4"\]'/);
     assert.equal(
       readFileSync(join(root, '.github/skills/code-review/SKILL.md'), 'utf8'),
       readFileSync(new URL('../.github/skills/code-review/SKILL.md', import.meta.url), 'utf8'),
@@ -279,12 +279,12 @@ test('manifest and inventory validation reject unknown or duplicate policy', () 
 
 test('inventory requires an ordered PHP matrix beginning at the minimum', () => {
   const unsorted = structuredClone(target);
-  unsorted.manifest.php_matrix = ['8.4', '7.2'];
+  unsorted.manifest.php_matrix = ['8.4', '7.4'];
   const missingMinimum = structuredClone(target);
   missingMinimum.manifest.php_matrix = ['8.0', '8.4'];
   const belowMinimum = structuredClone(target);
   belowMinimum.manifest.minimum_php = '8.0';
-  belowMinimum.manifest.php_matrix = ['7.2', '8.0', '8.4'];
+  belowMinimum.manifest.php_matrix = ['7.4', '8.0', '8.4'];
   const { root, cleanup } = fixture();
   try {
     for (const [name, item, pattern] of [
@@ -296,6 +296,38 @@ test('inventory requires an ordered PHP matrix beginning at the minimum', () => 
       writeFileSync(path, JSON.stringify({ repositories: [item] }));
       assert.throws(() => loadInventory(path), pattern);
     }
+  } finally {
+    cleanup();
+  }
+});
+
+test('enabled inventory repositories cannot regress below the WordPress 6.4 baseline', () => {
+  const legacy = structuredClone(target);
+  legacy.manifest.minimum_wordpress = '6.3';
+  const disabledLegacy = structuredClone(legacy);
+  disabledLegacy.enabled = false;
+  const { root, cleanup } = fixture();
+  const path = join(root, 'inventory.json');
+  try {
+    writeFileSync(path, JSON.stringify({ repositories: [legacy] }));
+    assert.throws(() => loadInventory(path), /minimum_wordpress must be 6\.4 or newer/);
+
+    writeFileSync(path, JSON.stringify({ repositories: [disabledLegacy] }));
+    assert.doesNotThrow(() => loadInventory(path));
+  } finally {
+    cleanup();
+  }
+});
+
+test('enabled inventory repositories cannot regress below the PHP 7.4 baseline', () => {
+  const legacy = structuredClone(target);
+  legacy.manifest.minimum_php = '7.3';
+  legacy.manifest.php_matrix = ['7.3', '8.4'];
+  const { root, cleanup } = fixture();
+  const path = join(root, 'inventory.json');
+  try {
+    writeFileSync(path, JSON.stringify({ repositories: [legacy] }));
+    assert.throws(() => loadInventory(path), /minimum_php must be 7\.4 or newer/);
   } finally {
     cleanup();
   }

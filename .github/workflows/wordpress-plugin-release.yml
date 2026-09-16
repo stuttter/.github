@@ -100,12 +100,24 @@ jobs:
             ) | (.manifest.release_branch // "main")] |
             if length == 1 then .[0] else empty end
           ' .portfolio-standard/portfolio/plugins.json)"
+          expected_minimum_php="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(.repository == $repository and .enabled == true) | .manifest.minimum_php] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-standard/portfolio/plugins.json)"
+          expected_minimum_wordpress="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(.repository == $repository and .enabled == true) | .manifest.minimum_wordpress] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-standard/portfolio/plugins.json)"
           actual_slug="$(jq --raw-output '.slug' .github/plugin-standard.json)"
           actual_wordpress_org="$(jq --raw-output '.wordpress_org' .github/plugin-standard.json)"
+          actual_minimum_php="$(jq --raw-output '.minimum_php' .github/plugin-standard.json)"
+          actual_minimum_wordpress="$(jq --raw-output '.minimum_wordpress' .github/plugin-standard.json)"
           test -n "${expected_slug}"
           test -n "${expected_branch}"
           test "${actual_slug}" = "${expected_slug}"
           test "${actual_wordpress_org}" = 'true'
+          test "${actual_minimum_php}" = "${expected_minimum_php}"
+          test "${actual_minimum_wordpress}" = "${expected_minimum_wordpress}"
           test "${RELEASE_BRANCH}" = "${expected_branch}"
 
       - name: Resolve trusted project checks
@@ -242,12 +254,24 @@ jobs:
             ) | (.manifest.release_branch // "main")] |
             if length == 1 then .[0] else empty end
           ' .portfolio-policy/portfolio/plugins.json)"
+          expected_minimum_php="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(.repository == $repository and .enabled == true) | .manifest.minimum_php] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-policy/portfolio/plugins.json)"
+          expected_minimum_wordpress="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(.repository == $repository and .enabled == true) | .manifest.minimum_wordpress] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-policy/portfolio/plugins.json)"
           actual_slug="$(jq --raw-output '.slug' .github/plugin-standard.json)"
           actual_wordpress_org="$(jq --raw-output '.wordpress_org' .github/plugin-standard.json)"
+          actual_minimum_php="$(jq --raw-output '.minimum_php' .github/plugin-standard.json)"
+          actual_minimum_wordpress="$(jq --raw-output '.minimum_wordpress' .github/plugin-standard.json)"
           test -n "${expected_slug}"
           test -n "${expected_branch}"
           test "${actual_slug}" = "${expected_slug}"
           test "${actual_wordpress_org}" = 'true'
+          test "${actual_minimum_php}" = "${expected_minimum_php}"
+          test "${actual_minimum_wordpress}" = "${expected_minimum_wordpress}"
           test "${RELEASE_BRANCH}" = "${expected_branch}"
 
       - name: Build production artifact from Git objects
@@ -326,11 +350,23 @@ jobs:
             ) | (.manifest.release_branch // "main")] |
             if length == 1 then .[0] else empty end
           ' .portfolio-policy/portfolio/plugins.json)"
+          expected_minimum_php="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(.repository == $repository and .enabled == true) | .manifest.minimum_php] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-policy/portfolio/plugins.json)"
+          expected_minimum_wordpress="$(jq --raw-output --arg repository "${TARGET_REPOSITORY}" '
+            [.repositories[] | select(.repository == $repository and .enabled == true) | .manifest.minimum_wordpress] |
+            if length == 1 then .[0] else empty end
+          ' .portfolio-policy/portfolio/plugins.json)"
           actual_wordpress_org="$(jq --raw-output '.wordpress_org' .github/plugin-standard.json)"
+          actual_minimum_php="$(jq --raw-output '.minimum_php' .github/plugin-standard.json)"
+          actual_minimum_wordpress="$(jq --raw-output '.minimum_wordpress' .github/plugin-standard.json)"
           test -n "${expected_slug}"
           test -n "${expected_branch}"
           test "${PLUGIN_SLUG}" = "${expected_slug}"
           test "${actual_wordpress_org}" = 'true'
+          test "${actual_minimum_php}" = "${expected_minimum_php}"
+          test "${actual_minimum_wordpress}" = "${expected_minimum_wordpress}"
           test "${RELEASE_BRANCH}" = "${expected_branch}"
 
       - name: Download approved artifact

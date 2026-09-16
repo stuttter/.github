@@ -7,7 +7,7 @@ on:
         description: JSON array of PHP versions to syntax-check.
         required: false
         type: string
-        default: '["7.2", "7.4", "8.0", "8.2", "8.4"]'
+        default: '["7.4", "8.0", "8.2", "8.4"]'
       quality-php-version:
         description: PHP version used for Composer-backed quality checks.
         required: false
@@ -53,6 +53,11 @@ jobs:
 
       - name: Validate plugin metadata
         run: php .portfolio-standard/scripts/validate-plugin.php .
+
+      - name: Verify manifest against immutable portfolio policy
+        env:
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node .portfolio-standard/scripts/verify-manifest-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root .
 
       - name: Resolve trusted project checks
         id: project-policy
@@ -375,12 +380,6 @@ jobs:
         if: ${{ matrix.target != 'disabled' }}
         working-directory: .portfolio-standard/runtime/wordpress
         run: npm ci --ignore-scripts
-
-      - name: Apply audited WordPress 5.0 runtime compatibility
-        if: ${{ matrix.target != 'disabled' }}
-        run: >-
-          node .portfolio-standard/scripts/patch-wordpress-env.mjs
-          .portfolio-standard/runtime/wordpress/node_modules/@wordpress/env/lib/runtime/docker/wordpress.js
 
       - name: Build plugin for WordPress integration
         if: ${{ matrix.target != 'disabled' }}

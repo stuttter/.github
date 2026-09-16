@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { loadInventory } from '../scripts/sync-plugin-standards.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const readJson = (path) => JSON.parse(readFileSync(resolve(root, path), 'utf8'));
@@ -78,6 +79,10 @@ test('published schema identifiers and references resolve to raw JSON resources'
 
 test('portfolio inventory validates through its schema and referenced plugin schema', () => {
   assert.deepEqual(validate(portfolio, portfolioSchema), []);
+});
+
+test('production portfolio satisfies runtime compatibility policy', () => {
+  assert.doesNotThrow(() => loadInventory(resolve(root, 'portfolio/plugins.json')));
 });
 
 test('portfolio schema rejects root policy drift and invalid referenced manifests', () => {

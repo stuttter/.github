@@ -134,6 +134,8 @@ test('legacy release callers may pass an ignored environment input during migrat
 test('release inputs enforce canonical SemVer and WordPress.org eligibility', () => {
   assert.match(workflow, /\^\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$/);
   assert.equal((workflow.match(/test "\$\{actual_wordpress_org\}" = 'true'/g) || []).length, 3);
+  assert.equal((workflow.match(/test "\$\{actual_minimum_php\}" = "\$\{expected_minimum_php\}"/g) || []).length, 3);
+  assert.equal((workflow.match(/test "\$\{actual_minimum_wordpress\}" = "\$\{expected_minimum_wordpress\}"/g) || []).length, 3);
 });
 
 test('WordPress.org credentials use an explicit required reusable-workflow interface', () => {
