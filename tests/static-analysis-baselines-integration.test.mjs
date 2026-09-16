@@ -133,6 +133,265 @@ test('existing baseline protects a directly named repository runner', (t) => {
   assert.match(result.stderr, /may not add, remove, or change scripts\/check-phpcs-baseline\.php/u);
 });
 
+test('existing PHPCS baseline permits only a monotonic WordPress minimum increase', (t) => {
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml.dist': '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2"/>\n</ruleset>\n',
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="6.4"/>\n</ruleset>\n');
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('PHPCS WordPress minimum migration accepts alternate valid attribute formatting', (t) => {
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml.dist': '<ruleset name="Fixture">\n  <config\n    value = \'5.2\'\n    name = \'minimum_supported_wp_version\'\n  />\n</ruleset>\n',
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', '<ruleset name="Fixture">\n  <config\n    value = \'6.4\'\n    name = \'minimum_supported_wp_version\'\n  />\n</ruleset>\n');
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('PHPCS WordPress minimum migration accepts an explicit empty closing element', (t) => {
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml.dist': '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2"></config>\n</ruleset>\n',
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="6.4"></config>\n</ruleset>\n');
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('PHPCS WordPress minimum migration accepts greater-than signs inside quoted values', (t) => {
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml.dist': '<ruleset name="Fixture">\n  <config note="a>b" name="minimum_supported_wp_version" value="5.2"/>\n</ruleset>\n',
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', '<ruleset name="Fixture">\n  <config note="a>b" name="minimum_supported_wp_version" value="6.4"/>\n</ruleset>\n');
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('PHPCS WordPress minimum migration applies to only one conventional configuration', (t) => {
+  const baseConfig = '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2"/>\n</ruleset>\n';
+  const headConfig = '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="6.4"/>\n</ruleset>\n';
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml': baseConfig,
+    'phpcs.xml.dist': baseConfig,
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml', headConfig);
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', headConfig);
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /only when exactly one conventional configuration is present/u);
+});
+
+test('PHPCS WordPress minimum migration rejects an inactive conventional configuration', (t) => {
+  const baseConfig = '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2"/>\n</ruleset>\n';
+  const headConfig = '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="6.4"/>\n</ruleset>\n';
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml': baseConfig,
+    'phpcs.xml.dist': baseConfig,
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', headConfig);
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /only when exactly one conventional configuration is present/u);
+});
+
+test('PHPCS WordPress minimum migration ignores comments, CDATA, and processing instructions', (t) => {
+  for (const [baseElement, headElement] of [
+    [
+      '<!-- <config name="minimum_supported_wp_version" value="5.2"/> -->',
+      '<!-- <config name="minimum_supported_wp_version" value="6.4"/> -->',
+    ],
+    [
+      '<![CDATA[<config name="minimum_supported_wp_version" value="5.2"/>]]>',
+      '<![CDATA[<config name="minimum_supported_wp_version" value="6.4"/>]]>',
+    ],
+    [
+      '<?policy <config name="minimum_supported_wp_version" value="5.2"/>?>',
+      '<?policy <config name="minimum_supported_wp_version" value="6.4"/>?>',
+    ],
+  ]) {
+    const fixture = createRepository({
+      'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+      'phpcs-baseline.json': '{}\n',
+      'phpcs.xml.dist': `<ruleset name="Fixture">\n  ${baseElement}\n</ruleset>\n`,
+      'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+    });
+    t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+    writeFixtureFile(fixture.root, 'phpcs.xml.dist', `<ruleset name="Fixture">\n  ${headElement}\n</ruleset>\n`);
+    const result = runChecker(fixture.root, fixture.revision);
+
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /may not add, remove, or change phpcs\.xml\.dist/u);
+  }
+});
+
+test('PHPCS WordPress minimum migration ignores declarations and DOCTYPE subsets', (t) => {
+  const base = '<!DOCTYPE ruleset [<!ENTITY floor "<config name=\'minimum_supported_wp_version\' value=\'5.2\'/>">]>\n<ruleset name="Fixture"/>\n';
+  const head = '<!DOCTYPE ruleset [<!ENTITY floor "<config name=\'minimum_supported_wp_version\' value=\'6.4\'/>">]>\n<ruleset name="Fixture"/>\n';
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml.dist': base,
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', head);
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /may not add, remove, or change phpcs\.xml\.dist/u);
+});
+
+test('PHPCS WordPress minimum migration ignores nested config elements', (t) => {
+  const base = '<ruleset name="Fixture">\n  <description><config name="minimum_supported_wp_version" value="5.2"/></description>\n</ruleset>\n';
+  const head = '<ruleset name="Fixture">\n  <description><config name="minimum_supported_wp_version" value="6.4"/></description>\n</ruleset>\n';
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml.dist': base,
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', head);
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /may not add, remove, or change phpcs\.xml\.dist/u);
+});
+
+test('PHPCS WordPress minimum migration ignores attribute text inside quoted values', (t) => {
+  const base = '<ruleset name="Fixture">\n  <config data=\'name="minimum_supported_wp_version" value="5.2"\'/>\n</ruleset>\n';
+  const head = '<ruleset name="Fixture">\n  <config data=\'name="minimum_supported_wp_version" value="6.4"\'/>\n</ruleset>\n';
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+    'phpcs-baseline.json': '{}\n',
+    'phpcs.xml.dist': base,
+    'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs.xml.dist', head);
+  const result = runChecker(fixture.root, fixture.revision);
+
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /may not add, remove, or change phpcs\.xml\.dist/u);
+});
+
+test('PHPCS WordPress minimum migration rejects malformed duplicate settings', (t) => {
+  for (const duplicate of [
+    '<config name="minimum_supported_wp_version" value="invalid"/>',
+    '<config name="minimum_supported_wp_version" value="invalid">ignored</config>',
+  ]) {
+    const base = `<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2"/>\n  ${duplicate}\n</ruleset>\n`;
+    const head = `<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="6.4"/>\n  ${duplicate}\n</ruleset>\n`;
+    const fixture = createRepository({
+      'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+      'phpcs-baseline.json': '{}\n',
+      'phpcs.xml.dist': base,
+      'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+    });
+    t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+    writeFixtureFile(fixture.root, 'phpcs.xml.dist', head);
+    const result = runChecker(fixture.root, fixture.revision);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /may not add, remove, or change phpcs\.xml\.dist/u);
+  }
+});
+
+test('PHPCS WordPress minimum migration rejects namespaced settings', (t) => {
+  for (const [base, head] of [
+    [
+      '<ruleset name="Fixture">\n  <config xmlns="urn:ignored" name="minimum_supported_wp_version" value="5.2"/>\n</ruleset>\n',
+      '<ruleset name="Fixture">\n  <config xmlns="urn:ignored" name="minimum_supported_wp_version" value="6.4"/>\n</ruleset>\n',
+    ],
+    [
+      '<ruleset xmlns="urn:ignored" name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2"/>\n</ruleset>\n',
+      '<ruleset xmlns="urn:ignored" name="Fixture">\n  <config name="minimum_supported_wp_version" value="6.4"/>\n</ruleset>\n',
+    ],
+  ]) {
+    const fixture = createRepository({
+      'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+      'phpcs-baseline.json': '{}\n',
+      'phpcs.xml.dist': base,
+      'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+    });
+    t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+    writeFixtureFile(fixture.root, 'phpcs.xml.dist', head);
+    const result = runChecker(fixture.root, fixture.revision);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /may not add, remove, or change phpcs\.xml\.dist/u);
+  }
+});
+
+test('existing PHPCS baseline rejects a semantically unchanged or lower floor and accompanying configuration drift', (t) => {
+  for (const source of [
+    '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2.0"/>\n</ruleset>\n',
+    '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.1"/>\n</ruleset>\n',
+    '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2.00.0"/>\n</ruleset>\n',
+    '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="100000000000000000000.1"/>\n</ruleset>\n',
+    '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="6.4"/>\n  <rule ref="WordPress-Core"/>\n</ruleset>\n',
+  ]) {
+    const fixture = createRepository({
+      'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
+      'phpcs-baseline.json': '{}\n',
+      'phpcs.xml.dist': source.includes('100000000000000000000.1')
+        ? '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="100000000000000000001"/>\n</ruleset>\n'
+        : source.includes('5.2.00.0')
+          ? '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2.1"/>\n</ruleset>\n'
+          : '<ruleset name="Fixture">\n  <config name="minimum_supported_wp_version" value="5.2"/>\n</ruleset>\n',
+      'scripts/check-phpcs-baseline.php': "<?php\necho 'checked';\n",
+    });
+    t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+    writeFixtureFile(fixture.root, 'phpcs.xml.dist', source);
+    const result = runChecker(fixture.root, fixture.revision);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /may not add, remove, or change phpcs\.xml\.dist/u);
+  }
+});
+
 test('existing baseline protects runners adjacent to shell control delimiters', (t) => {
   for (const command of [
     'php scripts/check-phpcs-baseline.php; echo complete',

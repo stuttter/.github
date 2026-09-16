@@ -112,14 +112,20 @@ On initial introduction, the head must already contain a valid corresponding
 Composer script and conventional analyzer configuration. The command must name
 the analyzer as its first command token or name a regular `bin/` or `scripts/`
 runner containing an explicit reference to its locked `vendor/bin/` analyzer.
-When a baseline
-already exists on the pull request base, the corresponding
+When a baseline already exists on the pull request base, the corresponding
 Composer analyzer command, conventional analyzer configuration, and directly
-named `bin/` or `scripts/` runner must remain byte-for-byte unchanged. This
-prevents a pull request from bypassing the gate by removing or replacing the
-analyzer. That narrow check does not recursively interpret helper files loaded
-by a runner or configuration, dependency changes that alter the resolved
-analyzer executable, or analyzer behavior changed outside the repository.
+named `bin/` or `scripts/` runner must remain byte-for-byte unchanged. The only
+configuration exception is a PHPCS `minimum_supported_wp_version` value that
+changes once to a strictly higher dotted numeric version while exactly one
+conventional PHPCS configuration exists in both revisions and every other byte
+of that configuration remains identical. The `ruleset` and direct-child
+`config` elements must be unnamespaced. This permits an intentional support
+floor increase without allowing sniff, path, exclusion, or suppression drift.
+The gate otherwise prevents a pull request from bypassing analysis by removing
+or replacing the analyzer. That narrow check does not recursively interpret
+helper files loaded by a runner or configuration, dependency changes that alter
+the resolved analyzer executable, or analyzer behavior changed outside the
+repository.
 For an initial baseline, it also cannot prove that arbitrary new runner code
 executes a vendor path merely mentioned in a comment or string. Initial baseline
 introductions therefore require maintainer review and are not an autonomous
