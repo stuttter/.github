@@ -464,6 +464,213 @@ function assertSameFileAtHead(baseRevision, path, context) {
   }
 }
 
+function compareDottedVersions(left, right) {
+  const normalizePart = (part) => part.replace(/^0+/u, '') || '0';
+  const leftParts = left.split('.').map(normalizePart);
+  const rightParts = right.split('.').map(normalizePart);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftParts[index] ?? '0';
+    const rightPart = rightParts[index] ?? '0';
+    if (leftPart.length !== rightPart.length) return leftPart.length - rightPart.length;
+    if (leftPart !== rightPart) return leftPart < rightPart ? -1 : 1;
+  }
+
+  return 0;
+}
+
+function maskXmlNonElements(source) {
+  const visible = source.split('');
+  const mask = (start, end) => visible.fill(' ', start, end);
+  let index = 0;
+
+  while (index < source.length) {
+    const start = source.indexOf('<', index);
+    if (start === -1) break;
+
+    if (source.startsWith('<!--', start)) {
+      const close = source.indexOf('-->', start + 4);
+      if (close === -1) return null;
+      const end = close + 3;
+      mask(start, end);
+      index = end;
+      continue;
+    }
+
+    if (source.startsWith('<![CDATA[', start)) {
+      const close = source.indexOf(']]>', start + 9);
+      if (close === -1) return null;
+      const end = close + 3;
+      mask(start, end);
+      index = end;
+      continue;
+    }
+
+    if (source.startsWith('<?', start)) {
+      const close = source.indexOf('?>', start + 2);
+      if (close === -1) return null;
+      const end = close + 2;
+      mask(start, end);
+      index = end;
+      continue;
+    }
+
+    if (source.startsWith('<!', start)) {
+      let bracketDepth = 0;
+      let quote = null;
+      let end = -1;
+
+      for (let cursor = start + 2; cursor < source.length; cursor += 1) {
+        const character = source[cursor];
+        if (quote !== null) {
+          if (character === quote) quote = null;
+          continue;
+        }
+        if (character === '"' || character === "'") quote = character;
+        else if (character === '[') bracketDepth += 1;
+        else if (character === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+        else if (character === '>' && bracketDepth === 0) {
+          end = cursor + 1;
+          break;
+        }
+      }
+
+      if (end === -1) return null;
+      mask(start, end);
+      index = end;
+      continue;
+    }
+
+    index = start + 1;
+  }
+
+  return visible.join('');
+}
+
+function openingTagHasNamespaceDeclaration(tag, openingName) {
+  const attributePattern = /\s+([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"[^"]*"|'[^']*')/gyu;
+  attributePattern.lastIndex = `<${openingName}`.length;
+
+  while (!/^\s*\/?\s*>$/u.test(tag.slice(attributePattern.lastIndex))) {
+    const attribute = attributePattern.exec(tag);
+    if (attribute === null) return null;
+    if (attribute[1] === 'xmlns' || attribute[1].startsWith('xmlns:')) return true;
+  }
+
+  return false;
+}
+
+function directRulesetConfigStarts(source) {
+  const name = '[A-Za-z_:][A-Za-z0-9_.:-]*';
+  const attribute = `(?:\\s+${name}\\s*=\\s*(?:"[^"]*"|'[^']*'))`;
+  const tagPattern = new RegExp(`<\\/(${name})\\s*>|<(${name})${attribute}*\\s*\\/?>`, 'dgyu');
+  const starts = new Set();
+  const stack = [];
+  let cursor = 0;
+  let rootSeen = false;
+
+  while (cursor < source.length) {
+    const start = source.indexOf('<', cursor);
+    if (start === -1) break;
+
+    tagPattern.lastIndex = start;
+    const tag = tagPattern.exec(source);
+    if (tag === null) return null;
+
+    const closingName = tag[1];
+    const openingName = tag[2];
+    if (closingName !== undefined) {
+      if (stack.pop() !== closingName) return null;
+    } else {
+      const directConfig = stack.length === 1 && stack[0] === 'ruleset' && openingName === 'config';
+      if (stack.length === 0 || directConfig) {
+        const hasNamespaceDeclaration = openingTagHasNamespaceDeclaration(tag[0], openingName);
+        if (hasNamespaceDeclaration !== false) return null;
+      }
+
+      if (stack.length === 0) {
+        if (rootSeen || openingName !== 'ruleset') return null;
+        rootSeen = true;
+      } else if (directConfig) {
+        starts.add(start);
+      }
+
+      if (!tag[0].endsWith('/>')) stack.push(openingName);
+    }
+
+    cursor = tagPattern.lastIndex;
+  }
+
+  return rootSeen && stack.length === 0 ? starts : null;
+}
+
+function wordPressMinimumConfig(source) {
+  if (source === null) return null;
+
+  const visibleSource = maskXmlNonElements(source);
+  if (visibleSource === null) return null;
+  const directConfigStarts = directRulesetConfigStarts(visibleSource);
+  if (directConfigStarts === null) return null;
+
+  const openingConfigPattern = /^<config\b(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*\s*=\s*(?:"[^"]*"|'[^']*'))*\s*\/?>/u;
+  const configPattern = /<config\b(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*\s*=\s*(?:"[^"]*"|'[^']*'))*\s*(?:\/>|>\s*<\/config\s*>)/gu;
+  const attributePattern = /\s+([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/dgyu;
+  const parsedConfigStarts = new Set();
+  const settings = [];
+
+  for (const config of visibleSource.matchAll(configPattern)) {
+    if (!directConfigStarts.has(config.index)) continue;
+    parsedConfigStarts.add(config.index);
+    const attributes = new Map();
+    let duplicate = false;
+    const openingTag = openingConfigPattern.exec(config[0])?.[0];
+    if (openingTag === undefined) continue;
+    attributePattern.lastIndex = '<config'.length;
+
+    while (!/^\s*\/?\s*>$/u.test(openingTag.slice(attributePattern.lastIndex))) {
+      const attribute = attributePattern.exec(openingTag);
+      if (attribute === null) {
+        duplicate = true;
+        break;
+      }
+
+      const [, name, doubleQuoted, singleQuoted] = attribute;
+      if (attributes.has(name)) {
+        duplicate = true;
+        break;
+      }
+
+      const valueGroup = doubleQuoted === undefined ? 3 : 2;
+      const [start, end] = attribute.indices[valueGroup];
+      attributes.set(name, {
+        end: config.index + end,
+        start: config.index + start,
+        value: attribute[valueGroup],
+      });
+    }
+
+    if (duplicate) return null;
+    if (attributes.get('name')?.value === 'minimum_supported_wp_version') {
+      settings.push(attributes.get('value'));
+    }
+  }
+
+  if (parsedConfigStarts.size !== directConfigStarts.size || settings.length !== 1) return null;
+  const [setting] = settings;
+  return setting !== undefined && /^[0-9]+(?:\.[0-9]+)*$/u.test(setting.value) ? setting : null;
+}
+
+function isMonotonicWordPressMinimumChange(base, head) {
+  const baseConfig = wordPressMinimumConfig(base);
+  const headConfig = wordPressMinimumConfig(head);
+  if (baseConfig === null || headConfig === null) return false;
+
+  const normalize = (source, config) => `${source.slice(0, config.start)}__VERSION__${source.slice(config.end)}`;
+  return normalize(base, baseConfig) === normalize(head, headConfig)
+    && compareDottedVersions(headConfig.value, baseConfig.value) > 0;
+}
+
 function protectIntroducedAnalyzerContract(baselinePath) {
   const contract = ANALYZER_CONTRACTS[baselinePath];
   const composer = parseComposer(readHead('composer.json'), baselinePath);
@@ -511,11 +718,27 @@ function protectAnalyzerContract(baseRevision, baselinePath) {
   const commands = analyzerCommands(baseComposer, headComposer, contract.script, baselinePath);
 
   const baseConfigurations = contract.configurations.filter((path) => readAtRevision(baseRevision, path) !== null);
+  const headConfigurations = contract.configurations.filter((path) => readHead(path) !== null);
   if (baseConfigurations.length === 0) {
     throw new Error(`${baselinePath}: base revision has no conventional ${contract.script} configuration.`);
   }
 
+  let phpcsMinimumChangeUsed = false;
   for (const path of contract.configurations) {
+    if (baselinePath === 'phpcs-baseline.json'
+      && isMonotonicWordPressMinimumChange(readAtRevision(baseRevision, path), readHead(path))) {
+      if (baseConfigurations.length !== 1
+        || headConfigurations.length !== 1
+        || baseConfigurations[0] !== path
+        || headConfigurations[0] !== path) {
+        throw new Error(`${baselinePath} may raise minimum_supported_wp_version only when exactly one conventional configuration is present.`);
+      }
+      if (phpcsMinimumChangeUsed) {
+        throw new Error(`${baselinePath} may raise minimum_supported_wp_version in only one conventional configuration per pull request.`);
+      }
+      phpcsMinimumChangeUsed = true;
+      continue;
+    }
     assertSameFileAtHead(baseRevision, path, baselinePath);
   }
 
