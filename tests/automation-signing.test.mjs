@@ -65,6 +65,11 @@ test('Codex rejects deletions and renames in both untrusted and trusted boundari
   assert.match(codexWorkflow, /git diff --cached HEAD --no-ext-diff --no-textconv --no-renames --diff-filter=D --quiet/);
 });
 
+test('Codex protects every conventional PHPCS configuration name', () => {
+  assert.equal((codexWorkflow.match(/\.phpcs\.xml\*/g) || []).length, 2);
+  assert.equal((codexWorkflow.match(/\|phpcs\.xml\*/g) || []).length, 2);
+});
+
 test('failure state records cancellations and skipped downstream publishing', () => {
   assert.match(codexWorkflow, /needs\.implement\.result != 'success' \|\| needs\.publish\.result != 'success'/);
 });

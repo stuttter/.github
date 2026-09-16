@@ -145,7 +145,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-profiles').integration.wordpress.sha256, 'a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd');
-  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-images').integration.wordpress.sha256, '55c265fcf4ea7a2de1c08a8c97af1dfc3dffdf55c5c7a9fd19ad38b3c41d8f40');
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-images').integration.wordpress.sha256, '82499b17421227debad39b4ce094f2fd9e0de16409ea9de19400426619f7b377');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-media-categories').matrix.include[0].topology, 'single-site');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-groups').matrix.include[0].topology, 'multisite');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-activity').matrix.include[0].topology, 'multisite');
