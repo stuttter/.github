@@ -76,7 +76,7 @@ export function loadInventory(path) {
       errors.push(`${context} must be an object.`);
       continue;
     }
-    for (const key of Object.keys(item)) if (!['repository', 'enabled', 'managed_paths', 'manifest', 'checks', 'integration'].includes(key)) errors.push(`${context} has unsupported key ${key}.`);
+    for (const key of Object.keys(item)) if (!['repository', 'enabled', 'managed_paths', 'manifest', 'checks', 'integration', 'protection'].includes(key)) errors.push(`${context} has unsupported key ${key}.`);
     if (typeof item.repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(item.repository)) errors.push(`${context} repository is invalid.`);
     const repositoryIdentity = typeof item.repository === 'string' ? item.repository.toLowerCase() : item.repository;
     if (seen.has(repositoryIdentity)) errors.push(`${context} duplicates ${item.repository}.`);
@@ -90,6 +90,17 @@ export function loadInventory(path) {
     errors.push(...validateIntegrationPolicy(item.integration, `${context}.integration`));
     errors.push(...validateManifest(item.manifest, `${context}.manifest`));
     errors.push(...validateProjectChecks(item.checks, `${context}.checks`, item.manifest?.multisite === true));
+    if ('protection' in item) {
+      if (!item.protection || typeof item.protection !== 'object' || Array.isArray(item.protection)) {
+        errors.push(`${context}.protection must be an object when declared.`);
+      } else {
+        for (const key of Object.keys(item.protection)) if (key !== 'extra_required_checks') errors.push(`${context}.protection has unsupported key ${key}.`);
+        const extra = item.protection.extra_required_checks;
+        if (!Array.isArray(extra) || new Set(extra).size !== extra.length || extra.some((check) => typeof check !== 'string' || check.length === 0 || /[\r\n]/u.test(check))) {
+          errors.push(`${context}.protection.extra_required_checks is invalid.`);
+        }
+      }
+    }
   }
   if (errors.length) throw new Error(errors.join('\n'));
   return inventory;

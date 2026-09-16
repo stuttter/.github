@@ -11,6 +11,7 @@
     "brand:validate": "node brand/validate.mjs",
     "release:credential-access:audit": "node scripts/audit-wordpress-org-secret-access.mjs",
     "release:provision": "node scripts/provision-release-environments.mjs",
+    "repository:settings": "node scripts/provision-repository-settings.mjs",
     "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {

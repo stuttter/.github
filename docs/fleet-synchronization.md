@@ -118,6 +118,31 @@ Keep the `fleet-standards` and `wordpress.org` environments reviewer-gated, and
 limit organization credentials to the selected repositories and pinned workflow
 jobs that require them.
 
+Repository settings are reconciled separately from file synchronization. The
+settings provisioner derives each enabled target's required status checks from
+the immutable inventory, including syntax versions, enrolled project checks,
+Plugin Check, WordPress integration cells, and the production artifact. A
+repository-specific workflow may contribute an explicit extra required check,
+but only through `protection.extra_required_checks` in the reviewed inventory.
+
+The provisioner also requires the existing all-branch signed-commit rule before
+it will write anything. It then standardizes squash-only merging, automatic
+branch deletion, strict required checks, administrator enforcement, stale-review
+dismissal, linear history, resolved conversations, force-push and deletion
+protection, Dependabot security updates, secret scanning, and push protection.
+Apply mode preflights the complete enabled portfolio twice before the first
+write, so a changed ownership, signature, ruleset, or check result aborts the
+fleet before mutation. Writes are reported per repository, and every target is
+verified afterward even when one of the independent GitHub API calls fails.
+
+```sh
+npm run repository:settings -- audit all
+npm run repository:settings -- apply all
+```
+
+Use a single-repository target only with `audit`. Apply is deliberately
+fleet-wide so a partial settings policy cannot become the accidental standard.
+
 Fleet automation does not approve its own protected-file changes. Changes to
 the templates, synchronizer, reusable workflows, inventories, signing policy,
 or environment configuration belong in focused pull requests in this repository
