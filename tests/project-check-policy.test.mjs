@@ -211,6 +211,32 @@ test('centrally enrolled PHPUnit rejects a no-op Composer alias plus package, ha
   assert.doesNotThrow(() => validateInstalledPhpunit(root));
 });
 
+test('centrally enrolled PHPCS requires one hashed conventional configuration', (t) => {
+  const root = phpunitProject();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const phpcsSource = '<ruleset name="Fixture"><rule ref="WordPress-Core"/></ruleset>\n';
+  const composerWithPhpcs = `${JSON.stringify({ scripts: { phpcs: 'phpcs', test: 'phpunit' } })}\n`;
+  put(root, 'composer.json', composerWithPhpcs);
+  put(root, '.phpcs.xml.dist', phpcsSource);
+
+  const contract = phpunitContract();
+  contract.files[0] = fileContract('composer.json', composerWithPhpcs);
+  assert.throws(() => validatePhpunitProject(root, contract), /requires exactly one conventional configuration on disk matching the approved contract/u);
+
+  contract.files.push(fileContract('.phpcs.xml.dist', phpcsSource));
+  assert.doesNotThrow(() => validatePhpunitProject(root, contract));
+
+  put(root, 'composer.json', `${JSON.stringify({ scripts: { phpcs: 'phpcs --standard=custom.xml', test: 'phpunit' } })}\n`);
+  assert.throws(() => validatePhpunitProject(root, contract), /requires the exact Composer phpcs command/u);
+  put(root, 'composer.json', composerWithPhpcs);
+
+  put(root, 'phpcs.xml', phpcsSource);
+  assert.throws(() => validatePhpunitProject(root, contract), /requires exactly one conventional configuration on disk matching the approved contract/u);
+
+  contract.files.push(fileContract('phpcs.xml.dist', phpcsSource));
+  assert.throws(() => validatePhpunitProject(root, contract), /requires exactly one conventional configuration on disk matching the approved contract/u);
+});
+
 test('Node command and transitive alias drift fail closed', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'node-contract-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

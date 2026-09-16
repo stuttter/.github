@@ -9,7 +9,8 @@ import { validateCompatibilityBaseline } from './compatibility-policy.mjs';
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const supportedNodeVersions = new Set(['22', '24']);
 const supportedNodeScripts = new Set(['build:check']);
-const safeContractPath = /^(?:composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml\.dist|(?:bin|scripts|tests)\/[A-Za-z0-9._/-]+)$/u;
+const phpcsConfigPaths = ['.phpcs.xml', '.phpcs.xml.dist', 'phpcs.xml', 'phpcs.xml.dist'];
+const safeContractPath = /^(?:composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml\.dist|\.?phpcs\.xml(?:\.dist)?|(?:bin|scripts|tests)\/[A-Za-z0-9._/-]+)$/u;
 const safeNodeContractPath = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/u;
 const safeSmokePath = /^(?:bin|tests)\/[A-Za-z0-9._/-]+\.sh$/u;
 const sha256Pattern = /^[a-f0-9]{64}$/u;
@@ -218,7 +219,24 @@ export function validatePhpunitProject(root, contract) {
   const lock = parseJsonFile(lockPath, 'Centrally enrolled PHPUnit composer.lock');
   const packages = [...(Array.isArray(lock.packages) ? lock.packages : []), ...(Array.isArray(lock['packages-dev']) ? lock['packages-dev'] : [])];
   if (packages.filter((item) => item?.name === 'phpunit/phpunit').length !== 1) throw new Error('Centrally enrolled PHPUnit requires exactly one locked phpunit/phpunit package.');
-  parseJsonFile(composerPath, 'Centrally enrolled PHPUnit composer.json');
+  const composer = parseJsonFile(composerPath, 'Centrally enrolled PHPUnit composer.json');
+  if (Object.hasOwn(composer?.scripts ?? {}, 'phpcs')) {
+    const approvedConfigs = contract.files.filter(({ path }) => phpcsConfigPaths.includes(path));
+    if (composer.scripts.phpcs !== 'phpcs') throw new Error('Centrally enrolled PHPCS requires the exact Composer phpcs command.');
+    const presentConfigs = phpcsConfigPaths.filter((path) => {
+      try {
+        lstatSync(resolve(root, path));
+        return true;
+      } catch (error) {
+        if (error.code === 'ENOENT') return false;
+        throw error;
+      }
+    });
+    for (const path of presentConfigs) regularContainedFile(root, path, 'Centrally enrolled PHPCS');
+    if (approvedConfigs.length !== 1 || presentConfigs.length !== 1 || approvedConfigs[0]?.path !== presentConfigs[0]) {
+      throw new Error('Centrally enrolled PHPCS requires exactly one conventional configuration on disk matching the approved contract.');
+    }
+  }
   verifyFileContracts(root, contract.files, 'Centrally enrolled PHPUnit');
 }
 

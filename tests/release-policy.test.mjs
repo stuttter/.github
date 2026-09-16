@@ -12,13 +12,14 @@ const builderUrl = new URL('../scripts/build-plugin.sh', import.meta.url);
 const builderPath = fileURLToPath(builderUrl);
 const builder = readFileSync(builderUrl, 'utf8');
 
-function archiveFixture({ symlink = false } = {}) {
+function archiveFixture({ phpcsConfig = false, symlink = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'plugin-archive-'));
   mkdirSync(join(root, '.github'), { recursive: true });
   writeFileSync(join(root, '.github/plugin-standard.json'), '{"slug":"fixture-plugin","main_file":"fixture-plugin.php"}\n');
   writeFileSync(join(root, '.gitattributes'), '.github export-ignore\n');
   writeFileSync(join(root, 'fixture-plugin.php'), '<?php\n/*\n * Version: 1.0.0\n */\n');
   writeFileSync(join(root, 'target.txt'), 'target\n');
+  if (phpcsConfig) writeFileSync(join(root, '.phpcs.xml.dist'), '<ruleset name="Fixture"/>\n');
   if (symlink) symlinkSync('target.txt', join(root, 'linked.txt'));
 
   execFileSync('git', ['init', '--quiet', root]);
@@ -78,6 +79,19 @@ test('production archive builder rejects tracked symbolic links before writing a
     assert.match(result.stderr, /Release artifact contains a symbolic link/u);
     assert.equal(existsSync(join(output, 'fixture-plugin-1.0.0.zip')), false);
     assert.equal(existsSync(join(output, 'fixture-plugin-1.0.0.zip.sha256')), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('production archive builder rejects a hidden PHPCS configuration', () => {
+  const { root, cleanup } = archiveFixture({ phpcsConfig: true });
+  const output = join(root, 'output');
+  try {
+    const result = runBuilder(root, output, 'UTC', '022');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Release artifact contains development path: \.phpcs\.xml\.dist/u);
+    assert.equal(existsSync(join(output, 'fixture-plugin-1.0.0.zip')), false);
   } finally {
     cleanup();
   }
