@@ -86,7 +86,7 @@
             { "path": "composer.lock", "sha256": "553319c0d0f10b2765c7beb0af198bf9a1dbe1ad902439d14e1d74132ee4eab7" },
             { "path": "phpcs.xml.dist", "sha256": "2e6a4369abf299001b061627ffda2ceb46556d12819e985fae68e6dc5f01081d" },
             { "path": "phpunit.xml.dist", "sha256": "a51a3fb9d0a54d88f2f3d1ab04dda9375cf6700966f1b8f2b4fd0715936365c7" },
-            { "path": "scripts/check-phpcs-baseline.php", "sha256": "c317363c55d3cece44c910a57e2d0f9b3a35d1d41d78414f50604271ddb40c68" },
+            { "path": "scripts/check-phpcs-baseline.php", "sha256": "0c41bc1cd25ef00a2d18f7947de81c40d335d4ca19b1e1e7fd1e5b9a2fccf999" },
             { "path": "tests/bootstrap.php", "sha256": "5d46013ecc675591f97089db55e679a3eb434387b436ecaca2ac92dc5eac9223" }
           ]
         }
