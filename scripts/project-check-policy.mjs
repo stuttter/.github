@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { accessSync, constants, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateCompatibilityBaseline } from './compatibility-policy.mjs';
 
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const supportedNodeVersions = new Set(['22', '24']);
@@ -261,7 +262,10 @@ export function resolveProjectCheckPolicy(inventory, repository) {
   const matches = inventory.repositories.filter((item) => item.repository === repository);
   if (matches.length !== 1) throw new Error(`${repository} must have exactly one portfolio entry.`);
   const target = matches[0];
-  const errors = validateProjectChecks(target.checks, `${repository}.checks`, target.manifest?.multisite === true);
+  const errors = [
+    ...validateProjectChecks(target.checks, `${repository}.checks`, target.manifest?.multisite === true),
+    ...validateCompatibilityBaseline(target, repository),
+  ];
   if (errors.length > 0) throw new Error(errors.join('\n'));
   if (!/^\d+\.\d+$/u.test(target.manifest?.minimum_php ?? '')) throw new Error(`${repository} has an invalid minimum PHP version.`);
 

@@ -46,6 +46,16 @@ Maintained repositories should provide:
 - issue forms, a pull request template, and ownership rules where project rules
   differ from the organization defaults.
 
+The maintained plugin fleet supports WordPress 6.4 or newer and PHP 7.4 or
+newer. These are deliberate support commitments, not freshness signals. The
+plugin header, WordPress.org readme, manifest, contributor guidance, pull
+request checklist, documentation, CI matrix, and protected check names must
+remain aligned. An exception requires an explicit inventory policy, dedicated
+CI coverage, maintainer review, and a corresponding change to the central
+compatibility policy before the inventory can accept it. Revisit the baseline
+at least annually, or earlier when dependencies, WordPress APIs, or security
+maintenance justify it.
+
 ## Required validation
 
 The shared gate should verify:
@@ -180,10 +190,7 @@ smoke tests fail the declared profile rather than silently skipping it.
 The integration runner installs an exact locked wp-env runtime, builds the
 plugin through the same deterministic artifact script, maps only the built
 plugin and fixed smoke-test directory, and destroys its environment after each
-matrix cell. A source-hash-bound compatibility patch corrects wp-env's legacy
-WordPress configuration anchor: current Docker images use modern spacing in
-`wp-config.php` even when the selected WordPress source predates 5.1. Any
-upstream source drift rejects that patch and requires review. These jobs have
+matrix cell. These jobs have
 no repository permissions, persist no checkout
 credential, and receive no secrets. WP Media Categories and WP User Activity
 are the initial single-site and multisite pilots; other repositories remain

@@ -3,6 +3,7 @@
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateCompatibilityBaseline } from './compatibility-policy.mjs';
 import { validateProjectChecks } from './project-check-policy.mjs';
 import { validateIntegrationPolicy } from './integration-check-policy.mjs';
 
@@ -89,6 +90,7 @@ export function loadInventory(path) {
     if (item.managed_paths?.includes('release') && item.manifest?.wordpress_org !== true) errors.push(`${context} cannot manage a WordPress.org release caller when wordpress_org is false.`);
     errors.push(...validateIntegrationPolicy(item.integration, `${context}.integration`));
     errors.push(...validateManifest(item.manifest, `${context}.manifest`));
+    errors.push(...validateCompatibilityBaseline(item, context));
     errors.push(...validateProjectChecks(item.checks, `${context}.checks`, item.manifest?.multisite === true));
     if ('protection' in item) {
       if (!item.protection || typeof item.protection !== 'object' || Array.isArray(item.protection)) {

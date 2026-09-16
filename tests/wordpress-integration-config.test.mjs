@@ -28,13 +28,13 @@ test('oldest single-site configuration uses declared compatibility floors', () =
       repositoryRoot: value.root,
       pluginDirectory: value.pluginDirectory,
       target: 'oldest',
-      wordpress: '5.2',
+      wordpress: '6.4',
       php: '7.4',
       topology: 'single-site',
     });
 
     assert.equal(result.slug, 'example-plugin');
-    assert.equal(result.config.core, 'WordPress/WordPress#5.2');
+    assert.equal(result.config.core, 'WordPress/WordPress#6.4');
     assert.equal(result.config.phpVersion, '7.4');
     assert.equal(result.config.multisite, false);
     assert.equal(result.config.autoPort, true);

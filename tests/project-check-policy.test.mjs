@@ -16,6 +16,7 @@ import {
 } from '../scripts/project-check-policy.mjs';
 
 const policyScript = new URL('../scripts/project-check-policy.mjs', import.meta.url);
+const compatibilityPolicyScript = new URL('../scripts/compatibility-policy.mjs', import.meta.url);
 const digest = (source) => createHash('sha256').update(source).digest('hex');
 const configSource = '<phpunit bootstrap="tests/bootstrap.php"><testsuites><testsuite name="Fixture"><directory>tests</directory></testsuite></testsuites></phpunit>\n';
 const bootstrapSource = '<?php\n';
@@ -63,6 +64,15 @@ test('PHP-only profile schedules the centrally hashed minimum-PHP contract', () 
   assert.equal(policy.matrix.include[0].php, '7.4');
   assert.equal(policy.matrix.include[0].config, 'phpunit.xml.dist');
   assert.deepEqual(policy.phpunit, phpunitContract());
+});
+
+test('project checks reject an enabled repository below the PHP fleet baseline', () => {
+  const legacy = target('example/legacy', { phpunit: phpunitContract() });
+  legacy.manifest.minimum_php = '7.3';
+  assert.throws(
+    () => resolveProjectCheckPolicy({ repositories: [legacy] }, legacy.repository),
+    /minimum_php must be 7\.4 or newer/u,
+  );
 });
 
 test('profile without an established suite produces an explicit no-op cell', () => {
@@ -271,6 +281,7 @@ test('CLI loads its adjacent immutable inventory and emits exact GitHub outputs'
   put(standard, 'portfolio/plugins.json', `${JSON.stringify({ repositories: [target('example/cli', { phpunit: phpunitContract() })] })}\n`);
   mkdirSync(join(standard, 'scripts'), { recursive: true });
   copyFileSync(policyScript, join(standard, 'scripts/project-check-policy.mjs'));
+  copyFileSync(compatibilityPolicyScript, join(standard, 'scripts/compatibility-policy.mjs'));
   put(root, 'portfolio/plugins.json', '{"repositories":[]}\n');
 
   const success = spawnSync(process.execPath, [join(standard, 'scripts/project-check-policy.mjs'), '--repository', 'example/cli', '--project-root', root], { cwd: root, encoding: 'utf8' });

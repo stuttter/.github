@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateCompatibilityBaseline } from './compatibility-policy.mjs';
 
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const smokePath = 'tests/integration/smoke.php';
@@ -80,7 +81,10 @@ export function resolveIntegrationPolicy(inventory, repository) {
   }
 
   const target = matches[0];
-  const errors = validateIntegrationPolicy(target.integration, `${repository}.integration`);
+  const errors = [
+    ...validateIntegrationPolicy(target.integration, `${repository}.integration`),
+    ...validateCompatibilityBaseline(target, repository),
+  ];
   if (errors.length > 0) {
     throw new Error(errors.join('\n'));
   }

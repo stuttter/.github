@@ -12,6 +12,15 @@ test('integration selection comes only from immutable central inventory', () => 
   assert.doesNotMatch(workflow, /plugin-standard[^\n]*(?:command|script|smoke)/u);
 });
 
+test('metadata rejects a local manifest that drifts from immutable policy', () => {
+  assert.match(workflow, /verify-manifest-policy\.mjs --repository "\$\{TARGET_REPOSITORY\}" --project-root \./u);
+});
+
+test('reusable CI defaults do not schedule PHP below the fleet baseline', () => {
+  assert.match(workflow, /default: '\["7\.4", "8\.0", "8\.2", "8\.4"\]'/u);
+  assert.doesNotMatch(workflow, /default: '[^'\n]*7\.2/u);
+});
+
 test('Plugin Check scans the deterministic build without repository wp-env configuration', () => {
   assert.match(workflow, /WordPress\/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1\.1\.9/u);
   assert.match(workflow, /prepare-plugin-build\.sh/u);
@@ -49,7 +58,7 @@ test('wp-env is exact, locked, and carries the audited transitive override', () 
   assert.equal(lock.packages['node_modules/@wordpress/env'].version, '11.15.0');
   assert.equal(lock.packages['node_modules/qs'].version, '6.16.0');
   assert.match(lock.packages['node_modules/@wordpress/env'].integrity, /^sha512-/u);
-  assert.match(workflow, /patch-wordpress-env\.mjs/u);
+  assert.doesNotMatch(workflow, /patch-wordpress-env\.mjs/u);
 
   for (const [path, dependency] of Object.entries(lock.packages)) {
     if (path === '') continue;
