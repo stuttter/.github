@@ -10,6 +10,10 @@ const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const supportedNodeVersions = new Set(['22', '24']);
 const supportedNodeScripts = new Set(['build:check']);
 const phpcsConfigPaths = ['.phpcs.xml', '.phpcs.xml.dist', 'phpcs.xml', 'phpcs.xml.dist'];
+const phpcsCommands = new Map([
+  ['phpcs', []],
+  ['php scripts/check-phpcs-baseline.php', ['scripts/check-phpcs-baseline.php']],
+]);
 const safeContractPath = /^(?:composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml\.dist|\.?phpcs\.xml(?:\.dist)?|(?:bin|scripts|tests)\/[A-Za-z0-9._/-]+)$/u;
 const safeNodeContractPath = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/u;
 const safeSmokePath = /^(?:bin|tests)\/[A-Za-z0-9._/-]+\.sh$/u;
@@ -222,7 +226,13 @@ export function validatePhpunitProject(root, contract) {
   const composer = parseJsonFile(composerPath, 'Centrally enrolled PHPUnit composer.json');
   if (Object.hasOwn(composer?.scripts ?? {}, 'phpcs')) {
     const approvedConfigs = contract.files.filter(({ path }) => phpcsConfigPaths.includes(path));
-    if (composer.scripts.phpcs !== 'phpcs') throw new Error('Centrally enrolled PHPCS requires the exact Composer phpcs command.');
+    const requiredRunners = phpcsCommands.get(composer.scripts.phpcs);
+    if (requiredRunners === undefined) throw new Error('Centrally enrolled PHPCS requires an approved exact Composer phpcs command.');
+    for (const path of requiredRunners) {
+      if (!contract.files.some((file) => file.path === path)) {
+        throw new Error(`Centrally enrolled PHPCS requires its runner ${path} in the approved file contract.`);
+      }
+    }
     const presentConfigs = phpcsConfigPaths.filter((path) => {
       try {
         lstatSync(resolve(root, path));

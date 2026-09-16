@@ -227,7 +227,7 @@ test('centrally enrolled PHPCS requires one hashed conventional configuration', 
   assert.doesNotThrow(() => validatePhpunitProject(root, contract));
 
   put(root, 'composer.json', `${JSON.stringify({ scripts: { phpcs: 'phpcs --standard=custom.xml', test: 'phpunit' } })}\n`);
-  assert.throws(() => validatePhpunitProject(root, contract), /requires the exact Composer phpcs command/u);
+  assert.throws(() => validatePhpunitProject(root, contract), /requires an approved exact Composer phpcs command/u);
   put(root, 'composer.json', composerWithPhpcs);
 
   put(root, 'phpcs.xml', phpcsSource);
@@ -235,6 +235,28 @@ test('centrally enrolled PHPCS requires one hashed conventional configuration', 
 
   contract.files.push(fileContract('phpcs.xml.dist', phpcsSource));
   assert.throws(() => validatePhpunitProject(root, contract), /requires exactly one conventional configuration on disk matching the approved contract/u);
+});
+
+test('centrally enrolled PHPCS permits only its hashed baseline runner', (t) => {
+  const root = phpunitProject();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const phpcsSource = '<ruleset name="Fixture"><rule ref="WordPress-Core"/></ruleset>\n';
+  const runnerSource = '<?php // compare PHPCS with the committed baseline.\n';
+  const composerWithRunner = `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php', test: 'phpunit' } })}\n`;
+  put(root, 'composer.json', composerWithRunner);
+  put(root, 'phpcs.xml.dist', phpcsSource);
+  put(root, 'scripts/check-phpcs-baseline.php', runnerSource);
+
+  const contract = phpunitContract();
+  contract.files[0] = fileContract('composer.json', composerWithRunner);
+  contract.files.push(fileContract('phpcs.xml.dist', phpcsSource));
+  assert.throws(() => validatePhpunitProject(root, contract), /requires its runner scripts\/check-phpcs-baseline\.php in the approved file contract/u);
+
+  contract.files.push(fileContract('scripts/check-phpcs-baseline.php', runnerSource));
+  assert.doesNotThrow(() => validatePhpunitProject(root, contract));
+
+  put(root, 'scripts/check-phpcs-baseline.php', '<?php // bypass\n');
+  assert.throws(() => validatePhpunitProject(root, contract), /does not match its centrally approved SHA-256/u);
 });
 
 test('Node command and transitive alias drift fail closed', (t) => {
