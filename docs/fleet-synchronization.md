@@ -129,7 +129,9 @@ The provisioner also requires the existing all-branch signed-commit rule before
 it will write anything. It then standardizes squash-only merging, automatic
 branch deletion, strict required checks, administrator enforcement, stale-review
 dismissal, linear history, resolved conversations, force-push and deletion
-protection, Dependabot security updates, secret scanning, and push protection.
+protection, Dependabot vulnerability alerts and security updates, secret
+scanning, and push protection. Vulnerability alerts are enabled before
+automated security fixes because GitHub requires that ordering.
 Apply mode preflights the complete enabled portfolio twice before the first
 write, so a changed ownership, signature, ruleset, or check result aborts the
 fleet before mutation. Writes are reported per repository, and every target is

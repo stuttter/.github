@@ -207,6 +207,8 @@ export function inspectTarget({ target, execute = runGitHub }) {
   }
   if (metadata.security_and_analysis?.secret_scanning?.status !== 'enabled') drift.push('security.secret_scanning');
   if (metadata.security_and_analysis?.secret_scanning_push_protection?.status !== 'enabled') drift.push('security.push_protection');
+  const vulnerabilityAlerts = request(execute, `repos/${repository}/vulnerability-alerts`, { allowNotFound: true });
+  if (vulnerabilityAlerts !== true) drift.push('security.dependabot_alerts');
 
   const protection = request(execute, `repos/${repository}/branches/${encodeURIComponent(releaseBranch)}/protection`, { allowNotFound: true });
   const desiredProtection = desiredBranchProtection(target);
@@ -250,6 +252,7 @@ export function applyTarget({ target, inspection, execute = runGitHub }) {
     method: 'PUT',
     input: `${JSON.stringify(desiredBranchProtection(target))}\n`,
   });
+  request(execute, `repos/${repository}/vulnerability-alerts`, { method: 'PUT' });
   request(execute, `repos/${repository}/automated-security-fixes`, { method: 'PUT' });
   return { repository, changed: inspection.drift };
 }

@@ -100,6 +100,7 @@ function executor({ metadata = {}, protection = branchProtection() } = {}) {
         rules: [{ type: 'required_signatures' }],
       });
     }
+    if (endpoint.endsWith('/vulnerability-alerts')) return response();
     if (endpoint.includes('/branches/master/protection')) {
       return protection === null ? response(null, 1, 'HTTP 404: Not Found') : response(protection);
     }
@@ -273,7 +274,7 @@ test('inspection accepts only the newest matching GitHub Actions check run', () 
   }
 });
 
-test('apply writes only the fixed settings, protection, and Dependabot endpoint', () => {
+test('apply writes only the fixed settings, protection, and ordered Dependabot endpoints', () => {
   const mocked = executor();
   const inspection = { repository: target.repository, errors: [], drift: ['branch.required_checks'] };
   assert.deepEqual(applyTarget({ target, inspection, execute: mocked.execute }), {
@@ -281,10 +282,25 @@ test('apply writes only the fixed settings, protection, and Dependabot endpoint'
     changed: ['branch.required_checks'],
   });
   const writes = mocked.calls.filter((call) => !call.args.includes('GET'));
-  assert.equal(writes.length, 3);
+  assert.equal(writes.length, 4);
   assert.ok(writes.some((call) => call.args.includes('PATCH') && call.args.includes('repos/stuttter/example-plugin')));
   assert.ok(writes.some((call) => call.args.includes('PUT') && call.args.some((argument) => argument.includes('/branches/master/protection'))));
+  assert.ok(writes.some((call) => call.args.includes('PUT') && call.args.some((argument) => argument.endsWith('/vulnerability-alerts'))));
   assert.ok(writes.some((call) => call.args.includes('PUT') && call.args.some((argument) => argument.endsWith('/automated-security-fixes'))));
+  assert.ok(
+    writes.findIndex((call) => call.args.some((argument) => argument.endsWith('/vulnerability-alerts'))) <
+      writes.findIndex((call) => call.args.some((argument) => argument.endsWith('/automated-security-fixes'))),
+  );
+});
+
+test('inspection reports disabled vulnerability alerts separately from security updates', () => {
+  const mocked = executor();
+  const execute = (args, input) => {
+    const endpoint = args.find((argument) => argument.startsWith('repos/')) || '';
+    if (endpoint.endsWith('/vulnerability-alerts')) return response(null, 1, 'HTTP 404: Not Found');
+    return mocked.execute(args, input);
+  };
+  assert.deepEqual(inspectTarget({ target, execute }).drift, ['security.dependabot_alerts']);
 });
 
 test('fleet apply stops before mutation when any target fails preflight', () => {
