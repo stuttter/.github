@@ -117,8 +117,8 @@
         "phpunit": {
           "config": "phpunit.xml.dist",
           "files": [
-            { "path": "composer.json", "sha256": "1d3528d9ecaa36b5911fdb0ea48f7c6bb1acb6f28a6b75c3e11377c47f28d470" },
-            { "path": "composer.lock", "sha256": "64eea1a772612dff0be6696243a747c0f874b0976f7da440e6dc92b17f1fd98b" },
+            { "path": "composer.json", "sha256": "ac7f0ca7ec50667d26836bde3abb330b26c490862b7cb50547f87ca8023f67ab" },
+            { "path": "composer.lock", "sha256": "a42211c6004297dbc7f31247ce9b696c68198757f56931af263179c982ae12ed" },
             { "path": "phpunit.xml.dist", "sha256": "6b702f7ef2c2aa46ba9cc3990037e33e0616c7b6403ca8b7c1fc87dd6073d369" },
             { "path": "tests/bootstrap.php", "sha256": "25e00fa073e2ba237aba24186571044b1a68f6b63ea63b3ac18d391c0777eaf9" }
           ]
@@ -197,7 +197,7 @@
           "files": [
             { "path": "tests/integration/run-single-site.sh", "sha256": "cd197dbabaa06be0ef0e8fbdadd6585e8328a408ea48933adce7a0441dc6862f" },
             { "path": "tests/integration/run-multisite.sh", "sha256": "a0066c2998d9acaba08de9092a724b839103a962795407bd86dfe4289d27de76" },
-            { "path": "tests/integration/run-wordpress-smoke.sh", "sha256": "8259ffb577b6138ce3de17f3d7e2bc5a896023d7a9e14552c448e95ae7c968fa" },
+            { "path": "tests/integration/run-wordpress-smoke.sh", "sha256": "867704568315046f5a255c75f7ef3f6343ac054d6a3c7a1d025f39cc02371bb6" },
             { "path": "tests/integration/single-site-smoke.php", "sha256": "addfc1a985fead02a3de07825ac0f4512c0b2eb03544c3d42e6b1e3a37cb0615" },
             { "path": "tests/integration/multisite-smoke.php", "sha256": "d62847aeaf7310785ec881aa3985be54deb989f42495414e9b1356085f9ec42f" }
           ]
