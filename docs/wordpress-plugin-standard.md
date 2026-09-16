@@ -223,6 +223,12 @@ evidence required by the home-run rubric.
 - Elevated and critical runtime, data-sensitive, security, compatibility, and
   infrastructure changes always require maintainer approval.
 
+Enabled portfolio repositories use squash merging, delete merged branches, and
+protect the declared release branch with strict centrally derived status checks,
+linear history, signed commits, resolved review conversations, and no force
+pushes or branch deletion. Repository-local required checks must be named in the
+central inventory so settings audits cannot silently discard them.
+
 Before enabling the Codex issue caller, configure `FLEET_SIGNING_KEY`,
 `FLEET_SIGNING_PUBLIC_KEY`, and `FLEET_SIGNING_EMAIL` as secrets available to the
 caller. Use a dedicated SSH signing key registered with GitHub. The publishing

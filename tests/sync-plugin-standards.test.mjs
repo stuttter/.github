@@ -257,6 +257,21 @@ test('manifest and inventory validation reject unknown or duplicate policy', () 
     assert.throws(() => loadInventory(path), /duplicates STUTTTER\/EXAMPLE-PLUGIN/);
     writeFileSync(path, JSON.stringify({ $schema: 42, repositories: [target] }));
     assert.throws(() => loadInventory(path), /Inventory \$schema must be a URI reference/);
+
+    const protectedTarget = { ...target, protection: { extra_required_checks: ['Local integration'] } };
+    writeFileSync(path, JSON.stringify({ repositories: [protectedTarget] }));
+    assert.deepEqual(loadInventory(path).repositories[0].protection, protectedTarget.protection);
+
+    for (const [name, protection, pattern] of [
+      ['non-object', [], /protection must be an object/],
+      ['unknown-key', { extra_required_checks: [], surprise: true }, /unsupported key surprise/],
+      ['duplicate', { extra_required_checks: ['Gate', 'Gate'] }, /extra_required_checks is invalid/],
+      ['carriage-return', { extra_required_checks: ['Gate\rname'] }, /extra_required_checks is invalid/],
+      ['line-feed', { extra_required_checks: ['Gate\nname'] }, /extra_required_checks is invalid/],
+    ]) {
+      writeFileSync(path, JSON.stringify({ repositories: [{ ...target, protection }] }));
+      assert.throws(() => loadInventory(path), pattern, name);
+    }
   } finally {
     cleanup();
   }

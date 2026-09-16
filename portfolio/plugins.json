@@ -54,6 +54,13 @@
       "integration": {
         "plugin_check": true
       },
+      "protection": {
+        "extra_required_checks": [
+          "WordPress 5.2 / PHP 7.4 / single-site",
+          "WordPress 7.1 / PHP 8.4 / single-site",
+          "WordPress 7.1 / PHP 8.4 / multisite"
+        ]
+      },
       "manifest": {
         "slug": "wp-user-signups",
         "main_file": "wp-user-signups.php",
@@ -105,7 +112,7 @@
     {
       "repository": "stuttter/wp-user-activity",
       "enabled": true,
-      "managed_paths": ["ci", "release"],
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
