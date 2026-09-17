@@ -358,8 +358,8 @@
     },
     {
       "repository": "stuttter/wp-user-preferences",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
@@ -371,7 +371,13 @@
           ]
         }
       },
-      "integration": {},
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "a251e11c31c3396bd40b00aea881b327cdad1222250d8289acefa70639a8080f"
+        }
+      },
       "manifest": {
         "slug": "wp-user-preferences",
         "main_file": "wp-user-preferences.php",

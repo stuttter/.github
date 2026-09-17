@@ -128,6 +128,7 @@ test('integration resolution rejects enabled repositories below fleet baselines'
 test('only reviewed WordPress integration pilots are enrolled', () => {
   const inventory = JSON.parse(readFileSync(new URL('../portfolio/plugins.json', import.meta.url), 'utf8'));
   const userAvatars = inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-avatars');
+  const userPreferences = inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-preferences');
   const enrolled = inventory.repositories
     .filter(({ integration }) => integration.plugin_check || integration.wordpress)
     .map(({ repository }) => repository);
@@ -140,6 +141,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     'stuttter/wp-heart-throb',
     'stuttter/wp-user-profiles',
     'stuttter/wp-user-avatars',
+    'stuttter/wp-user-preferences',
     'stuttter/wp-term-images',
     'stuttter/wp-term-icons',
   ]);
@@ -172,6 +174,30 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.equal(userAvatars.manifest.wordpress_org, true);
   assert.equal(userAvatars.manifest.release_branch, 'master');
   assert.deepEqual(userAvatars.manifest.php_matrix, ['7.4', '8.0', '8.2', '8.4']);
+  assert.equal(userPreferences.enabled, true);
+  assert.deepEqual(userPreferences.managed_paths, ['ci', 'release', 'dependabot']);
+  assert.equal(userPreferences.checks.phpunit.config, 'phpunit.xml.dist');
+  assert.deepEqual(userPreferences.checks.phpunit.files, [
+    { path: 'composer.json', sha256: 'c76d358c2ad88cfaa343d3e3910207d536243de020b2d99a887a609b9d7d7859' },
+    { path: 'composer.lock', sha256: '5b604320f1628a9ac63b8bdfcc79a900da71f39b0aca990fa3952e2fab99d955' },
+    { path: 'phpunit.xml.dist', sha256: 'c23c3afa83ae468cd04eb74991e71e9a69f95bf8520a54d9c5689b28e302a365' },
+    { path: 'tests/bootstrap.php', sha256: '45ef4fbfb2c85f4bab2c7bcd38218c59b01742d1fe86e61e30f1058f66134f8a' },
+  ]);
+  assert.equal(userPreferences.integration.plugin_check, true);
+  assert.deepEqual(userPreferences.integration.wordpress, {
+    path: 'tests/integration/smoke.php',
+    sha256: 'a251e11c31c3396bd40b00aea881b327cdad1222250d8289acefa70639a8080f',
+  });
+  assert.equal(userPreferences.manifest.slug, 'wp-user-preferences');
+  assert.equal(userPreferences.manifest.main_file, 'wp-user-preferences.php');
+  assert.equal(userPreferences.manifest.risk, 'standard');
+  assert.equal(userPreferences.manifest.multisite, true);
+  assert.equal(userPreferences.manifest.minimum_php, '7.4');
+  assert.equal(userPreferences.manifest.minimum_wordpress, '6.4');
+  assert.equal(userPreferences.manifest.tested_wordpress, '7.1');
+  assert.equal(userPreferences.manifest.wordpress_org, true);
+  assert.equal(userPreferences.manifest.release_branch, 'master');
+  assert.deepEqual(userPreferences.manifest.php_matrix, ['7.4', '8.0', '8.2', '8.4']);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-profiles').integration.wordpress.sha256, 'a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd');
