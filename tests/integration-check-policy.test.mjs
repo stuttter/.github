@@ -150,8 +150,8 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-profiles').integration.wordpress.sha256, 'a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-images').integration.wordpress.sha256, '82499b17421227debad39b4ce094f2fd9e0de16409ea9de19400426619f7b377');
-  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').enabled, false);
-  assert.deepEqual(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').managed_paths, []);
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').enabled, true);
+  assert.deepEqual(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').managed_paths, ['ci', 'release', 'dependabot']);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').integration.wordpress.sha256, '7a3fdacd4090f4dbf0f2e2f7ca0b1c1e49357c8aa1476086c8bde86843396def');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-media-categories').matrix.include[0].topology, 'single-site');
