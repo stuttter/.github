@@ -357,6 +357,35 @@
       }
     },
     {
+      "repository": "stuttter/wp-user-preferences",
+      "enabled": false,
+      "managed_paths": [],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "c76d358c2ad88cfaa343d3e3910207d536243de020b2d99a887a609b9d7d7859" },
+            { "path": "composer.lock", "sha256": "5b604320f1628a9ac63b8bdfcc79a900da71f39b0aca990fa3952e2fab99d955" },
+            { "path": "phpunit.xml.dist", "sha256": "c23c3afa83ae468cd04eb74991e71e9a69f95bf8520a54d9c5689b28e302a365" },
+            { "path": "tests/bootstrap.php", "sha256": "45ef4fbfb2c85f4bab2c7bcd38218c59b01742d1fe86e61e30f1058f66134f8a" }
+          ]
+        }
+      },
+      "integration": {},
+      "manifest": {
+        "slug": "wp-user-preferences",
+        "main_file": "wp-user-preferences.php",
+        "risk": "standard",
+        "minimum_php": "7.4",
+        "minimum_wordpress": "6.4",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": true,
+        "release_branch": "master",
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
+      }
+    },
+    {
       "repository": "stuttter/wp-reset-filters",
       "enabled": true,
       "managed_paths": ["ci", "release", "dependabot"],
