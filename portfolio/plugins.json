@@ -238,8 +238,8 @@
     },
     {
       "repository": "stuttter/wp-heart-throb",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
