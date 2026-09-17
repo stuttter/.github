@@ -151,10 +151,15 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.deepEqual(userAvatars.managed_paths, []);
   assert.deepEqual(userAvatars.checks, { phpunit: false });
   assert.deepEqual(userAvatars.integration, {});
+  assert.equal(userAvatars.manifest.slug, 'wp-user-avatars');
+  assert.equal(userAvatars.manifest.main_file, 'wp-user-avatars.php');
+  assert.equal(userAvatars.manifest.risk, 'elevated');
   assert.equal(userAvatars.manifest.multisite, true);
   assert.equal(userAvatars.manifest.minimum_php, '7.4');
   assert.equal(userAvatars.manifest.minimum_wordpress, '6.4');
   assert.equal(userAvatars.manifest.tested_wordpress, '7.1');
+  assert.equal(userAvatars.manifest.wordpress_org, true);
+  assert.equal(userAvatars.manifest.release_branch, 'master');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-profiles').integration.wordpress.sha256, 'a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd');
