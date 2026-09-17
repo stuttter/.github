@@ -322,6 +322,26 @@
       }
     },
     {
+      "repository": "stuttter/wp-user-avatars",
+      "enabled": false,
+      "managed_paths": [],
+      "checks": {
+        "phpunit": false
+      },
+      "integration": {},
+      "manifest": {
+        "slug": "wp-user-avatars",
+        "main_file": "wp-user-avatars.php",
+        "risk": "elevated",
+        "minimum_php": "7.4",
+        "minimum_wordpress": "6.4",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": true,
+        "release_branch": "master"
+      }
+    },
+    {
       "repository": "stuttter/wp-reset-filters",
       "enabled": true,
       "managed_paths": ["ci", "release", "dependabot"],
