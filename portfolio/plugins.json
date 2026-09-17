@@ -458,8 +458,8 @@
     },
     {
       "repository": "stuttter/wp-term-order",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
           "config": "phpunit.xml.dist",
@@ -471,7 +471,13 @@
           ]
         }
       },
-      "integration": {},
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "5cdc5b34a9fc6b8502186df7ded8be10a2d676266fad8d8c1ca604118110d004"
+        }
+      },
       "manifest": {
         "slug": "wp-term-order",
         "main_file": "wp-term-order.php",
