@@ -457,6 +457,35 @@
       }
     },
     {
+      "repository": "stuttter/wp-term-order",
+      "enabled": false,
+      "managed_paths": [],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "0a0ba88076a3c9e311dbfd66b9da226a3e3f7c2f42fcda416e64192c4fd00b9a" },
+            { "path": "composer.lock", "sha256": "dfa7412474360ee12e80ec6ddc1965314b461f1944634ec3eafea0c868f36a04" },
+            { "path": "phpunit.xml.dist", "sha256": "51c99ea65a60b1af445c05fe9a78a13eaba1ad9be6b1032635ef691ea9fa0d4e" },
+            { "path": "tests/bootstrap.php", "sha256": "1255c3bb96672e05c7cf1c9e541107e9ea5eb828cb61693d7544a994532f46c6" }
+          ]
+        }
+      },
+      "integration": {},
+      "manifest": {
+        "slug": "wp-term-order",
+        "main_file": "wp-term-order.php",
+        "risk": "elevated",
+        "minimum_php": "7.4",
+        "minimum_wordpress": "6.4",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": false,
+        "release_branch": "master",
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
+      }
+    },
+    {
       "repository": "stuttter/wp-term-icons",
       "enabled": true,
       "managed_paths": ["ci", "release", "dependabot"],
