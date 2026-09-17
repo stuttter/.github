@@ -139,6 +139,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     'stuttter/wp-user-activity',
     'stuttter/wp-heart-throb',
     'stuttter/wp-user-profiles',
+    'stuttter/wp-user-avatars',
     'stuttter/wp-term-images',
     'stuttter/wp-term-icons',
   ]);
@@ -147,10 +148,20 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-media-categories').integration.wordpress.sha256, '4a7e89f6edb6d0d2cf11159eeed7826f08eaf8bddf7ba0b2df9b216b0a53d3c0');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-heart-throb').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-heart-throb').integration.wordpress.sha256, '545d184272e808762d34ae3072cb7a247e496149b168c9ed348053904c198952');
-  assert.equal(userAvatars.enabled, false);
-  assert.deepEqual(userAvatars.managed_paths, []);
-  assert.deepEqual(userAvatars.checks, { phpunit: false });
-  assert.deepEqual(userAvatars.integration, {});
+  assert.equal(userAvatars.enabled, true);
+  assert.deepEqual(userAvatars.managed_paths, ['ci', 'release', 'dependabot']);
+  assert.equal(userAvatars.checks.phpunit.config, 'phpunit.xml.dist');
+  assert.deepEqual(userAvatars.checks.phpunit.files, [
+    { path: 'composer.json', sha256: '3d520cbaf53c97c701ee1cb2f729bc09466f2ebb5ee262e2dde5f6e0fbfdaa39' },
+    { path: 'composer.lock', sha256: '0602d3f55992efbb407e66081d9483ac370c42c7cdbe0a9a1011d8ba0df080a6' },
+    { path: 'phpunit.xml.dist', sha256: '1f1877783a07ed91172dfbb0c7ce9b42c7246f5c4b5dcd7ee1d479528fe09861' },
+    { path: 'tests/bootstrap.php', sha256: '92e0c9c71a5ca2e509c387968ce7ec1aa4c5e114d545922e2f5b3afb570dddfc' },
+  ]);
+  assert.equal(userAvatars.integration.plugin_check, true);
+  assert.deepEqual(userAvatars.integration.wordpress, {
+    path: 'tests/integration/smoke.php',
+    sha256: 'c582368d0ddd908e6c627a12421eb1f98e7f6e2b38ffb22c4f4dd2542b4f99a6',
+  });
   assert.equal(userAvatars.manifest.slug, 'wp-user-avatars');
   assert.equal(userAvatars.manifest.main_file, 'wp-user-avatars.php');
   assert.equal(userAvatars.manifest.risk, 'elevated');
@@ -160,6 +171,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.equal(userAvatars.manifest.tested_wordpress, '7.1');
   assert.equal(userAvatars.manifest.wordpress_org, true);
   assert.equal(userAvatars.manifest.release_branch, 'master');
+  assert.deepEqual(userAvatars.manifest.php_matrix, ['7.4', '8.0', '8.2', '8.4']);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-profiles').integration.wordpress.sha256, 'a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd');

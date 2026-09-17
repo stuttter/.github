@@ -323,12 +323,26 @@
     },
     {
       "repository": "stuttter/wp-user-avatars",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
-        "phpunit": false
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "3d520cbaf53c97c701ee1cb2f729bc09466f2ebb5ee262e2dde5f6e0fbfdaa39" },
+            { "path": "composer.lock", "sha256": "0602d3f55992efbb407e66081d9483ac370c42c7cdbe0a9a1011d8ba0df080a6" },
+            { "path": "phpunit.xml.dist", "sha256": "1f1877783a07ed91172dfbb0c7ce9b42c7246f5c4b5dcd7ee1d479528fe09861" },
+            { "path": "tests/bootstrap.php", "sha256": "92e0c9c71a5ca2e509c387968ce7ec1aa4c5e114d545922e2f5b3afb570dddfc" }
+          ]
+        }
       },
-      "integration": {},
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "c582368d0ddd908e6c627a12421eb1f98e7f6e2b38ffb22c4f4dd2542b4f99a6"
+        }
+      },
       "manifest": {
         "slug": "wp-user-avatars",
         "main_file": "wp-user-avatars.php",
@@ -338,7 +352,8 @@
         "tested_wordpress": "7.1",
         "wordpress_org": true,
         "multisite": true,
-        "release_branch": "master"
+        "release_branch": "master",
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
     },
     {
