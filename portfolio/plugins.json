@@ -237,6 +237,41 @@
       }
     },
     {
+      "repository": "stuttter/wp-heart-throb",
+      "enabled": false,
+      "managed_paths": [],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "cde20dfacd5021c0e5fff0c46b39d93ab6aafe283f8f1f2567a6ea8cd7f5605e" },
+            { "path": "composer.lock", "sha256": "16d1fec986461ce188b64ebbf91271781f5356b60497920116d5c5186100c6cc" },
+            { "path": "phpunit.xml.dist", "sha256": "93980825969bc906cf7a434a0b393da3c0fb186365be3e18f952f2fd40bd51fb" },
+            { "path": "tests/bootstrap.php", "sha256": "cbfefee52510e920fdbd8d58e8943e03a01c507f8a41e365273eb1e2b20a60ba" }
+          ]
+        }
+      },
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "545d184272e808762d34ae3072cb7a247e496149b168c9ed348053904c198952"
+        }
+      },
+      "manifest": {
+        "slug": "wp-heart-throb",
+        "main_file": "wp-heart-throb.php",
+        "risk": "elevated",
+        "minimum_php": "7.4",
+        "minimum_wordpress": "6.4",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": false,
+        "release_branch": "master",
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
+      }
+    },
+    {
       "repository": "stuttter/wp-user-profiles",
       "enabled": true,
       "managed_paths": ["ci", "release", "dependabot"],

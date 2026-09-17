@@ -136,12 +136,15 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     'stuttter/wp-user-signups',
     'stuttter/wp-media-categories',
     'stuttter/wp-user-activity',
+    'stuttter/wp-heart-throb',
     'stuttter/wp-user-profiles',
     'stuttter/wp-term-images',
   ]);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.wordpress.sha256, '4f0069c407dcc34f19ec2bf06ce7690fae5b14e9fb1a94268519509f7a460e80');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-media-categories').integration.wordpress.sha256, '4a7e89f6edb6d0d2cf11159eeed7826f08eaf8bddf7ba0b2df9b216b0a53d3c0');
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-heart-throb').integration.plugin_check, true);
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-heart-throb').integration.wordpress.sha256, '545d184272e808762d34ae3072cb7a247e496149b168c9ed348053904c198952');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-activity').integration.wordpress.sha256, '07399613862540df68f590baf7e16a72c87e3f087db7a357f292f295cec3ba03');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-profiles').integration.wordpress.sha256, 'a32d331491c3966f665f353f8f604ff50a2d304561ebc7b9db0949d4fffc4dbd');
