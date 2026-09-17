@@ -397,7 +397,7 @@
             { "path": "composer.json", "sha256": "953f8a120136cd4e1ff639b7cba0cc51746a7c52df9a8706b6871a272ea11275" },
             { "path": "composer.lock", "sha256": "63fe118ffb61c32823bf3993f406c42c2da90a5607ef7ead4e1db268359cb651" },
             { "path": "phpunit.xml.dist", "sha256": "ce4fc4cab25c42bd9e4d8f432dbbbf577a093192d60cf388bb2ddcdcff7c34a7" },
-            { "path": "tests/bootstrap.php", "sha256": "0f0c4effde1a04bee12a0b31c8de47d9a72f2c421f7a8684d32f50287be45ab7" }
+            { "path": "tests/bootstrap.php", "sha256": "8ca8b217e5c06cad564c44d1fe1ad747a1f0878de6055ab492a32dadd9d8f194" }
           ]
         }
       },
