@@ -39,7 +39,8 @@ Maintained repositories should provide:
 
 - `AGENTS.md` with project-specific architecture and compatibility rules;
 - `composer.json` and a committed `composer.lock` for development tooling;
-- `phpunit.xml.dist`, `phpcs.xml.dist`, and `phpstan.neon.dist`;
+- `phpunit.xml.dist` and `phpstan.neon.dist` when those project-specific tools
+  are enrolled;
 - focused unit or integration tests under `tests/`;
 - thin callers for the shared validation and release workflows;
 - a `.github/plugin-standard.json` manifest;
@@ -72,6 +73,15 @@ The shared gate should verify:
 10. Plugin header, readme short description, changelog, Git tag, and artifact
     consistency.
 11. A deterministic production ZIP with development-only files excluded.
+
+PHPCS itself is fleet infrastructure. The organization standards repository
+owns its exact Composer lock, ruleset, runner, text-domain binding, and
+WordPress/PHP compatibility inputs. Plugin repositories must not select or
+execute a different PHPCS command in shared CI or release jobs. They may keep a
+canonical `phpcs-baseline.json` for reviewed legacy debt and narrowly documented
+exceptions that cannot be expressed by the fleet standard. Baselines are a
+migration tool: existing counts may only decrease, and new violations fail once
+the repository is enrolled for enforcement.
 
 For WordPress.org plugins, `readme.txt` must contain exactly one plain-text
 short description after the header fields and before `== Description ==`. It
@@ -112,6 +122,13 @@ On initial introduction, the head must already contain a valid corresponding
 Composer script and conventional analyzer configuration. The command must name
 the analyzer as its first command token or name a regular `bin/` or `scripts/`
 runner containing an explicit reference to its locked `vendor/bin/` analyzer.
+This repository-owned analyzer contract applies to PHPStan and to legacy
+repository-owned PHPCS execution. It does not require a plugin to add or retain
+a Composer PHPCS script or local PHPCS configuration for the fleet-owned PHPCS
+baseline. In that central case, the shared workflow's trusted
+`--central-phpcs` invocation binds the baseline gate to the immutable inventory,
+locked central toolchain, and central ruleset; the reviewed plugin change needs
+only the generated canonical baseline and its release-archive exclusion.
 When a baseline already exists on the pull request base, the corresponding
 Composer analyzer command, conventional analyzer configuration, and directly
 named `bin/` or `scripts/` runner must remain byte-for-byte unchanged. The only

@@ -36,7 +36,7 @@ fi
 
 git -C "${repository_path}" archive --format=tar --prefix="${slug}/" "${commit_sha}" | tar -xf - -C "${temporary_directory}"
 
-for forbidden_path in .git .github tests node_modules vendor composer.json composer.lock package.json package-lock.json phpunit.xml phpunit.xml.dist .phpcs.xml .phpcs.xml.dist phpcs.xml phpcs.xml.dist phpstan.neon phpstan.neon.dist; do
+for forbidden_path in .git .github tests node_modules vendor composer.json composer.lock package.json package-lock.json phpunit.xml phpunit.xml.dist .phpcs.xml .phpcs.xml.dist phpcs.xml phpcs.xml.dist phpcs-baseline.json phpstan.neon phpstan.neon.dist phpstan-baseline.neon; do
 	if [[ -e "${temporary_directory}/${slug}/${forbidden_path}" ]]; then
 		echo "Release artifact contains development path: ${forbidden_path}. Add it to .gitattributes export-ignore." >&2
 		exit 1

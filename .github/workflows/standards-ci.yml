@@ -26,7 +26,16 @@ jobs:
         with:
           php-version: '8.4'
           coverage: none
-          tools: none
+          tools: composer
+
+      - name: Validate locked fleet PHPCS toolchain
+        run: composer validate --strict --working-dir=tools/phpcs
+
+      - name: Install locked fleet PHPCS toolchain
+        run: composer install --working-dir=tools/phpcs --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
+
+      - name: Audit locked fleet PHPCS toolchain
+        run: composer audit --working-dir=tools/phpcs --locked
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -46,6 +55,7 @@ jobs:
         run: |
           php -l scripts/validate-plugin.php
           php -l scripts/validate-phpunit-junit.php
+          php -l scripts/run-fleet-phpcs.php
           bash -n scripts/build-plugin.sh
           bash -n brand/export.sh
           bash -n brand/validate.sh

@@ -162,7 +162,7 @@ jobs:
             fi
 
             case "${path}" in
-              .github/*|AGENTS.md|SECURITY.md|composer.json|composer.lock|package.json|package-lock.json|phpunit.xml*|.phpcs.xml*|phpcs.xml*|phpstan.neon*|scripts/*)
+              .github/*|AGENTS.md|SECURITY.md|composer.json|composer.lock|package.json|package-lock.json|phpunit.xml*|.phpcs.xml*|phpcs.xml*|phpstan.neon*|scripts/*|tools/phpcs/*)
                 echo "Codex attempted to change protected path: ${path}" >&2
                 exit 1
                 ;;
@@ -253,7 +253,7 @@ jobs:
             fi
 
             case "${path}" in
-              .github/*|AGENTS.md|SECURITY.md|composer.json|composer.lock|package.json|package-lock.json|phpunit.xml*|.phpcs.xml*|phpcs.xml*|phpstan.neon*|scripts/*)
+              .github/*|AGENTS.md|SECURITY.md|composer.json|composer.lock|package.json|package-lock.json|phpunit.xml*|.phpcs.xml*|phpcs.xml*|phpstan.neon*|scripts/*|tools/phpcs/*)
                 echo "Applied patch contains protected path: ${path}" >&2
                 exit 1
                 ;;

@@ -41,8 +41,8 @@ function createRepository(files) {
   return { revision, root };
 }
 
-function runChecker(root, revision) {
-  return spawnSync(process.execPath, [checker, revision], {
+function runChecker(root, revision, ...options) {
+  return spawnSync(process.execPath, [checker, revision, ...options], {
     cwd: root,
     encoding: 'utf8',
   });
@@ -520,4 +520,15 @@ test('initial PHPCS baseline accepts an explicit new runner bound to the locked 
   const result = runChecker(fixture.root, fixture.revision);
   assert.equal(result.status, 2);
   assert.match(result.stderr, /references missing head runner/u);
+});
+
+test('central PHPCS accepts an initial baseline without repository-owned analyzer tooling', (t) => {
+  const fixture = createRepository({ 'README.md': 'Fixture\n' });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+
+  writeFixtureFile(fixture.root, 'phpcs-baseline.json', '{}\n');
+
+  const result = runChecker(fixture.root, fixture.revision, '--central-phpcs');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /initial baseline introduction permitted/u);
 });
