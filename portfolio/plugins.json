@@ -280,7 +280,7 @@
             { "path": "composer.json", "sha256": "49646455fd25a9d6a1a03009da1c880eb29b6d15fbc445fabf51808c616da864" },
             { "path": "composer.lock", "sha256": "783d56834d9e10a7140e19f2fd5d7134c1595f22a3f7dac3a625fe862435f958" },
             { "path": "phpunit.xml.dist", "sha256": "32de4282a5c1bf7b2a9d2b819d7524ce9e2cde8cf759c962bba667b69f6b8319" },
-            { "path": "tests/bootstrap.php", "sha256": "7da407a6b60b513bb8626c7c8e733adcc9e772b7a846990e48ccbbd65cb0d3d2" }
+            { "path": "tests/bootstrap.php", "sha256": "40f72e0525348aca98e4bf4b4fac801a92824e84f931008f76f5b02ab7875617" }
           ]
         },
         "smoke": {
