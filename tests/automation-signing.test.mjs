@@ -160,3 +160,11 @@ test('fleet publishing stages only the exact centrally managed review skill', ()
   assert.doesNotMatch(publishBlock, /\.github\/skills\/\*/u);
   assert.match(publishBlock, /Refusing unexpected synchronized path/u);
 });
+
+test('fleet pull requests identify the immutable privileged-workflow source', () => {
+  assert.match(fleetWorkflow, /echo "policy_ref=\$\{policy_ref\}" >> "\$\{GITHUB_OUTPUT\}"/u);
+  assert.match(fleetWorkflow, /POLICY_REF: \$\{\{ steps\.synchronize\.outputs\.policy_ref \}\}/u);
+  assert.match(fleetWorkflow, /Trusted workflow source: \[stuttter\/\.github@\$\{POLICY_REF\}\]\(https:\/\/github\.com\/stuttter\/\.github\/commit\/\$\{POLICY_REF\}\)/u);
+  assert.match(fleetWorkflow, /references WordPress\.org credentials only from its protected-environment-gated publish job/u);
+  assert.match(fleetWorkflow, /--body "\$\{body\}"/u);
+});

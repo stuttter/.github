@@ -135,7 +135,7 @@ jobs:
       - name: Run fleet PHPCS audit without secrets
         env:
           TARGET_REPOSITORY: ${{ github.repository }}
-        run: php .portfolio-standard/scripts/run-fleet-phpcs.php --project-root=. --repository="${TARGET_REPOSITORY}" --standard-root=.portfolio-standard --baseline-policy=advisory
+        run: php .portfolio-standard/scripts/run-fleet-phpcs.php --project-root=. --repository="${TARGET_REPOSITORY}" --standard-root=.portfolio-standard --baseline-policy=required
 
       - name: Set up approved Node.js
         if: ${{ steps.project-policy.outputs.node_enabled == 'true' }}

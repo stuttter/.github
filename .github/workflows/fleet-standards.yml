@@ -190,6 +190,7 @@ jobs:
         run: |
           policy_ref="$(git -C fleet-policy rev-parse HEAD)"
           [[ "${policy_ref}" =~ ^[0-9a-f]{40}$ ]]
+          echo "policy_ref=${policy_ref}" >> "${GITHUB_OUTPUT}"
           node fleet-policy/scripts/sync-plugin-standards.mjs \
             --mode apply \
             --repository "${TARGET_REPOSITORY}" \
@@ -211,6 +212,7 @@ jobs:
           FLEET_SIGNING_KEY: ${{ secrets.FLEET_SIGNING_KEY }}
           FLEET_SIGNING_PUBLIC_KEY: ${{ secrets.FLEET_SIGNING_PUBLIC_KEY }}
           SIGNING_EMAIL: ${{ secrets.FLEET_SIGNING_EMAIL }}
+          POLICY_REF: ${{ steps.synchronize.outputs.policy_ref }}
           TARGET_REPOSITORY: ${{ matrix.target.repository }}
           TARGET_BRANCH: ${{ matrix.target.branch }}
         shell: bash
@@ -294,10 +296,16 @@ jobs:
             exit 1
           fi
 
+          printf -v body '%s\n\n%s\n\n%s\n\n%s' \
+            'Adds or updates only files explicitly owned by the Stuttter fleet standard. Repository-owned files are never overwritten.' \
+            "Trusted workflow source: [stuttter/.github@${POLICY_REF}](https://github.com/stuttter/.github/commit/${POLICY_REF})." \
+            'The reusable release workflow references WordPress.org credentials only from its protected-environment-gated publish job.' \
+            'Review and full CI are required before merge.'
+
           gh pr create \
             --repo "${TARGET_REPOSITORY}" \
             --base "${TARGET_BRANCH}" \
             --head "${branch}" \
             --draft \
             --title 'Synchronize shared plugin standards' \
-            --body 'Adds or updates only files explicitly owned by the Stuttter fleet standard. Repository-owned files are never overwritten. Review and full CI are required before merge.'
+            --body "${body}"

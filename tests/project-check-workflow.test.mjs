@@ -28,7 +28,7 @@ test('minimum PHP tests use a hashed config and the locked binary directly', () 
 test('credential-free release checks disable Composer plugins and scripts', () => {
   assert.match(releaseChecks, /composer install[^\n]+--no-plugins --no-scripts/u);
   assert.match(releaseChecks, /composer install --working-dir=\.portfolio-standard\/tools\/phpcs[^\n]+--no-plugins --no-scripts/u);
-  assert.match(releaseChecks, /run-fleet-phpcs\.php[^\n]+--baseline-policy=advisory/u);
+  assert.match(releaseChecks, /run-fleet-phpcs\.php[^\n]+--baseline-policy=required/u);
   assert.doesNotMatch(releaseChecks, /composer run-script "phpcs"/u);
 });
 
