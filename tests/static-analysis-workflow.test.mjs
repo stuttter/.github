@@ -38,10 +38,10 @@ test('production artifacts remain gated by quality and project-specific checks',
 
 test('shared workflows own one locked PHPCS toolchain and ignore repository PHPCS commands', () => {
   assert.match(ci, /composer install --working-dir=\.portfolio-standard\/tools\/phpcs[^\n]+--no-plugins --no-scripts/u);
-  assert.match(ci, /run-fleet-phpcs\.php[^\n]+--baseline-policy=advisory/u);
+  assert.match(ci, /run-fleet-phpcs\.php[^\n]+--baseline-policy=required/u);
   assert.doesNotMatch(ci, /for script in phpcs phpstan/u);
   assert.match(release, /composer install --working-dir=\.portfolio-standard\/tools\/phpcs[^\n]+--no-plugins --no-scripts/u);
-  assert.match(release, /run-fleet-phpcs\.php[^\n]+--baseline-policy=advisory/u);
+  assert.match(release, /run-fleet-phpcs\.php[^\n]+--baseline-policy=required/u);
   assert.doesNotMatch(release, /for script in phpcs phpstan/u);
 
   const ciInstall = ci.indexOf('Install locked fleet PHPCS toolchain');
@@ -65,5 +65,5 @@ test('central PHPCS dependencies are audited centrally and exercised at minimum 
   assert.match(syntax, /matrix\.php == fromJSON\(inputs\.php-versions\)\[0\]/u);
   assert.match(syntax, /composer install --working-dir=\.portfolio-standard\/tools\/phpcs[^\n]+--no-plugins --no-scripts/u);
   assert.match(syntax, /composer audit --working-dir=\.portfolio-standard\/tools\/phpcs --locked/u);
-  assert.match(syntax, /run-fleet-phpcs\.php[^\n]+--baseline-policy=advisory/u);
+  assert.match(syntax, /run-fleet-phpcs\.php[^\n]+--baseline-policy=required/u);
 });

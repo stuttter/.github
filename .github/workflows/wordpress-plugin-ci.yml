@@ -117,7 +117,7 @@ jobs:
         if: ${{ matrix.php == fromJSON(inputs.php-versions)[0] }}
         env:
           TARGET_REPOSITORY: ${{ github.repository }}
-        run: php .portfolio-standard/scripts/run-fleet-phpcs.php --project-root=. --repository="${TARGET_REPOSITORY}" --standard-root=.portfolio-standard --baseline-policy=advisory
+        run: php .portfolio-standard/scripts/run-fleet-phpcs.php --project-root=. --repository="${TARGET_REPOSITORY}" --standard-root=.portfolio-standard --baseline-policy=required
 
   quality:
     name: Project quality suite
@@ -173,7 +173,7 @@ jobs:
       - name: Run fleet PHPCS audit
         env:
           TARGET_REPOSITORY: ${{ github.repository }}
-        run: php .portfolio-standard/scripts/run-fleet-phpcs.php --project-root=. --repository="${TARGET_REPOSITORY}" --standard-root=.portfolio-standard --baseline-policy=advisory
+        run: php .portfolio-standard/scripts/run-fleet-phpcs.php --project-root=. --repository="${TARGET_REPOSITORY}" --standard-root=.portfolio-standard --baseline-policy=required
 
       - name: Validate Composer configuration
         if: ${{ hashFiles('composer.json') != '' }}
