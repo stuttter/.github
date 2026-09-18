@@ -3,6 +3,7 @@
 # Changes here affect automation across the plugin portfolio.
 /.github/workflows/ @JJJ
 /scripts/ @JJJ
+/tools/phpcs/ @JJJ
 /docs/wordpress-plugin-standard.md @JJJ
 /docs/visual-system.md @JJJ
 /portfolio/ @JJJ

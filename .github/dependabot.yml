@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      development-tooling:
+        dependency-type: development
+    labels:
+      - dependencies
+
+  - package-ecosystem: composer
+    directory: /tools/phpcs
+    schedule:
+      interval: weekly
+    groups:
+      phpcs-toolchain:
+        dependency-type: development
+    labels:
+      - dependencies

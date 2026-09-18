@@ -1,0 +1,21 @@
+{
+  "name": "stuttter/fleet-phpcs",
+  "description": "Locked PHPCS toolchain for the Stuttter WordPress plugin fleet.",
+  "type": "metapackage",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.2.1",
+    "phpcompatibility/phpcompatibility-wp": "^2.1.8",
+    "squizlabs/php_codesniffer": "^3.13.6",
+    "wp-coding-standards/wpcs": "^3.4.1"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": false
+    },
+    "sort-packages": true
+  }
+}

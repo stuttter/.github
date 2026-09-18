@@ -70,6 +70,10 @@ test('Codex protects every conventional PHPCS configuration name', () => {
   assert.equal((codexWorkflow.match(/\|phpcs\.xml\*/g) || []).length, 2);
 });
 
+test('Codex cannot modify the fleet-owned PHPCS toolchain', () => {
+  assert.equal((codexWorkflow.match(/scripts\/\*\|tools\/phpcs\/\*/gu) || []).length, 2);
+});
+
 test('failure state records cancellations and skipped downstream publishing', () => {
   assert.match(codexWorkflow, /needs\.implement\.result != 'success' \|\| needs\.publish\.result != 'success'/);
 });

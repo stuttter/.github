@@ -671,7 +671,8 @@ function isMonotonicWordPressMinimumChange(base, head) {
     && compareDottedVersions(headConfig.value, baseConfig.value) > 0;
 }
 
-function protectIntroducedAnalyzerContract(baselinePath) {
+function protectIntroducedAnalyzerContract(baselinePath, centralPhpcs = false) {
+  if (baselinePath === 'phpcs-baseline.json' && centralPhpcs) return;
   const contract = ANALYZER_CONTRACTS[baselinePath];
   const composer = parseComposer(readHead('composer.json'), baselinePath);
   const commands = analyzerCommands(composer, composer, contract.script, baselinePath);
@@ -711,7 +712,8 @@ function protectIntroducedAnalyzerContract(baselinePath) {
   }
 }
 
-function protectAnalyzerContract(baseRevision, baselinePath) {
+function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = false) {
+  if (baselinePath === 'phpcs-baseline.json' && centralPhpcs) return;
   const contract = ANALYZER_CONTRACTS[baselinePath];
   const baseComposer = parseComposer(readAtRevision(baseRevision, 'composer.json'), baselinePath);
   const headComposer = parseComposer(readHead('composer.json'), baselinePath);
@@ -752,7 +754,7 @@ function protectAnalyzerContract(baseRevision, baselinePath) {
   }
 }
 
-export function checkBaselines(baseRevision) {
+export function checkBaselines(baseRevision, { centralPhpcs = false } = {}) {
   try {
     execFileSync('git', ['cat-file', '-e', `${baseRevision}^{commit}`], {
       stdio: 'ignore',
@@ -771,14 +773,14 @@ export function checkBaselines(baseRevision) {
     // every added allowance and count increase must fail the pull request.
     if (baseSource === null) {
       if (headSource !== null) {
-        protectIntroducedAnalyzerContract(path);
+        protectIntroducedAnalyzerContract(path, centralPhpcs);
         parse(headSource, path);
         console.log(`${path}: initial baseline introduction permitted.`);
       }
       continue;
     }
 
-    protectAnalyzerContract(baseRevision, path);
+    protectAnalyzerContract(baseRevision, path, centralPhpcs);
 
     const base = parse(baseSource, `${path} at ${baseRevision}`);
     const head = headSource === null ? new Map() : parse(headSource, path);
@@ -795,13 +797,14 @@ export function checkBaselines(baseRevision) {
 
 function main(argv) {
   const [baseRevision, ...extra] = argv;
-  if (!baseRevision || extra.length > 0 || !/^[0-9a-f]{40}$/u.test(baseRevision)) {
-    console.error('Usage: check-static-analysis-baselines.mjs <40-character-base-commit>');
+  const centralPhpcs = extra.length === 1 && extra[0] === '--central-phpcs';
+  if (!baseRevision || (!centralPhpcs && extra.length > 0) || extra.length > 1 || !/^[0-9a-f]{40}$/u.test(baseRevision)) {
+    console.error('Usage: check-static-analysis-baselines.mjs <40-character-base-commit> [--central-phpcs]');
     return 2;
   }
 
   try {
-    const failures = checkBaselines(baseRevision);
+    const failures = checkBaselines(baseRevision, { centralPhpcs });
     if (failures.length > 0) {
       console.error('Static-analysis baselines may not grow in a pull request:');
       failures.forEach((failure) => console.error(`- ${failure}`));

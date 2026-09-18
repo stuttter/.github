@@ -126,6 +126,17 @@ jobs:
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node .portfolio-standard/scripts/project-check-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . >> "${GITHUB_OUTPUT}"
 
+      - name: Install locked fleet PHPCS toolchain
+        run: composer install --working-dir=.portfolio-standard/tools/phpcs --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
+
+      - name: Audit fleet PHPCS dependencies
+        run: composer audit --working-dir=.portfolio-standard/tools/phpcs --locked
+
+      - name: Run fleet PHPCS audit without secrets
+        env:
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: php .portfolio-standard/scripts/run-fleet-phpcs.php --project-root=. --repository="${TARGET_REPOSITORY}" --standard-root=.portfolio-standard --baseline-policy=advisory
+
       - name: Set up approved Node.js
         if: ${{ steps.project-policy.outputs.node_enabled == 'true' }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -154,15 +165,7 @@ jobs:
             composer install --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
             composer audit --locked
 
-            if [[ -x vendor/bin/phpcs ]]; then
-              phpcs_paths="$(php .portfolio-standard/scripts/phpcs-standard-paths.php .)"
-
-              if [[ -n "${phpcs_paths}" ]]; then
-                vendor/bin/phpcs --config-set installed_paths "${phpcs_paths}"
-              fi
-            fi
-
-            for script in phpcs phpstan; do
+            for script in phpstan; do
               # shellcheck disable=SC2016
               if php -r '$config = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); exit(isset($config["scripts"][$argv[1]]) ? 0 : 1);' "${script}"; then
                 composer run-script "${script}"
