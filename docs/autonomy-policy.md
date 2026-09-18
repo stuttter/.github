@@ -52,6 +52,19 @@ requires an existing Composer package to retain its canonical GitHub repository.
 New transitive packages and repository migrations stop for review until an
 independent registry-attestation gate is available.
 
+## Draft-to-ready transition
+
+AI-authored implementation begins as a draft pull request. Automation may mark
+the pull request ready for review when the exact head is GitHub-verified, every
+required check exists and passes, an independent exact-head review has no
+unresolved findings, every review conversation is answered and resolved, and
+the complete diff remains within the current human authorization. Missing,
+stale, or ambiguous evidence keeps the pull request in draft.
+
+Ready-for-review status is a review-state transition, not merge authorization.
+Human-decision changes still require the decision described below, while an
+autonomous merge must independently satisfy every part of the home-run rubric.
+
 ## Human-decision changes
 
 A human decision remains required for runtime behavior, user-visible behavior,
