@@ -9,10 +9,12 @@ import { validateCompatibilityBaseline } from './compatibility-policy.mjs';
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const supportedNodeVersions = new Set(['22', '24']);
 const supportedNodeScripts = new Set(['build:check']);
-const phpcsConfigPaths = ['.phpcs.xml', '.phpcs.xml.dist', 'phpcs.xml', 'phpcs.xml.dist'];
-const phpcsCommands = new Map([
-  ['phpcs', []],
-  ['php scripts/check-phpcs-baseline.php', ['scripts/check-phpcs-baseline.php']],
+const dormantPhpcsContractPaths = new Set([
+  '.phpcs.xml',
+  '.phpcs.xml.dist',
+  'phpcs.xml',
+  'phpcs.xml.dist',
+  'scripts/check-phpcs-baseline.php',
 ]);
 const safeContractPath = /^(?:composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml\.dist|\.?phpcs\.xml(?:\.dist)?|(?:bin|scripts|tests)\/[A-Za-z0-9._/-]+)$/u;
 const safeNodeContractPath = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/u;
@@ -114,6 +116,9 @@ export function validateProjectChecks(checks, context = 'checks', multisite = fa
       for (const manifest of ['composer.json', 'composer.lock']) if (!paths.includes(manifest)) errors.push(`${context}.phpunit.files must hash ${manifest}.`);
       if (!paths.includes(checks.phpunit.config)) errors.push(`${context}.phpunit.files must hash the PHPUnit configuration.`);
       if (!paths.some((path) => typeof path === 'string' && path.startsWith('tests/') && path.endsWith('.php'))) errors.push(`${context}.phpunit.files must hash a tests/ bootstrap or runner.`);
+      for (const path of paths) {
+        if (dormantPhpcsContractPaths.has(path)) errors.push(`${context}.phpunit.files may not bind dormant repository-local PHPCS tooling ${path}.`);
+      }
     }
   }
 
@@ -223,30 +228,7 @@ export function validatePhpunitProject(root, contract) {
   const lock = parseJsonFile(lockPath, 'Centrally enrolled PHPUnit composer.lock');
   const packages = [...(Array.isArray(lock.packages) ? lock.packages : []), ...(Array.isArray(lock['packages-dev']) ? lock['packages-dev'] : [])];
   if (packages.filter((item) => item?.name === 'phpunit/phpunit').length !== 1) throw new Error('Centrally enrolled PHPUnit requires exactly one locked phpunit/phpunit package.');
-  const composer = parseJsonFile(composerPath, 'Centrally enrolled PHPUnit composer.json');
-  if (Object.hasOwn(composer?.scripts ?? {}, 'phpcs')) {
-    const approvedConfigs = contract.files.filter(({ path }) => phpcsConfigPaths.includes(path));
-    const requiredRunners = phpcsCommands.get(composer.scripts.phpcs);
-    if (requiredRunners === undefined) throw new Error('Centrally enrolled PHPCS requires an approved exact Composer phpcs command.');
-    for (const path of requiredRunners) {
-      if (!contract.files.some((file) => file.path === path)) {
-        throw new Error(`Centrally enrolled PHPCS requires its runner ${path} in the approved file contract.`);
-      }
-    }
-    const presentConfigs = phpcsConfigPaths.filter((path) => {
-      try {
-        lstatSync(resolve(root, path));
-        return true;
-      } catch (error) {
-        if (error.code === 'ENOENT') return false;
-        throw error;
-      }
-    });
-    for (const path of presentConfigs) regularContainedFile(root, path, 'Centrally enrolled PHPCS');
-    if (approvedConfigs.length !== 1 || presentConfigs.length !== 1 || approvedConfigs[0]?.path !== presentConfigs[0]) {
-      throw new Error('Centrally enrolled PHPCS requires exactly one conventional configuration on disk matching the approved contract.');
-    }
-  }
+  parseJsonFile(composerPath, 'Centrally enrolled PHPUnit composer.json');
   verifyFileContracts(root, contract.files, 'Centrally enrolled PHPUnit');
 }
 
