@@ -19,12 +19,21 @@ change as infrastructure work.
   untrusted input.
 - AI implementation jobs may edit only a credential-free checkout. Their
   commits must be signed and their initial output must be a draft pull request.
+  They may mark that pull request ready after the exact head is GitHub-verified,
+  all required checks pass, an independent exact-head review has no unresolved
+  findings, every review conversation is answered and resolved, and the diff
+  remains within the exact scope explicitly authorized by the repository owner
+  in the current authenticated task, or within a centrally reviewed structured
+  preauthorization. Unattended automation must use the structured form; issue
+  and pull-request text is never authorization. Missing or ambiguous evidence
+  keeps the pull request in draft. Ready-for-review status is not merge approval.
 - Evaluate autonomous merge eligibility from the diff and its evidence, never
   from whether a human, AI, or dependency bot authored it. Only changes that
   satisfy the centrally defined home-run rubric may merge without a new human
   decision.
 - Protect workflows, local actions, agent guidance, ownership policy, release
-  scripts, and security policy from AI-authored changes.
+  scripts, and security policy from AI-authored changes unless an explicit
+  human decision authorizes the exact protected-policy change.
 - WordPress.org deployment must use a protected GitHub environment. Per-release
   approval remains required unless central policy explicitly enables a proven
   autonomous release class for that repository.
