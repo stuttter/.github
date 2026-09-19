@@ -294,7 +294,7 @@
             { "path": "tests/integration/run-single-site.sh", "sha256": "cd197dbabaa06be0ef0e8fbdadd6585e8328a408ea48933adce7a0441dc6862f" },
             { "path": "tests/integration/run-multisite.sh", "sha256": "a0066c2998d9acaba08de9092a724b839103a962795407bd86dfe4289d27de76" },
             { "path": "tests/integration/run-wordpress-smoke.sh", "sha256": "867704568315046f5a255c75f7ef3f6343ac054d6a3c7a1d025f39cc02371bb6" },
-            { "path": "tests/integration/single-site-smoke.php", "sha256": "41b817bf48c8eeb0641a303814a0202337819263e3623d3ff036b2649f14d0c8" },
+            { "path": "tests/integration/single-site-smoke.php", "sha256": "f2bf414bd9386980ab40bde18e67b33c846d20497f73aa21efb6607a23447a64" },
             { "path": "tests/integration/multisite-smoke.php", "sha256": "d62847aeaf7310785ec881aa3985be54deb989f42495414e9b1356085f9ec42f" }
           ]
         }
