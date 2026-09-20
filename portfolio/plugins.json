@@ -522,6 +522,35 @@
         "release_branch": "master",
         "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
+    },
+    {
+      "repository": "stuttter/ludicrousdb",
+      "enabled": true,
+      "managed_paths": ["ci", "dependabot"],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "601c5629bb76708376d8e4b703626ae4824c96ad538507eb7b3a7aec51851c20" },
+            { "path": "composer.lock", "sha256": "74f8e00ae6b531fea0ae9edea2b8ffb2cadbf58713034c9be46e5df37825bb90" },
+            { "path": "phpunit.xml.dist", "sha256": "073f45eccc9c8f2d7c7e84c36fb7cb7a1389e1e9c1ab29ab6217aba23f2a621b" },
+            { "path": "tests/bootstrap.php", "sha256": "7f83380e97601ae508e2049970c40ef2a6901de1f319ad6ac8389ace710b05eb" }
+          ]
+        }
+      },
+      "integration": {},
+      "manifest": {
+        "slug": "ludicrousdb",
+        "main_file": "ludicrousdb.php",
+        "risk": "critical",
+        "minimum_php": "7.4",
+        "minimum_wordpress": "6.4",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": true,
+        "release_branch": "master",
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
+      }
     }
   ]
 }
