@@ -146,6 +146,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     'stuttter/wp-term-images',
     'stuttter/wp-term-order',
     'stuttter/wp-term-icons',
+    'stuttter/ludicrousdb',
   ]);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.wordpress.sha256, '4f0069c407dcc34f19ec2bf06ce7690fae5b14e9fb1a94268519509f7a460e80');
@@ -217,10 +218,12 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.deepEqual(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').managed_paths, ['ci', 'release', 'dependabot']);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').integration.wordpress.sha256, '7a3fdacd4090f4dbf0f2e2f7ca0b1c1e49357c8aa1476086c8bde86843396def');
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/ludicrousdb').integration.wordpress.sha256, '0ebf18cad077ebd0b4071b9f9c501c1263a4f75d672f222a75871d84e6a0465f');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-media-categories').matrix.include[0].topology, 'single-site');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-groups').matrix.include[0].topology, 'multisite');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-activity').matrix.include[0].topology, 'multisite');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-term-order').matrix.include[0].topology, 'single-site');
+  assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/ludicrousdb').matrix.include[0].topology, 'multisite');
   const termImages = resolveIntegrationPolicy(inventory, 'stuttter/wp-term-images');
   assert.equal(termImages.pluginCheck, true);
   assert.deepEqual(termImages.matrix.include[0], {
