@@ -671,6 +671,37 @@ function isMonotonicWordPressMinimumChange(base, head) {
     && compareDottedVersions(headConfig.value, baseConfig.value) > 0;
 }
 
+function phpstanLevel(source) {
+  if (source === null || source.includes('\r')) return null;
+  const matches = [...source.matchAll(/^[ \t]+level: ([0-9]+)$/gmu)];
+  if (matches.length !== 1) return null;
+  const level = Number(matches[0][1]);
+  return Number.isSafeInteger(level) && level <= 10 ? level : null;
+}
+
+function isClearedPhpstanBaselineMigration(base, head) {
+  const baseLevel = phpstanLevel(base);
+  const headLevel = phpstanLevel(head);
+  if (baseLevel === null || headLevel === null || headLevel <= baseLevel) return false;
+
+  const baselineInclude = /^includes:\n[ \t]+- phpstan-baseline\.neon\n\n/u;
+  if (!baselineInclude.test(base) || head.includes('phpstan-baseline.neon') || head.includes('ignoreErrors')) {
+    return false;
+  }
+
+  // Permit only the WordPress compatibility stub used by the level-7 migration.
+  // The following quality step still runs the unchanged Composer analyzer command.
+  const stubInclude = '    stubFiles:\n        - phpstan-wordpress-compat.stub\n';
+  let normalizedHead = head;
+  if (!base.includes('stubFiles:') && head.includes(stubInclude)) {
+    if (readHead('phpstan-wordpress-compat.stub') === null) return false;
+    normalizedHead = head.replace(stubInclude, '');
+  }
+
+  const normalizeLevel = (source) => source.replace(/^([ \t]+level: )[0-9]+$/mu, '$1__LEVEL__');
+  return normalizeLevel(base.replace(baselineInclude, '')) === normalizeLevel(normalizedHead);
+}
+
 function protectIntroducedAnalyzerContract(baselinePath, centralPhpcs = false) {
   if (baselinePath === 'phpcs-baseline.json' && centralPhpcs) return;
   const contract = ANALYZER_CONTRACTS[baselinePath];
@@ -712,7 +743,7 @@ function protectIntroducedAnalyzerContract(baselinePath, centralPhpcs = false) {
   }
 }
 
-function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = false) {
+function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = false, baselineRemoved = false) {
   if (baselinePath === 'phpcs-baseline.json' && centralPhpcs) return;
   const contract = ANALYZER_CONTRACTS[baselinePath];
   const baseComposer = parseComposer(readAtRevision(baseRevision, 'composer.json'), baselinePath);
@@ -727,6 +758,15 @@ function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = fals
 
   let phpcsMinimumChangeUsed = false;
   for (const path of contract.configurations) {
+    if (baselinePath === 'phpstan-baseline.neon'
+      && baselineRemoved
+      && baseConfigurations.length === 1
+      && headConfigurations.length === 1
+      && baseConfigurations[0] === path
+      && headConfigurations[0] === path
+      && isClearedPhpstanBaselineMigration(readAtRevision(baseRevision, path), readHead(path))) {
+      continue;
+    }
     if (baselinePath === 'phpcs-baseline.json'
       && isMonotonicWordPressMinimumChange(readAtRevision(baseRevision, path), readHead(path))) {
       if (baseConfigurations.length !== 1
@@ -780,7 +820,7 @@ export function checkBaselines(baseRevision, { centralPhpcs = false } = {}) {
       continue;
     }
 
-    protectAnalyzerContract(baseRevision, path, centralPhpcs);
+    protectAnalyzerContract(baseRevision, path, centralPhpcs, headSource === null);
 
     const base = parse(baseSource, `${path} at ${baseRevision}`);
     const head = headSource === null ? new Map() : parse(headSource, path);

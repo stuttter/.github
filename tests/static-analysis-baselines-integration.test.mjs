@@ -117,6 +117,65 @@ test('existing baseline protects conventional analyzer configurations', (t) => {
   assert.match(result.stderr, /may not add, remove, or change phpstan\.neon/u);
 });
 
+function phpstanRetirementRepository() {
+  return createRepository({
+    'composer.json': JSON.stringify({ scripts: { phpstan: 'phpstan analyse --no-progress' } }, null, 2) + '\n',
+    'phpstan-baseline.neon': canonicalPhpstanBaseline,
+    'phpstan.neon.dist': [
+      'includes:',
+      '    - phpstan-baseline.neon',
+      '',
+      'parameters:',
+      '    level: 5',
+      '    phpVersion: 70400',
+      '    paths:',
+      '        - includes',
+      '',
+    ].join('\n'),
+  });
+}
+
+function retirePhpstanBaseline(fixture, { level = 7, path = 'includes', stub = true, ignoreErrors = false } = {}) {
+  unlinkSync(join(fixture.root, 'phpstan-baseline.neon'));
+  writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
+    'parameters:',
+    '    level: ' + level,
+    '    phpVersion: 70400',
+    '    paths:',
+    '        - ' + path,
+    '    stubFiles:',
+    '        - phpstan-wordpress-compat.stub',
+    ...(ignoreErrors ? ['    ignoreErrors: []'] : []),
+    '',
+  ].join('\n'));
+  if (stub) writeFixtureFile(fixture.root, 'phpstan-wordpress-compat.stub', '<?php\n');
+}
+
+test('cleared PHPStan baseline permits a higher level and one named compatibility stub', (t) => {
+  const fixture = phpstanRetirementRepository();
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  retirePhpstanBaseline(fixture);
+  const result = runChecker(fixture.root, fixture.revision);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('cleared PHPStan baseline still rejects analyzer configuration drift', (t) => {
+  for (const variant of [
+    { name: 'unchanged level', level: 5 },
+    { name: 'lower level', level: 4 },
+    { name: 'changed paths', path: 'tests' },
+    { name: 'missing stub', stub: false },
+    { name: 'new ignored errors', ignoreErrors: true },
+  ]) {
+    const fixture = phpstanRetirementRepository();
+    t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+    retirePhpstanBaseline(fixture, variant);
+    const result = runChecker(fixture.root, fixture.revision);
+    assert.equal(result.status, 2, variant.name + ': ' + result.stderr);
+    assert.match(result.stderr, /may not add, remove, or change phpstan\.neon/u);
+  }
+});
+
 test('existing baseline protects a directly named repository runner', (t) => {
   const fixture = createRepository({
     'composer.json': `${JSON.stringify({ scripts: { phpcs: 'php scripts/check-phpcs-baseline.php' } }, null, 2)}\n`,
