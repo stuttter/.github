@@ -157,8 +157,8 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.deepEqual(userAvatars.managed_paths, ['ci', 'release', 'dependabot']);
   assert.equal(userAvatars.checks.phpunit.config, 'phpunit.xml.dist');
   assert.deepEqual(userAvatars.checks.phpunit.files, [
-    { path: 'composer.json', sha256: '3d520cbaf53c97c701ee1cb2f729bc09466f2ebb5ee262e2dde5f6e0fbfdaa39' },
-    { path: 'composer.lock', sha256: '0602d3f55992efbb407e66081d9483ac370c42c7cdbe0a9a1011d8ba0df080a6' },
+    { path: 'composer.json', sha256: '1105e49fadd16917daa3a01543dc85488f2ceeed6174d92c6b31e749695f832c' },
+    { path: 'composer.lock', sha256: '5413458c84f6815cafee6ea255051300bdcc0905f64389699697f55959a3b065' },
     { path: 'phpunit.xml.dist', sha256: '1f1877783a07ed91172dfbb0c7ce9b42c7246f5c4b5dcd7ee1d479528fe09861' },
     { path: 'tests/bootstrap.php', sha256: '503a09317a0def999c45f81478aca9cf0b165512efcaac1b47d52512b120b8ac' },
   ]);
@@ -181,8 +181,8 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.deepEqual(userPreferences.managed_paths, ['ci', 'release', 'dependabot']);
   assert.equal(userPreferences.checks.phpunit.config, 'phpunit.xml.dist');
   assert.deepEqual(userPreferences.checks.phpunit.files, [
-    { path: 'composer.json', sha256: 'c76d358c2ad88cfaa343d3e3910207d536243de020b2d99a887a609b9d7d7859' },
-    { path: 'composer.lock', sha256: '5b604320f1628a9ac63b8bdfcc79a900da71f39b0aca990fa3952e2fab99d955' },
+    { path: 'composer.json', sha256: 'ac1788c75e0b6e45618cb8c26eb1158a9c9fcf48590eac6df1d2c9346dffeccb' },
+    { path: 'composer.lock', sha256: 'deb1e089550dde49dee2d3cafc124e9634f8f591e9acbc482a09baa60007a35a' },
     { path: 'phpunit.xml.dist', sha256: 'c23c3afa83ae468cd04eb74991e71e9a69f95bf8520a54d9c5689b28e302a365' },
     { path: 'tests/bootstrap.php', sha256: '45ef4fbfb2c85f4bab2c7bcd38218c59b01742d1fe86e61e30f1058f66134f8a' },
   ]);
