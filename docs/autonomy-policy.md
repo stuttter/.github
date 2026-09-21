@@ -29,6 +29,38 @@ format-only corrections, generated-file refreshes whose source and output are
 both deterministic, and allowlisted patch-level development dependency updates.
 A label or trusted bot identity is never sufficient evidence by itself.
 
+### Managed caller pin refreshes
+
+An enrolled repository may opt in to standing authorization for *preparing* a
+refresh of its fleet-managed CI and release callers. This is not an autonomous
+merge class: a workflow pin changes the executable code those callers run,
+even when their local diff contains only a SHA replacement.
+
+The preparation authorization applies only when all of these are proven:
+
+- the repository is enabled in the reviewed portfolio inventory, and its own
+  `AGENTS.md` explicitly permits this class;
+- the existing caller files have the fleet-managed marker, the synchronizer
+  reports no conflicts, and its output changes only the full 40-character
+  commit SHA on existing `uses: stuttter/.github/.github/workflows/` lines in
+  `.github/workflows/ci.yml` and `.github/workflows/release.yml`;
+- both callers move to the same immutable commit already merged on the central
+  default branch, with a valid GitHub signature and passing central required
+  checks; and
+- the complete old-to-new central workflow diff is independently reviewed
+  before any plugin branch is pushed; a change to permissions, secret access,
+  triggers, publication behavior, or compatibility requires its own human
+  decision and is not covered by this standing authorization.
+
+The refreshed plugin commit must be signed and GitHub-verified, and the pull
+request starts or remains draft. A non-pin caller change stops the refresh.
+Missing exact-head checks or an unresolved review conversation prevent
+readiness or merging; they do not prevent a draft from receiving a corrective
+update. Marking ready and merging still follow the normal protected-workflow
+decision path. This standing authorization only removes repeated approval to
+prepare a pin-only draft. It does not allow synthetic commits to manufacture
+CI evidence.
+
 ### Guarded development dependencies
 
 A development-only dependency update may qualify when an independent classifier

@@ -33,7 +33,10 @@ change as infrastructure work.
   decision.
 - Protect workflows, local actions, agent guidance, ownership policy, release
   scripts, and security policy from AI-authored changes unless an explicit
-  human decision authorizes the exact protected-policy change.
+  human decision authorizes the exact protected-policy change. For a repository
+  that explicitly opts in, an AI agent may prepare a managed caller pin-only
+  draft under the narrow standing authorization in `docs/autonomy-policy.md`.
+  That authorization does not extend to readiness, merging, or publication.
 - WordPress.org deployment must use a protected GitHub environment. Per-release
   approval remains required unless central policy explicitly enables a proven
   autonomous release class for that repository.
