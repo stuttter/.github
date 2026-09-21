@@ -62,6 +62,11 @@ of the fleet-policy checkout running the synchronizer. The called workflow uses
 revision. Example callers contain an all-zero fail-closed placeholder until a
 reviewed policy commit exists; never replace it with a branch or mutable tag.
 
+An opted-in repository may use the narrow draft-preparation authorization in
+[`autonomy-policy.md`](autonomy-policy.md) for a pin-only refresh. The
+synchronizer's ability to write a managed file is not, by itself, approval to
+mark its pull request ready or merge it.
+
 Each audit writes a Markdown job summary and uploads its complete JSON result as
 a 14-day workflow artifact. Missing or stale managed files are reported as
 ordinary drift without making the scheduled job fail. Conflicts, invalid policy,
