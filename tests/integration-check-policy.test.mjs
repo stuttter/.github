@@ -218,7 +218,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.deepEqual(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').managed_paths, ['ci', 'release', 'dependabot']);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-icons').integration.wordpress.sha256, '7a3fdacd4090f4dbf0f2e2f7ca0b1c1e49357c8aa1476086c8bde86843396def');
-  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/ludicrousdb').integration.wordpress.sha256, 'df96f64beac34703585d727076c79de902ddfc34963753a083b76dc656547c45');
+  assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/ludicrousdb').integration.wordpress.sha256, '54165590f956e33777e16262b42823323a9719a1e4b7593745ab5911aedf1b53');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-media-categories').matrix.include[0].topology, 'single-site');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-groups').matrix.include[0].topology, 'multisite');
   assert.equal(resolveIntegrationPolicy(inventory, 'stuttter/wp-user-activity').matrix.include[0].topology, 'multisite');
