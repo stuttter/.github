@@ -541,7 +541,7 @@
       "integration": {
         "wordpress": {
           "path": "tests/integration/smoke.php",
-          "sha256": "df96f64beac34703585d727076c79de902ddfc34963753a083b76dc656547c45"
+          "sha256": "54165590f956e33777e16262b42823323a9719a1e4b7593745ab5911aedf1b53"
         }
       },
       "manifest": {
