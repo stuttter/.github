@@ -551,7 +551,7 @@
         "minimum_php": "7.4",
         "minimum_wordpress": "6.4",
         "tested_wordpress": "7.1",
-        "wordpress_org": true,
+        "wordpress_org": false,
         "multisite": true,
         "release_branch": "master",
         "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
