@@ -131,13 +131,29 @@ locked central toolchain, and central ruleset; the reviewed plugin change needs
 only the generated canonical baseline and its release-archive exclusion.
 When a baseline already exists on the pull request base, the corresponding
 Composer analyzer command, conventional analyzer configuration, and directly
-named `bin/` or `scripts/` runner must remain byte-for-byte unchanged. The only
-configuration exception is a PHPCS `minimum_supported_wp_version` value that
-changes once to a strictly higher dotted numeric version while exactly one
-conventional PHPCS configuration exists in both revisions and every other byte
-of that configuration remains identical. The `ruleset` and direct-child
-`config` elements must be unnamespaced. This permits an intentional support
-floor increase without allowing sniff, path, exclusion, or suppression drift.
+named `bin/` or `scripts/` runner must remain byte-for-byte unchanged, except
+for three bounded migrations:
+
+- A PHPCS `minimum_supported_wp_version` value may change once to a strictly
+  higher dotted numeric version while exactly one conventional PHPCS
+  configuration exists in both revisions and every other byte remains
+  identical. The `ruleset` and direct-child `config` elements must be
+  unnamespaced.
+- A cleared PHPStan baseline may be removed while its level increases and its
+  one named WordPress compatibility stub is added. Paths and every other
+  analyzer setting must remain identical, and the stub must exist as a regular
+  repository file.
+- The centrally approved WPCompat migration may add only the
+  `johnbillion/wp-compat` `^2.0.1` and `php-stubs/wordpress-stubs` `7.1.*`
+  development constraints, the WPCompat extension as the first `includes`
+  entry, and a final `WPCompat.pluginFile` block naming the plugin main file
+  declared in the immutable portfolio inventory. Exactly one conventional
+  PHPStan configuration must exist in both revisions, and every other byte must
+  remain identical.
+
+These exceptions permit an intentional support-floor increase, baseline
+retirement, or runtime compatibility scan without allowing sniff, path,
+exclusion, suppression, or unrelated analyzer drift.
 The gate otherwise prevents a pull request from bypassing analysis by removing
 or replacing the analyzer. That narrow check does not recursively interpret
 helper files loaded by a runner or configuration, dependency changes that alter
