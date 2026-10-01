@@ -702,6 +702,38 @@ function isClearedPhpstanBaselineMigration(base, head) {
   return normalizeLevel(base.replace(baselineInclude, '')) === normalizeLevel(normalizedHead);
 }
 
+function portfolioMainFile(repository) {
+  if (repository === null) return null;
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository)) {
+    throw new Error(`Invalid repository name: ${repository}.`);
+  }
+
+  const inventoryPath = fileURLToPath(new URL('../portfolio/plugins.json', import.meta.url));
+  const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
+  const project = inventory.repositories?.find((candidate) => candidate.repository === repository);
+  const mainFile = project?.manifest?.main_file;
+  const segments = typeof mainFile === 'string' ? mainFile.split('/') : [];
+  if (typeof mainFile !== 'string'
+    || !/^[A-Za-z0-9._/-]+\.php$/u.test(mainFile)
+    || segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+    throw new Error(`${repository} has no valid centrally declared plugin main file.`);
+  }
+  return mainFile;
+}
+
+function isWpCompatPhpstanMigration(base, head, headComposer, mainFile) {
+  if (mainFile === null || base === null || head === null || head.includes('\r')) return false;
+  if (headComposer['require-dev']?.['johnbillion/wp-compat'] !== '^2.0.1') return false;
+  if (headComposer['require-dev']?.['php-stubs/wordpress-stubs'] !== '7.1.*') return false;
+
+  const extension = '    - vendor/johnbillion/wp-compat/extension.neon\n';
+  const configuration = `    WPCompat:\n        pluginFile: ${mainFile}\n`;
+  if (!base.startsWith('includes:\n') || !base.endsWith('\n')) return false;
+
+  const expected = base.replace('includes:\n', `includes:\n${extension}`) + configuration;
+  return head === expected;
+}
+
 function protectIntroducedAnalyzerContract(baselinePath, centralPhpcs = false) {
   if (baselinePath === 'phpcs-baseline.json' && centralPhpcs) return;
   const contract = ANALYZER_CONTRACTS[baselinePath];
@@ -743,7 +775,7 @@ function protectIntroducedAnalyzerContract(baselinePath, centralPhpcs = false) {
   }
 }
 
-function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = false, baselineRemoved = false) {
+function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = false, baselineRemoved = false, repository = null) {
   if (baselinePath === 'phpcs-baseline.json' && centralPhpcs) return;
   const contract = ANALYZER_CONTRACTS[baselinePath];
   const baseComposer = parseComposer(readAtRevision(baseRevision, 'composer.json'), baselinePath);
@@ -757,6 +789,7 @@ function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = fals
   }
 
   let phpcsMinimumChangeUsed = false;
+  const mainFile = portfolioMainFile(repository);
   for (const path of contract.configurations) {
     if (baselinePath === 'phpstan-baseline.neon'
       && baselineRemoved
@@ -765,6 +798,19 @@ function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = fals
       && baseConfigurations[0] === path
       && headConfigurations[0] === path
       && isClearedPhpstanBaselineMigration(readAtRevision(baseRevision, path), readHead(path))) {
+      continue;
+    }
+    if (baselinePath === 'phpstan-baseline.neon'
+      && baseConfigurations.length === 1
+      && headConfigurations.length === 1
+      && baseConfigurations[0] === path
+      && headConfigurations[0] === path
+      && isWpCompatPhpstanMigration(
+        readAtRevision(baseRevision, path),
+        readHead(path),
+        headComposer,
+        mainFile,
+      )) {
       continue;
     }
     if (baselinePath === 'phpcs-baseline.json'
@@ -794,7 +840,7 @@ function protectAnalyzerContract(baseRevision, baselinePath, centralPhpcs = fals
   }
 }
 
-export function checkBaselines(baseRevision, { centralPhpcs = false } = {}) {
+export function checkBaselines(baseRevision, { centralPhpcs = false, repository = null } = {}) {
   try {
     execFileSync('git', ['cat-file', '-e', `${baseRevision}^{commit}`], {
       stdio: 'ignore',
@@ -820,7 +866,7 @@ export function checkBaselines(baseRevision, { centralPhpcs = false } = {}) {
       continue;
     }
 
-    protectAnalyzerContract(baseRevision, path, centralPhpcs, headSource === null);
+    protectAnalyzerContract(baseRevision, path, centralPhpcs, headSource === null, repository);
 
     const base = parse(baseSource, `${path} at ${baseRevision}`);
     const head = headSource === null ? new Map() : parse(headSource, path);
@@ -837,14 +883,26 @@ export function checkBaselines(baseRevision, { centralPhpcs = false } = {}) {
 
 function main(argv) {
   const [baseRevision, ...extra] = argv;
-  const centralPhpcs = extra.length === 1 && extra[0] === '--central-phpcs';
-  if (!baseRevision || (!centralPhpcs && extra.length > 0) || extra.length > 1 || !/^[0-9a-f]{40}$/u.test(baseRevision)) {
-    console.error('Usage: check-static-analysis-baselines.mjs <40-character-base-commit> [--central-phpcs]');
+  let centralPhpcs = false;
+  let repository = null;
+  for (let index = 0; index < extra.length; index += 1) {
+    if (extra[index] === '--central-phpcs' && !centralPhpcs) {
+      centralPhpcs = true;
+    } else if (extra[index] === '--repository' && repository === null && extra[index + 1]) {
+      repository = extra[index + 1];
+      index += 1;
+    } else {
+      console.error('Usage: check-static-analysis-baselines.mjs <40-character-base-commit> [--central-phpcs] [--repository owner/repository]');
+      return 2;
+    }
+  }
+  if (!baseRevision || !/^[0-9a-f]{40}$/u.test(baseRevision)) {
+    console.error('Usage: check-static-analysis-baselines.mjs <40-character-base-commit> [--central-phpcs] [--repository owner/repository]');
     return 2;
   }
 
   try {
-    const failures = checkBaselines(baseRevision, { centralPhpcs });
+    const failures = checkBaselines(baseRevision, { centralPhpcs, repository });
     if (failures.length > 0) {
       console.error('Static-analysis baselines may not grow in a pull request:');
       failures.forEach((failure) => console.error(`- ${failure}`));
