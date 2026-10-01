@@ -155,7 +155,8 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node .portfolio-standard/scripts/check-static-analysis-baselines.mjs "${BASE_SHA}" --central-phpcs
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node .portfolio-standard/scripts/check-static-analysis-baselines.mjs "${BASE_SHA}" --central-phpcs --repository "${TARGET_REPOSITORY}"
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2

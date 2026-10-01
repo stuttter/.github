@@ -50,7 +50,10 @@ function runChecker(root, revision, ...options) {
 
 function phpstanRepository() {
   return createRepository({
-    'composer.json': `${JSON.stringify({ scripts: { phpstan: 'phpstan analyse --no-progress' } }, null, 2)}\n`,
+    'composer.json': `${JSON.stringify({
+      'require-dev': { 'php-stubs/wordpress-stubs': '6.4.*' },
+      scripts: { phpstan: 'phpstan analyse --no-progress' },
+    }, null, 2)}\n`,
     'phpstan-baseline.neon': canonicalPhpstanBaseline,
     'phpstan.neon.dist': `includes:
   - phpstan-baseline.neon
@@ -115,6 +118,73 @@ test('existing baseline protects conventional analyzer configurations', (t) => {
 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /may not add, remove, or change phpstan\.neon/u);
+});
+
+function addWpCompat(fixture, {
+  dependency = '^2.0.1',
+  extension = '    - vendor/johnbillion/wp-compat/extension.neon',
+  pluginFile = 'wp-media-categories.php',
+  stubs = '7.1.*',
+  extra = [],
+} = {}) {
+  writeFixtureFile(fixture.root, 'composer.json', `${JSON.stringify({
+    'require-dev': {
+      'johnbillion/wp-compat': dependency,
+      'php-stubs/wordpress-stubs': stubs,
+    },
+    scripts: { phpstan: 'phpstan analyse --no-progress' },
+  }, null, 2)}\n`);
+  writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
+    'includes:',
+    extension,
+    '  - phpstan-baseline.neon',
+    '',
+    'parameters:',
+    '  paths:',
+    '    - includes',
+    '    WPCompat:',
+    `        pluginFile: ${pluginFile}`,
+    ...extra,
+    '',
+  ].join('\n'));
+}
+
+test('existing baseline permits the exact centrally declared WPCompat migration', (t) => {
+  const fixture = phpstanRepository();
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  addWpCompat(fixture);
+
+  const result = runChecker(
+    fixture.root,
+    fixture.revision,
+    '--repository',
+    'stuttter/wp-media-categories',
+  );
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('existing baseline rejects inexact WPCompat migrations', (t) => {
+  const variants = [
+    { name: 'wrong plugin file', pluginFile: 'different.php' },
+    { name: 'wrong dependency', dependency: '^2.0' },
+    { name: 'old stubs', stubs: '6.4.*' },
+    { name: 'different extension', extension: '    - vendor/example/extension.neon' },
+    { name: 'additional configuration', extra: ['    reportUnmatchedIgnoredErrors: false'] },
+  ];
+
+  for (const variant of variants) {
+    const fixture = phpstanRepository();
+    t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+    addWpCompat(fixture, variant);
+    const result = runChecker(
+      fixture.root,
+      fixture.revision,
+      '--repository',
+      'stuttter/wp-media-categories',
+    );
+    assert.equal(result.status, 2, `${variant.name}: ${result.stderr}`);
+    assert.match(result.stderr, /may not add, remove, or change phpstan\.neon\.dist/u);
+  }
 });
 
 function phpstanRetirementRepository() {

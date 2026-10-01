@@ -27,7 +27,8 @@ test('quality gate checks pull requests against the immutable base commit', () =
   assert.match(job, /BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
   assert.match(job, /git fetch --no-tags --depth=1 origin "\$\{BASE_SHA\}"/u);
   assert.match(job, /check-static-analysis-baselines\.mjs "\$\{BASE_SHA\}"/u);
-  assert.match(job, /check-static-analysis-baselines\.mjs "\$\{BASE_SHA\}" --central-phpcs/u);
+  assert.match(job, /TARGET_REPOSITORY: \$\{\{ github\.repository \}\}/u);
+  assert.match(job, /check-static-analysis-baselines\.mjs "\$\{BASE_SHA\}" --central-phpcs --repository "\$\{TARGET_REPOSITORY\}"/u);
   assert.doesNotMatch(job, /php .*\$\{BASE_SHA\}|npm (?:ci|install)/u);
 });
 
