@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,11 +56,11 @@ function phpstanRepository() {
     }, null, 2)}\n`,
     'phpstan-baseline.neon': canonicalPhpstanBaseline,
     'phpstan.neon.dist': `includes:
-  - phpstan-baseline.neon
+    - phpstan-baseline.neon
 
 parameters:
-  paths:
-    - includes
+    paths:
+        - includes
 `,
   });
 }
@@ -137,14 +137,14 @@ function addWpCompat(fixture, {
   writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
     'includes:',
     extension,
-    '  - phpstan-baseline.neon',
+    '    - phpstan-baseline.neon',
     '',
     'parameters:',
-    '  paths:',
-    '    - includes',
+    '    paths:',
+    '        - includes',
+    ...extra,
     '    WPCompat:',
     `        pluginFile: ${pluginFile}`,
-    ...extra,
     '',
   ].join('\n'));
 }
@@ -170,6 +170,7 @@ test('existing baseline rejects inexact WPCompat migrations', (t) => {
     { name: 'old stubs', stubs: '6.4.*' },
     { name: 'different extension', extension: '    - vendor/example/extension.neon' },
     { name: 'additional configuration', extra: ['    reportUnmatchedIgnoredErrors: false'] },
+    { name: 'extension outside includes', extension: '    paths:\n    - vendor/johnbillion/wp-compat/extension.neon' },
   ];
 
   for (const variant of variants) {
@@ -184,6 +185,97 @@ test('existing baseline rejects inexact WPCompat migrations', (t) => {
     );
     assert.equal(result.status, 2, `${variant.name}: ${result.stderr}`);
     assert.match(result.stderr, /may not add, remove, or change phpstan\.neon\.dist/u);
+  }
+});
+
+test('existing baseline rejects a WPCompat insertion that splits and uncomments a line', (t) => {
+  const fixture = createRepository({
+    'composer.json': `${JSON.stringify({
+      'require-dev': { 'php-stubs/wordpress-stubs': '6.4.*' },
+      scripts: { phpstan: 'phpstan analyse --no-progress' },
+    }, null, 2)}\n`,
+    'phpstan-baseline.neon': canonicalPhpstanBaseline,
+    'phpstan.neon.dist': `includes:
+    - phpstan-baseline.neon
+
+parameters:
+    paths:
+        - includes
+#    reportUnmatchedIgnoredErrors: false
+`,
+  });
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  writeFixtureFile(fixture.root, 'composer.json', `${JSON.stringify({
+    'require-dev': {
+      'johnbillion/wp-compat': '^2.0.1',
+      'php-stubs/wordpress-stubs': '7.1.*',
+    },
+    scripts: { phpstan: 'phpstan analyse --no-progress' },
+  }, null, 2)}\n`);
+  writeFixtureFile(fixture.root, 'phpstan.neon.dist', `includes:
+    - phpstan-baseline.neon
+
+parameters:
+    paths:
+        - includes
+#    - vendor/johnbillion/wp-compat/extension.neon
+    reportUnmatchedIgnoredErrors: false
+    WPCompat:
+        pluginFile: wp-media-categories.php
+`);
+
+  const result = runChecker(
+    fixture.root,
+    fixture.revision,
+    '--repository',
+    'stuttter/wp-media-categories',
+  );
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /may not add, remove, or change phpstan\.neon\.dist/u);
+});
+
+test('existing baseline rejects WPCompat configuration outside parameters', (t) => {
+  const fixture = phpstanRepository();
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  addWpCompat(fixture);
+
+  const configPath = join(fixture.root, 'phpstan.neon.dist');
+  const valid = readFileSync(configPath, 'utf8');
+  const configuration = '    WPCompat:\n        pluginFile: wp-media-categories.php\n';
+  writeFixtureFile(
+    fixture.root,
+    'phpstan.neon.dist',
+    valid.replace(configuration, '').replace('\nparameters:\n', `\n${configuration}parameters:\n`),
+  );
+
+  const result = runChecker(
+    fixture.root,
+    fixture.revision,
+    '--repository',
+    'stuttter/wp-media-categories',
+  );
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /may not add, remove, or change phpstan\.neon\.dist/u);
+});
+
+test('WPCompat migration repository and CLI arguments fail closed', (t) => {
+  const fixture = phpstanRepository();
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  addWpCompat(fixture);
+
+  const failures = [
+    { name: 'missing repository', options: [] },
+    { name: 'unknown repository', options: ['--repository', 'example/unknown'] },
+    { name: 'malformed repository', options: ['--repository', '../unknown'] },
+    { name: 'missing repository value', options: ['--repository'] },
+    { name: 'repeated repository', options: ['--repository', 'stuttter/wp-media-categories', '--repository', 'stuttter/wp-media-categories'] },
+    { name: 'repeated central flag', options: ['--central-phpcs', '--central-phpcs'] },
+    { name: 'unknown flag', options: ['--unknown'] },
+  ];
+
+  for (const failure of failures) {
+    const result = runChecker(fixture.root, fixture.revision, ...failure.options);
+    assert.equal(result.status, 2, `${failure.name}: ${result.stderr}`);
   }
 });
 

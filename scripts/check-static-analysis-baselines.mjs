@@ -728,9 +728,10 @@ function isWpCompatPhpstanMigration(base, head, headComposer, mainFile) {
 
   const extension = '    - vendor/johnbillion/wp-compat/extension.neon\n';
   const configuration = `    WPCompat:\n        pluginFile: ${mainFile}\n`;
-  if (head.split(extension).length !== 2 || head.split(configuration).length !== 2) return false;
+  if (!base.startsWith('includes:\n') || !base.endsWith('\n')) return false;
 
-  return head.replace(extension, '').replace(configuration, '') === base;
+  const expected = base.replace('includes:\n', `includes:\n${extension}`) + configuration;
+  return head === expected;
 }
 
 function protectIntroducedAnalyzerContract(baselinePath, centralPhpcs = false) {
