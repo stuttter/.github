@@ -143,13 +143,15 @@ for three bounded migrations:
   one named WordPress compatibility stub is added. Paths and every other
   analyzer setting must remain identical, and the stub must exist as a regular
   repository file.
-- The centrally approved WPCompat migration may add only the
+- The centrally approved WPCompat migration requires the head to declare the
   `johnbillion/wp-compat` `^2.0.1` and `php-stubs/wordpress-stubs` `7.1.*`
-  development constraints, the WPCompat extension as the first `includes`
-  entry, and a final `WPCompat.pluginFile` block naming the plugin main file
-  declared in the immutable portfolio inventory. Exactly one conventional
-  PHPStan configuration must exist in both revisions, and every other byte must
-  remain identical.
+  development constraints. It may add the WPCompat extension as the first
+  `includes` entry and a final `WPCompat.pluginFile` block naming the plugin
+  main file declared in the immutable portfolio inventory. Exactly one
+  conventional PHPStan configuration must exist in both revisions, and every
+  other byte of that configuration must remain identical. Composer dependency
+  changes remain governed by the separate dependency and locked-toolchain
+  checks described below.
 
 These exceptions permit an intentional support-floor increase, baseline
 retirement, or runtime compatibility scan without allowing sniff, path,
