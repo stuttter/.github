@@ -277,6 +277,16 @@ uses only that uploaded archive and its checksum before entering a protected
 the default and remains mandatory until centrally reviewed policy explicitly
 enables an autonomous release class for that repository.
 
+Supply the exact reviewed UTF-8 release notes and their SHA256 as `notes` and
+`notes_sha256` dispatch inputs. Hash the complete notes bytes without trimming,
+normalizing line endings, or adding a final line feed after review. The reusable
+workflow validates this digest in credential-free checks and again before
+publication. GitHub receives that exact notes file, not regenerated notes. An
+existing or newly published release must match the reviewed body and version
+before the workflow can publish to WordPress.org. Missing notes or a mismatched
+digest fail before approval. Existing immutable caller pins remain unchanged;
+callers adopting this workflow must expose the two notes inputs.
+
 Store `WORDPRESS_ORG_USERNAME` and `WORDPRESS_ORG_PASSWORD` only as Stuttter
 organization Actions secrets with selected-repository visibility restricted to
 the centrally approved release-managed repositories. Do not create repository

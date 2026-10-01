@@ -11,6 +11,16 @@ on:
         description: Full commit SHA at the protected release-branch head.
         required: true
         type: string
+      release-notes:
+        description: Exact reviewed UTF-8 release notes, including paragraph breaks.
+        required: false
+        type: string
+        default: ''
+      release-notes-sha256:
+        description: SHA256 of the exact reviewed release-notes bytes.
+        required: false
+        type: string
+        default: ''
       release-branch:
         description: Protected branch that owns releases.
         required: false
@@ -61,6 +71,12 @@ jobs:
           ref: ${{ job.workflow_sha }}
           path: .portfolio-standard
           persist-credentials: false
+
+      - name: Validate exact reviewed release notes without credentials
+        env:
+          RELEASE_NOTES: ${{ inputs.release-notes }}
+          RELEASE_NOTES_SHA256: ${{ inputs.release-notes-sha256 }}
+        run: node .portfolio-standard/scripts/reviewed-release-notes.mjs validate
 
       - name: Verify immutable release inputs
         env:
@@ -416,12 +432,23 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare exact reviewed release notes
+        env:
+          RELEASE_NOTES: ${{ inputs.release-notes }}
+          RELEASE_NOTES_SHA256: ${{ inputs.release-notes-sha256 }}
+        run: node .portfolio-policy/scripts/reviewed-release-notes.mjs write "${RUNNER_TEMP}/reviewed-release-notes.md"
+
       - name: Publish or reconcile GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.release-notes }}
+          RELEASE_NOTES_SHA256: ${{ inputs.release-notes-sha256 }}
         shell: bash
         run: |
           if gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" \
+              --json tagName,name,body,isDraft,isPrerelease > "${RUNNER_TEMP}/existing-release.json"
+            node .portfolio-policy/scripts/reviewed-release-notes.mjs verify "${RUNNER_TEMP}/existing-release.json"
             gh release upload "${VERSION}" \
               "${RUNNER_TEMP}/approved/${ARCHIVE}" \
               "${RUNNER_TEMP}/approved/${ARCHIVE}.sha256" \
@@ -432,10 +459,13 @@ jobs:
               "${RUNNER_TEMP}/approved/${ARCHIVE}" \
               "${RUNNER_TEMP}/approved/${ARCHIVE}.sha256" \
               --target "${RELEASE_COMMIT}" \
-              --generate-notes \
+              --notes-file "${RUNNER_TEMP}/reviewed-release-notes.md" \
               --title "${VERSION}" \
               --repo "${GITHUB_REPOSITORY}"
           fi
+          gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" \
+            --json tagName,name,body,isDraft,isPrerelease > "${RUNNER_TEMP}/published-release.json"
+          node .portfolio-policy/scripts/reviewed-release-notes.mjs verify "${RUNNER_TEMP}/published-release.json"
 
       - name: Publish one atomic WordPress.org changeset
         if: ${{ env.WPORG_TAG_EXISTS != 'true' }}
