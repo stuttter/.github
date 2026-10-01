@@ -157,8 +157,8 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.deepEqual(userAvatars.managed_paths, ['ci', 'release', 'dependabot']);
   assert.equal(userAvatars.checks.phpunit.config, 'phpunit.xml.dist');
   assert.deepEqual(userAvatars.checks.phpunit.files, [
-    { path: 'composer.json', sha256: '1105e49fadd16917daa3a01543dc85488f2ceeed6174d92c6b31e749695f832c' },
-    { path: 'composer.lock', sha256: '5413458c84f6815cafee6ea255051300bdcc0905f64389699697f55959a3b065' },
+    { path: 'composer.json', sha256: '3696d6259d4bb042e63fc5fd675c7f6ff5555e5146babbb25962d45fd44b9a7e' },
+    { path: 'composer.lock', sha256: '2b5cc62365220900a750fcb471fac8e3e777781332a98cacefe72eed79b38cab' },
     { path: 'phpunit.xml.dist', sha256: '1f1877783a07ed91172dfbb0c7ce9b42c7246f5c4b5dcd7ee1d479528fe09861' },
     { path: 'tests/bootstrap.php', sha256: 'de8260c144962655cb80ca3181dc4c4eff5c8f72c655c762db0f371678de4c16' },
   ]);
