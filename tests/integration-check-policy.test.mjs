@@ -185,8 +185,8 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.deepEqual(userPreferences.managed_paths, ['ci', 'release', 'dependabot']);
   assert.equal(userPreferences.checks.phpunit.config, 'phpunit.xml.dist');
   assert.deepEqual(userPreferences.checks.phpunit.files, [
-    { path: 'composer.json', sha256: 'ac1788c75e0b6e45618cb8c26eb1158a9c9fcf48590eac6df1d2c9346dffeccb' },
-    { path: 'composer.lock', sha256: 'deb1e089550dde49dee2d3cafc124e9634f8f591e9acbc482a09baa60007a35a' },
+    { path: 'composer.json', sha256: 'd0a976dca1e9617f98cd67e30697a020ed94a3e8f56182818ac0d001f227b589' },
+    { path: 'composer.lock', sha256: '3d01661bcec4f1324abd2e009d247c1aa4e3238fb413cacc82abd485eb55aa95' },
     { path: 'phpunit.xml.dist', sha256: 'c23c3afa83ae468cd04eb74991e71e9a69f95bf8520a54d9c5689b28e302a365' },
     { path: 'tests/bootstrap.php', sha256: '45ef4fbfb2c85f4bab2c7bcd38218c59b01742d1fe86e61e30f1058f66134f8a' },
   ]);
