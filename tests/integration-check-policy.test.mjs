@@ -162,7 +162,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.equal(userAvatars.checks.phpunit.config, 'phpunit.xml.dist');
   assert.deepEqual(userAvatars.checks.phpunit.files, [
     { path: 'composer.json', sha256: '3696d6259d4bb042e63fc5fd675c7f6ff5555e5146babbb25962d45fd44b9a7e' },
-    { path: 'composer.lock', sha256: '2b5cc62365220900a750fcb471fac8e3e777781332a98cacefe72eed79b38cab' },
+    { path: 'composer.lock', sha256: 'c8a943a42543fd89b8d141839fa561e28a0157010058b98d0a65f0372c834cc8' },
     { path: 'phpunit.xml.dist', sha256: '1f1877783a07ed91172dfbb0c7ce9b42c7246f5c4b5dcd7ee1d479528fe09861' },
     { path: 'tests/bootstrap.php', sha256: 'de8260c144962655cb80ca3181dc4c4eff5c8f72c655c762db0f371678de4c16' },
   ]);
