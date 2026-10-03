@@ -49,7 +49,7 @@ jobs:
       - name: Validate locked WordPress integration runtime
         run: |
           npm ci --ignore-scripts --prefix runtime/wordpress
-          npm audit --audit-level=moderate --prefix runtime/wordpress
+          node scripts/audit-wordpress-runtime.mjs
 
       - name: Check scripts
         run: |
@@ -66,6 +66,7 @@ jobs:
           node --check scripts/validate-workflow-pins.mjs
           node --check scripts/render-workflow-fixtures.mjs
           node --check scripts/check-static-analysis-baselines.mjs
+          node --check scripts/audit-wordpress-runtime.mjs
           node --check scripts/project-check-policy.mjs
           node --check scripts/integration-check-policy.mjs
           node --check scripts/configure-wordpress-integration.mjs
