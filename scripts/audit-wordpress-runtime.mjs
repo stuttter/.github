@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +25,26 @@ function sameValues(actual, expected) {
   return JSON.stringify([...actual].sort()) === JSON.stringify([...expected].sort());
 }
 
-export function validateRuntimeAudit(report, lock, wordpressSource, now = Date.now()) {
+function readJavaScriptSources(directory, root = directory) {
+  const sources = {};
+
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === 'test' || entry.name === '__tests__') {
+      continue;
+    }
+
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      Object.assign(sources, readJavaScriptSources(path, root));
+    } else if (entry.name.endsWith('.js') && !entry.name.endsWith('.test.js')) {
+      sources[path.slice(root.length + 1)] = readFileSync(path, 'utf8');
+    }
+  }
+
+  return sources;
+}
+
+export function validateRuntimeAudit(report, lock, wordpressSources, now = Date.now()) {
   const errors = [];
   const vulnerabilities = report?.vulnerabilities;
 
@@ -70,9 +89,23 @@ export function validateRuntimeAudit(report, lock, wordpressSource, now = Date.n
     }
   }
 
-  const gotCalls = wordpressSource.match(/\bgot\s*\(/gu) ?? [];
-  if (gotCalls.length !== 1 || /\bcache\s*:/u.test(wordpressSource)) {
-    errors.push('@wordpress/env no longer uses got only through the reviewed uncached request path.');
+  const gotSources = Object.entries(wordpressSources).filter(([, source]) => /\bgot\b/u.test(source));
+  const expectedGotSources = ['download-sources.js', 'wordpress.js'];
+  const wordpressSource = wordpressSources['wordpress.js'] ?? '';
+  const downloadSource = wordpressSources['download-sources.js'] ?? '';
+  const allSources = Object.values(wordpressSources).join('\n');
+  if (
+    !sameValues(gotSources.map(([path]) => path), expectedGotSources) ||
+    (wordpressSource.match(/\bgot\b/gu) ?? []).length !== 3 ||
+    (wordpressSource.match(/\bgot\s*\(/gu) ?? []).length !== 1 ||
+    /\bgot\s*\./u.test(wordpressSource) ||
+    (downloadSource.match(/\bgot\b/gu) ?? []).length !== 3 ||
+    (downloadSource.match(/\bgot\.stream\s*\(/gu) ?? []).length !== 1 ||
+    /\bgot\s*\(/u.test(downloadSource) ||
+    /\bcacheable-request\b/u.test(allSources) ||
+    /\bcache\s*:/u.test(allSources)
+  ) {
+    errors.push('@wordpress/env no longer matches the reviewed uncached got request paths.');
   }
 
   if (now >= exceptionExpires) {
@@ -107,17 +140,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       process.stdout.write('WordPress integration runtime audit passed.\n');
     } else {
       const lock = JSON.parse(readFileSync(resolve(runtimeRoot, 'package-lock.json'), 'utf8'));
-      const wordpressSource = readFileSync(
-        resolve(runtimeRoot, 'node_modules/@wordpress/env/lib/wordpress.js'),
-        'utf8',
+      const wordpressSources = readJavaScriptSources(
+        resolve(runtimeRoot, 'node_modules/@wordpress/env/lib'),
       );
-      const errors = validateRuntimeAudit(report, lock, wordpressSource);
+      const errors = validateRuntimeAudit(report, lock, wordpressSources);
       if (errors.length) {
         process.stderr.write(`${errors.join('\n')}\n`);
         process.exitCode = 1;
       } else {
         process.stdout.write(
-          'GHSA-ch52-4w7c-c8xp is confined to the reviewed, uncached @wordpress/env download path.\n',
+          'GHSA-ch52-4w7c-c8xp is confined to the reviewed, uncached @wordpress/env request paths.\n',
         );
       }
     }

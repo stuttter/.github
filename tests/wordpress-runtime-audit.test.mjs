@@ -30,37 +30,52 @@ function fixture() {
         'node_modules/http-cache-semantics': { version: '4.2.0' },
       },
     },
-    source: "const versions = await got('https://api.wordpress.org/').json();",
+    sources: {
+      'wordpress.js': "const got = require('got');\nconst versions = await got('https://api.wordpress.org/').json();",
+      'download-sources.js': "const got = require('got');\nconst responseStream = got.stream(source.url);",
+      'config/parse-config.js': 'module.exports = {};',
+    },
   };
 }
 
 test('accepts only the reviewed uncached wp-env advisory chain', () => {
-  const { report, lock, source } = fixture();
-  assert.deepEqual(validateRuntimeAudit(report, lock, source, Date.parse('2026-10-03T00:00:00Z')), []);
+  const { report, lock, sources } = fixture();
+  assert.deepEqual(validateRuntimeAudit(report, lock, sources, Date.parse('2026-10-03T00:00:00Z')), []);
 });
 
 test('rejects another audit finding', () => {
-  const { report, lock, source } = fixture();
+  const { report, lock, sources } = fixture();
   report.vulnerabilities.other = { severity: 'moderate', via: [] };
   report.metadata.vulnerabilities.moderate = 1;
   report.metadata.vulnerabilities.total = 5;
-  assert.match(validateRuntimeAudit(report, lock, source, Date.parse('2026-10-03T00:00:00Z')).join('\n'), /Unexpected vulnerable packages/u);
+  assert.match(validateRuntimeAudit(report, lock, sources, Date.parse('2026-10-03T00:00:00Z')).join('\n'), /Unexpected vulnerable packages/u);
 });
 
 test('rejects a cached request path or changed locked dependency', () => {
-  const { report, lock, source } = fixture();
+  const { report, lock, sources } = fixture();
   lock.packages['node_modules/got'].version = '12.0.0';
+  sources['download-sources.js'] += '\nconst options = { cache: store };';
   const errors = validateRuntimeAudit(
     report,
     lock,
-    `${source}\nconst options = { cache: store };`,
+    sources,
     Date.parse('2026-10-03T00:00:00Z'),
   );
   assert.match(errors.join('\n'), /got is not locked/u);
-  assert.match(errors.join('\n'), /uncached request path/u);
+  assert.match(errors.join('\n'), /uncached got request paths/u);
+});
+
+test('rejects another got call form or source file', () => {
+  const { report, lock, sources } = fixture();
+  sources['download-sources.js'] += '\nconst client = got.extend({ timeout: 1000 });';
+  sources['config/parse-config.js'] = 'const response = got.get(url);';
+  assert.match(
+    validateRuntimeAudit(report, lock, sources, Date.parse('2026-10-03T00:00:00Z')).join('\n'),
+    /uncached got request paths/u,
+  );
 });
 
 test('expires the temporary applicability review', () => {
-  const { report, lock, source } = fixture();
-  assert.match(validateRuntimeAudit(report, lock, source, Date.parse('2026-11-03T00:00:00Z')).join('\n'), /has expired/u);
+  const { report, lock, sources } = fixture();
+  assert.match(validateRuntimeAudit(report, lock, sources, Date.parse('2026-11-03T00:00:00Z')).join('\n'), /has expired/u);
 });
