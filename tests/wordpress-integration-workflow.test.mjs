@@ -66,3 +66,9 @@ test('wp-env is exact, locked, and carries the audited transitive override', () 
     assert.match(dependency.integrity, /^sha512-/u, path);
   }
 });
+
+test('the runtime audit keeps a fail-closed reviewed advisory exception', () => {
+  const standards = readFileSync(new URL('../.github/workflows/standards-ci.yml', import.meta.url), 'utf8');
+  assert.match(standards, /node scripts\/audit-wordpress-runtime\.mjs/u);
+  assert.doesNotMatch(standards, /npm audit --audit-level=moderate --prefix runtime\/wordpress/u);
+});

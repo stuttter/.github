@@ -170,14 +170,14 @@
             "vendor:check": "node bin/check-vendored-assets.mjs"
           },
           "files": [
-            { "path": "package.json", "sha256": "1d614f3a191f2befc4eff53a185d7035669cc3275df5b8e61f4bdb718f0bcd50" },
-            { "path": "package-lock.json", "sha256": "11cdd5a7dc018d7e60b372d1b7713fc1f08568b1fe80985b30d5ea22fef895aa" },
+            { "path": "package.json", "sha256": "64f7d57083644e0273371ff560ea73677e790d1c0825132087bf0d280b5beda0" },
+            { "path": "package-lock.json", "sha256": "ef9651814538459e191e1b7a4df8b29d461123034e1f477000f7284d5d41bd03" },
             { "path": "bin/check-generated-assets.mjs", "sha256": "14ee73f2f3aac0058a457844301115250ccd21eeaddb414eace77e350dbcaca2" },
             { "path": "bin/check-vendored-assets.mjs", "sha256": "7874a69504167b851b33bd281c3601e450540c6719e7457bf4080fa55b712c57" },
             { "path": "wp-chosen/assets/css/postcss-configs/main/postcss.config.js", "sha256": "af529f1bb054423b3c28529a73b56390aa53dd54022a3635ed9db7e25f2e6a25" },
             { "path": "wp-chosen/assets/css/wp-chosen.css", "sha256": "13f803d5f4ab6fc615e2ffb45acba562a1c63bc6fefad5d4787a3a1fb3f011f3" },
             { "path": "wp-chosen/assets/css/wp-chosen.css.map", "sha256": "2f8565a088fdb19e31d0ef066dee6e7805deca3d495c6f9f54c95c884e77d49f" },
-            { "path": "wp-chosen/assets/css/wp-chosen.min.css", "sha256": "c8f72a5051a9352899111744332da13a76065769749183789601614e510b803f" },
+            { "path": "wp-chosen/assets/css/wp-chosen.min.css", "sha256": "d194eea9e3cb6ea4264febaad69e6e7ccd2ec8686f2922de45367da74f77d93d" },
             { "path": "wp-chosen/assets/css/chosen.min.css", "sha256": "f56a9d3251cc74bd77f9c555555a0bb63dcb35e92616dc5f167108bf4066376b" },
             { "path": "wp-chosen/assets/js/chosen.jquery.min.js", "sha256": "bcc5e08f69727b8ce8b7d27bd431ce4b7089ba3a81858bd51d22bc3cad6efc26" },
             { "path": "wp-chosen/assets/css/scss/general.scss", "sha256": "26030cdd9d2a678aa830427b300ae4a2cd3c3ffd6ab0e088bbaeeaa5302dedb8" },
