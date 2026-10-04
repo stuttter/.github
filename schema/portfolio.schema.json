@@ -100,8 +100,15 @@
                               "pattern": "^(?!.*[\\r\\n])(?:composer\\.(?:json|lock)|phpunit\\.xml\\.dist|\\.?phpcs\\.xml(?:\\.dist)?|(?:bin|scripts|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+)$"
                             },
                             "sha256": {
-                              "type": "string",
-                              "pattern": "^[a-f0-9]{64}$"
+                              "oneOf": [
+                                { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                                {
+                                  "type": "array",
+                                  "minItems": 1,
+                                  "uniqueItems": true,
+                                  "items": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                                }
+                              ]
                             }
                           }
                         }
@@ -140,7 +147,17 @@
                           "type": "string",
                           "pattern": "^(?!.*[\\r\\n])(?!/)(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]*$"
                         },
-                        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                        "sha256": {
+                          "oneOf": [
+                            { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                            {
+                              "type": "array",
+                              "minItems": 1,
+                              "uniqueItems": true,
+                              "items": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                            }
+                          ]
+                        }
                       }
                     }
                   }
@@ -188,7 +205,17 @@
                           "type": "string",
                           "pattern": "^(?!.*[\\r\\n])(?:composer\\.(?:json|lock)|phpunit\\.xml\\.dist|\\.?phpcs\\.xml(?:\\.dist)?|(?:bin|scripts|tests)/(?!.*\\.\\.(?:/|$))(?!.*//)[A-Za-z0-9._/-]+)$"
                         },
-                        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                        "sha256": {
+                          "oneOf": [
+                            { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+                            {
+                              "type": "array",
+                              "minItems": 1,
+                              "uniqueItems": true,
+                              "items": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+                            }
+                          ]
+                        }
                       }
                     }
                   }

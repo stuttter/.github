@@ -205,6 +205,11 @@ persisted checkout credential, no release secrets, and no shell evaluation of
 its path.
 Missing or changed manifests, lockfiles, package commands, configuration files,
 bootstrap files, smoke entry points, or helpers fail the declared check.
+An individual file contract normally records one digest. During a reviewed
+branch transition, it may temporarily record a non-empty set of explicit
+digests so both the protected default branch and the pending exact head remain
+valid. Remove the obsolete digest when the transition finishes. This does not
+permit patterns, wildcards, or unreviewed file contents.
 
 Smoke scripts own their disposable WordPress setup and teardown until the
 centrally maintained WordPress-version environments described in issue #8 are

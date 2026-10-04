@@ -45,7 +45,12 @@ function validateFiles(files, context, pathPattern = safeContractPath) {
     if (!safePath(file.path, pathPattern)) errors.push(`${item}.path is unsafe.`);
     if (typeof file.path === 'string' && seen.has(file.path)) errors.push(`${context} repeats ${file.path}.`);
     if (typeof file.path === 'string') seen.add(file.path);
-    if (!sha256Pattern.test(file.sha256 ?? '')) errors.push(`${item}.sha256 must be a lowercase SHA-256 digest.`);
+    const approved = typeof file.sha256 === 'string' ? [file.sha256] : file.sha256;
+    if (!Array.isArray(approved) || approved.length === 0 || approved.some((digest) => !sha256Pattern.test(digest))) {
+      errors.push(`${item}.sha256 must be a lowercase SHA-256 digest or a non-empty array of lowercase SHA-256 digests.`);
+    } else if (new Set(approved).size !== approved.length) {
+      errors.push(`${item}.sha256 must not repeat an approved digest.`);
+    }
   }
   return errors;
 }
@@ -210,7 +215,8 @@ export function verifyFileContracts(root, files, context) {
   for (const file of files) {
     const source = readFileSync(regularContainedFile(root, file.path, context));
     const actual = createHash('sha256').update(source).digest('hex');
-    if (actual !== file.sha256) throw new Error(`${context}: ${file.path} does not match its centrally approved SHA-256.`);
+    const approved = typeof file.sha256 === 'string' ? [file.sha256] : file.sha256;
+    if (!approved.includes(actual)) throw new Error(`${context}: ${file.path} does not match any centrally approved SHA-256.`);
   }
 }
 

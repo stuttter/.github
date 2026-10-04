@@ -186,6 +186,21 @@ test('project policy rejects unsafe paths, CR/LF, bad hashes, and unsupported ke
   const contract = phpunitContract();
   contract.files[0].sha256 = 'abc';
   assert.match(validateProjectChecks({ phpunit: contract }).join('\n'), /lowercase SHA-256/u);
+  contract.files[0].sha256 = [];
+  assert.match(validateProjectChecks({ phpunit: contract }).join('\n'), /non-empty array/u);
+  contract.files[0].sha256 = [digest(composerSource), digest(composerSource)];
+  assert.match(validateProjectChecks({ phpunit: contract }).join('\n'), /must not repeat/u);
+});
+
+test('project file contracts accept any explicitly approved transitional hash', (t) => {
+  const root = phpunitProject();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const contract = phpunitContract();
+  contract.files[3].sha256 = [digest('<?php // pending branch\n'), digest(bootstrapSource)];
+  assert.doesNotThrow(() => validatePhpunitProject(root, contract));
+
+  contract.files[3].sha256 = [digest('<?php // another branch\n')];
+  assert.throws(() => validatePhpunitProject(root, contract), /does not match any centrally approved SHA-256/u);
 });
 
 test('PHPUnit contracts cannot retain dormant repository-local PHPCS tooling', () => {
@@ -209,7 +224,7 @@ test('centrally enrolled PHPUnit rejects a no-op Composer alias plus package, ha
   assert.throws(() => validatePhpunitProject(root, contract), /locked phpunit\/phpunit/u);
   put(root, 'composer.lock', lockSource);
   put(root, 'tests/bootstrap.php', '<?php // bypass\n');
-  assert.throws(() => validatePhpunitProject(root, contract), /does not match its centrally approved SHA-256/u);
+  assert.throws(() => validatePhpunitProject(root, contract), /does not match any centrally approved SHA-256/u);
   put(root, 'tests/bootstrap.php', bootstrapSource);
 
   assert.throws(() => validateInstalledPhpunit(root), /is missing vendor\/bin\/phpunit/u);
