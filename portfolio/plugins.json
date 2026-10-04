@@ -173,7 +173,7 @@
           "files": [
             { "path": "package.json", "sha256": "3f54b0e56b7e535f037cee5e76e63eef77979e1fc3d3d153e2fb84c64a5be7ae" },
             { "path": "package-lock.json", "sha256": "d035b7239b2ddcb7dd889b8325829ece02498c9b33807a7dec6621ee96c468b5" },
-            { "path": "bin/check-amd-loader.mjs", "sha256": "8b53509af9add760914a1d18ff69d1539d95ae3d51cdf09f6c6295ffd9c93a64" },
+            { "path": "bin/check-amd-loader.mjs", "sha256": "75910308b5bb3bcc40ea924ca7740334460d76cc71508f5fd276f9985effa8ad" },
             { "path": "bin/check-generated-assets.mjs", "sha256": "14ee73f2f3aac0058a457844301115250ccd21eeaddb414eace77e350dbcaca2" },
             { "path": "bin/check-vendored-assets.mjs", "sha256": "fc0a490a6bed5edc025906663b5cb90571e70b23ad50f807e1ab1a8abc1328e1" },
             { "path": "wp-chosen/assets/css/postcss-configs/main/postcss.config.js", "sha256": "af529f1bb054423b3c28529a73b56390aa53dd54022a3635ed9db7e25f2e6a25" },
