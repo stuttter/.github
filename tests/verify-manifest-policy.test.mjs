@@ -50,6 +50,12 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['aliases.yml', 'run: svn rm https://plugins.svn.wordpress.org/example-plugin/tags/1.0 -m cleanup\n'],
     ['git-svn.yml', 'run: git svn dcommit\n'],
     ['svnmucc.yml', 'run: svnmucc put artifact.zip https://plugins.svn.wordpress.org/example-plugin/trunk/artifact.zip\n'],
+    ['list-step.yml', 'steps:\n  - run: svn commit -m release\n'],
+    ['message-option.yml', 'run: svn -m release commit https://plugins.svn.wordpress.org/example-plugin\n'],
+    ['file-option.yml', 'run: svn --file message.txt commit https://plugins.svn.wordpress.org/example-plugin\n'],
+    ['path.yml', 'run: /usr/bin/svn commit -m release\n'],
+    ['resolved-path.yml', 'run: "$(command -v svn)" ci -m release\n'],
+    ['prop-alias.yml', 'run: svn ps stable_tag 1.0 https://plugins.svn.wordpress.org/example-plugin/trunk\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -106,6 +112,62 @@ test('manifest policy follows local actions outside the conventional directory',
   }
 });
 
+test('manifest policy follows a local action at the repository root', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, 'action.yml'), 'runs:\n  steps:\n    - run: svn commit -m release\n');
+    writeFileSync(join(root, '.github/workflows/local.yml'), 'steps:\n  - uses: ./\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /action\.yml contains a direct WordPress\.org publisher/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy rejects local action paths that explicitly escape the repository', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/local.yml'), 'steps:\n  - uses: ./../outside\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /escapes the repository root/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy rejects linked local action definitions', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, 'outside.yml'), 'runs:\n  steps:\n    - run: svn commit -m release\n');
+    mkdirSync(join(root, 'deploy'));
+    symlinkSync(join(root, 'outside.yml'), join(root, 'deploy/action.yml'));
+    writeFileSync(join(root, '.github/workflows/local.yml'), 'steps:\n  - uses: ./deploy\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /deploy\/action\.yml must be a regular in-repository action definition/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy rejects unresolved run aliases', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/alias.yml'), 'steps:\n  - run: *publish\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /Workflow run aliases are unsupported/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
 test('manifest policy rejects non-regular workflow definitions', () => {
   const { root, cleanup } = fixture();
   try {
@@ -137,6 +199,7 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: svn --non-interactive info https://plugins.svn.wordpress.org/example-plugin\n',
     'run: svn export --quiet https://develop.svn.wordpress.org/tags/6.4/tests/phpunit/includes/ /tmp/wp-tests && rm -rf /tmp/wp-tests/.svn\n',
     'run: svn checkout https://plugins.svn.wordpress.org/example-plugin/trunk ci-cache\n',
+    'run: |\n  command -v svn\n  rm -rf /tmp/wp-tests/.svn\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
   ]) {
     const { root, cleanup } = fixture();

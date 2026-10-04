@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
-import { dirname, relative, resolve, sep } from 'node:path';
+import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './sync-plugin-standards.mjs';
 
@@ -12,25 +12,109 @@ function comparableManifest(manifest) {
 }
 
 const directPublisherAction = /[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu;
-const svnWriteCommands = new Set(['ci', 'commit', 'copy', 'cp', 'dcommit', 'delete', 'del', 'import', 'lock', 'mkdir', 'move', 'mv', 'pedit', 'propedit', 'propset', 'pset', 'remove', 'ren', 'rename', 'rm', 'unlock']);
-const svnOptionsWithValues = new Set(['--config-dir', '--config-option', '--password', '--trust-server-cert-failures', '--username']);
+const svnWriteCommands = new Set(['ci', 'commit', 'copy', 'cp', 'dcommit', 'delete', 'del', 'import', 'lock', 'mkdir', 'move', 'mv', 'pd', 'pdel', 'pe', 'pedit', 'propdel', 'propedit', 'propset', 'ps', 'pset', 'remove', 'ren', 'rename', 'rm', 'unlock']);
+const svnOptionsWithValues = new Set([
+  '--accept',
+  '--changelist',
+  '--cl',
+  '--config-dir',
+  '--config-option',
+  '--depth',
+  '--diff-cmd',
+  '--editor-cmd',
+  '--extensions',
+  '--file',
+  '--limit',
+  '--message',
+  '--native-eol',
+  '--password',
+  '--revision',
+  '--targets',
+  '--trust-server-cert-failures',
+  '--username',
+  '--with-revprop',
+  '-F',
+  '-l',
+  '-m',
+  '-r',
+  '-x',
+]);
+
+function shellSegments(command) {
+  const normalized = command
+    .replace(/\$\(\s*command\s+-v\s+(?:svn|svnmucc)\s*\)/giu, (match) => match.toLowerCase().includes('svnmucc') ? 'svnmucc' : 'svn')
+    .replace(/`\s*command\s+-v\s+(?:svn|svnmucc)\s*`/giu, (match) => match.toLowerCase().includes('svnmucc') ? 'svnmucc' : 'svn');
+  const segments = [];
+  let current = '';
+  let quote = '';
+  let substitutionDepth = 0;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const character = normalized[index];
+    const next = normalized[index + 1];
+    if (character === '\\') {
+      current += character;
+      if (next !== undefined) current += normalized[index += 1];
+      continue;
+    }
+    if (quote) {
+      current += character;
+      if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === '$' && next === '(') {
+      substitutionDepth += 1;
+      current += '$(';
+      index += 1;
+      continue;
+    }
+    if (character === ')' && substitutionDepth > 0) {
+      substitutionDepth -= 1;
+      current += character;
+      continue;
+    }
+    if (substitutionDepth === 0 && (character === '\n' || character === ';' || character === '|' || (character === '&' && next === '&'))) {
+      if (current.trim()) segments.push(current.trim());
+      current = '';
+      if ((character === '|' || character === '&') && next === character) index += 1;
+      continue;
+    }
+    current += character;
+  }
+  if (current.trim()) segments.push(current.trim());
+  return segments;
+}
+
+function shellTokens(command) {
+  return command
+    .match(/(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s]+)/gu)
+    ?.map((token) => token.replace(/^[({]+|[),}]+$/gu, '').replace(/^["']|["']$/gu, ''))
+    .filter(Boolean) ?? [];
+}
+
+function executableName(token) {
+  return basename(token.replace(/^["']|["']$/gu, '')).toLowerCase();
+}
 
 function containsDirectPublisher(command) {
-  const tokens = command
-    .replace(/[;&|`()]/gu, ' ')
-    .split(/\s+/u)
-    .map((token) => token.replace(/^["']|["']$/gu, ''))
-    .filter(Boolean);
-
-  if (tokens.some((token) => token.toLowerCase() === 'svnmucc')) return true;
-  for (let index = 0; index < tokens.length; index += 1) {
-    if (tokens[index].toLowerCase() !== 'svn') continue;
-    index += 1;
-    while (index < tokens.length && tokens[index].startsWith('-')) {
-      const option = tokens[index].toLowerCase();
-      index += svnOptionsWithValues.has(option) && !option.includes('=') ? 2 : 1;
+  for (const segment of shellSegments(command)) {
+    const tokens = shellTokens(segment);
+    if (tokens.some((token) => executableName(token) === 'svnmucc')) return true;
+    for (let index = 0; index < tokens.length; index += 1) {
+      if (executableName(tokens[index]) !== 'svn') continue;
+      index += 1;
+      while (index < tokens.length && tokens[index].startsWith('-')) {
+        const option = tokens[index];
+        const optionName = option.includes('=') ? option.slice(0, option.indexOf('=')) : option;
+        index += svnOptionsWithValues.has(optionName) && !option.includes('=') ? 2 : 1;
+      }
+      if (svnWriteCommands.has(tokens[index]?.toLowerCase())) return true;
     }
-    if (svnWriteCommands.has(tokens[index]?.toLowerCase())) return true;
   }
   return false;
 }
@@ -39,10 +123,13 @@ function workflowCommands(definition) {
   const lines = definition.split(/\r?\n/u);
   const commands = [];
   for (let index = 0; index < lines.length; index += 1) {
-    const match = /^([\t ]*)run:\s*(.*)$/u.exec(lines[index]);
+    const match = /^([\t ]*)(?:-\s+)?run:\s*(.*)$/u.exec(lines[index]);
     if (!match) continue;
 
-    const baseIndent = match[1].length;
+    const baseIndent = lines[index].indexOf('run:');
+    if (/^\*[A-Za-z0-9_-]+(?:\s+#.*)?$/u.test(match[2].trim())) {
+      throw new Error('Workflow run aliases are unsupported by the direct-publisher policy.');
+    }
     const scalar = /^([>|])(?:[-+]\d*)?\s*(?:#.*)?$/u.exec(match[2].trim());
     const parts = scalar ? [] : [match[2].trim()];
     while (index + 1 < lines.length) {
@@ -62,8 +149,9 @@ function workflowCommands(definition) {
 function localActionDefinitions(definition, projectRoot) {
   const canonicalRoot = realpathSync(projectRoot);
   const paths = [];
-  const references = definition.matchAll(/^\s*(?:-\s*)?uses:\s*["']?(\.\/[^"'\s#]+)["']?\s*(?:#.*)?$/gimu);
+  const references = definition.matchAll(/^\s*(?:-\s*)?uses:\s*["']?(\.\/(?:[^"'\s#]+)?)["']?\s*(?:#.*)?$/gimu);
   for (const [, reference] of references) {
+    if (reference.slice(2).split('/').includes('..')) throw new Error(`${reference} escapes the repository root.`);
     const actionRoot = resolve(projectRoot, reference.slice(2));
     if (actionRoot !== projectRoot && !actionRoot.startsWith(`${projectRoot}${sep}`)) {
       throw new Error(`${reference} escapes the repository root.`);
