@@ -201,7 +201,12 @@ function commandSubstitutions(command) {
 function segmentContainsDirectPublisher(segment) {
   const tokens = shellTokens(segment);
   let index = 0;
-  while (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '') || shellControlPrefixes.has(tokens[index]?.toLowerCase())) index += 1;
+  while (
+    /^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '')
+    || shellControlPrefixes.has(tokens[index]?.toLowerCase())
+    || /^(?:\d*|&)?>{1,2}|^(?:\d*|&)?<{1,2}/u.test(tokens[index] ?? '')
+    || /\)$/u.test(tokens[index] ?? '')
+  ) index += 1;
   let variableExecutable = isSvnVariable(tokens[index] ?? '');
   let executable = executableName(tokens[index] ?? '');
   let arguments_ = tokens.slice(index + 1);
