@@ -128,6 +128,16 @@ test('portfolio schema keeps executable project checks centrally bounded', () =>
   const lineBreak = structuredClone(portfolio);
   lineBreak.repositories[0].checks.smoke = { single_site: 'tests/run.sh\n', files: [{ path: 'tests/run.sh', sha256: 'a'.repeat(64) }] };
   assert.match(validate(lineBreak, portfolioSchema).join('\n'), /does not match/u);
+
+  const transitional = structuredClone(portfolio);
+  transitional.repositories[0].checks.phpunit.files[0].sha256 = ['a'.repeat(64), 'b'.repeat(64)];
+  assert.deepEqual(validate(transitional, portfolioSchema), []);
+
+  transitional.repositories[0].checks.phpunit.files[0].sha256 = [];
+  assert.match(validate(transitional, portfolioSchema).join('\n'), /must match exactly one allowed schema/u);
+
+  transitional.repositories[0].checks.phpunit.files[0].sha256 = ['a'.repeat(64), 'a'.repeat(64)];
+  assert.match(validate(transitional, portfolioSchema).join('\n'), /must match exactly one allowed schema/u);
 });
 
 test('portfolio schema accepts only declarative integration gates', () => {
