@@ -141,7 +141,7 @@ function svnWritesRemotely(tokens) {
 }
 
 function isSvnVariable(token) {
-  return /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/u.test(token) && token.toUpperCase().includes('SVN');
+  return /^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$\{[^}\r\n]+\})$/u.test(token) && token.toUpperCase().includes('SVN');
 }
 
 function commandSubstitutions(command) {
@@ -228,6 +228,10 @@ function segmentContainsDirectPublisher(segment) {
     const nested = arguments_.filter((token) => !token.startsWith('-')).join(' ');
     if (/\b(?:svn|svnmucc|svnrdump|svnsync)\b/iu.test(nested)) return containsDirectPublisher(nested);
   }
+  if (/^(?:node|perl|php|python\d*(?:\.\d+)?|ruby)$/u.test(executable)) {
+    const nested = arguments_.join(' ');
+    if (/\bsvn(?:mucc|rdump|sync)?\b[\s\S]*\b(?:ci|commit|copy|cp|dcommit|delete|del|import|init|load|lock|mkdir|move|mv|pd|pdel|pe|pedit|propdel|propedit|propset|ps|pset|put|remove|ren|rename|rm|sync|unlock)\b/iu.test(nested)) return true;
+  }
   if (executable === 'git' && hasWriteCommand(arguments_, new Set(['dcommit'])) && arguments_.some((token) => executableName(token) === 'svn')) return true;
   if (/^[A-Za-z_][A-Za-z0-9_]*\(\)$/u.test(tokens[index] ?? '') || tokens.slice(index + 1).includes('{')) {
     for (let candidate = index + 1; candidate < tokens.length; candidate += 1) {
@@ -312,16 +316,60 @@ function withoutYamlComments(definition) {
 }
 
 function isActionInput(lines, index, indent) {
-  let ancestorIndent = indent;
+  let parentIndex = -1;
   for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
     if (!lines[cursor].trim() || /^\s*#/u.test(lines[cursor])) continue;
     const candidateIndent = /^\s*/u.exec(lines[cursor])[0].length;
-    if (candidateIndent >= ancestorIndent) continue;
+    if (candidateIndent >= indent) continue;
     const key = /^\s*(?:-\s+)?["']?([A-Za-z0-9_.-]+)["']?\s*:/u.exec(lines[cursor])?.[1];
-    if (key === 'with') return true;
-    ancestorIndent = candidateIndent;
+    if (key !== 'with') return false;
+    parentIndex = cursor;
+    break;
+  }
+  if (parentIndex < 0) return false;
+
+  let stepIndex = -1;
+  let stepIndent = -1;
+  for (let cursor = parentIndex; cursor >= 0; cursor -= 1) {
+    if (!lines[cursor].trim() || /^\s*#/u.test(lines[cursor])) continue;
+    const candidateIndent = /^\s*/u.exec(lines[cursor])[0].length;
+    if (!/^\s*-\s+/u.test(lines[cursor])) continue;
+    stepIndex = cursor;
+    stepIndent = candidateIndent;
+    break;
+  }
+  if (stepIndex < 0) return false;
+
+  for (let cursor = stepIndex; cursor < lines.length; cursor += 1) {
+    if (!lines[cursor].trim() || /^\s*#/u.test(lines[cursor])) continue;
+    const candidateIndent = /^\s*/u.exec(lines[cursor])[0].length;
+    if (cursor > stepIndex && candidateIndent <= stepIndent) break;
+    if (/^\s*(?:-\s+)?["']?uses["']?\s*:/iu.test(lines[cursor])) return true;
   }
   return false;
+}
+
+function workflowExpressions(definition) {
+  const expressions = [];
+  for (let start = definition.indexOf('${{'); start >= 0; start = definition.indexOf('${{', start + 3)) {
+    let quote = false;
+    let end = start + 3;
+    for (; end < definition.length; end += 1) {
+      if (definition[end] === "'") {
+        if (quote && definition[end + 1] === "'") {
+          end += 1;
+          continue;
+        }
+        quote = !quote;
+        continue;
+      }
+      if (!quote && definition[end] === '}' && definition[end + 1] === '}') break;
+    }
+    expressions.push(definition.slice(start + 3, end));
+    if (end >= definition.length) break;
+    start = end - 1;
+  }
+  return expressions;
 }
 
 function containsDirectPublisherAction(definition) {
@@ -338,8 +386,8 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
   if (allowedCaller) return false;
   const inspected = withoutYamlComments(definition);
   if (credential.test(inspected)) return true;
-  for (const match of inspected.matchAll(/\$\{\{([\s\S]*?)\}\}/gu)) {
-    const unnamed = match[1].replace(/\bsecrets\.[A-Za-z_][A-Za-z0-9_]*\b/gu, '');
+  for (const expression of workflowExpressions(inspected)) {
+    const unnamed = expression.replace(/\bsecrets\.[A-Za-z_][A-Za-z0-9_]*\b/gu, '');
     if (/\bsecrets\b/iu.test(unnamed)) return true;
   }
   const lines = inspected.split(/\r?\n/u);
@@ -355,7 +403,7 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
       if (!lines[nested].trim() || /^\s*#/u.test(lines[nested])) continue;
       const indent = /^\s*/u.exec(lines[nested])[0].length;
       if (indent <= match[1].length) break;
-      if (/^\s*["']?inherit["']?\s*(?:#.*)?$/iu.test(lines[nested])) return true;
+      if (/^\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*["']?inherit["']?\s*(?:#.*)?$/iu.test(lines[nested])) return true;
       break;
     }
   }

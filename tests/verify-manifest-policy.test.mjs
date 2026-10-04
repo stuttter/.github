@@ -113,6 +113,8 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['folded-indent.yml', 'run: >2\n    svn commit -m release\n'],
     ['literal-indent-chomp.yml', 'run: |2-\n    svn commit -m release\n'],
     ['literal-chomp-indent.yml', 'run: |-2\n    svn commit -m release\n'],
+    ['parameter-default.yml', 'run: ${SVN:-svn} commit -m release\n'],
+    ['python.yml', 'run: python3 -c "import os; os.system(\'svn commit -m release\')"\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -179,6 +181,9 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     'env: { A: "a", P: "deploy\n  # ${{ secrets.WORDPRESS_ORG_PASSWORD }}" }\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P:\n    |\n      #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
     "env:\n  P: '${{ ''\n    #'' && secrets.WORDPRESS_ORG_PASSWORD }}'\nsteps:\n  - run: ./bin/deploy.sh\n",
+    "env:\n  P: ${{ '}}' && secrets[format('WORDPRESS_ORG_{0}', 'PASSWORD')] }}\nsteps:\n  - run: ./bin/deploy.sh\n",
+    'jobs:\n  with:\n    uses: ./.github/workflows/called.yml\n    secrets:\n      inherit\n',
+    'jobs:\n  with:\n    uses: ./.github/workflows/called.yml\n    secrets:\n      &shared inherit\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -186,6 +191,7 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
       assert.throws(
         () => verifyManifestPolicy(inventory, 'example/plugin', root),
         /contains a direct WordPress\.org publisher/u,
+        workflow,
       );
     } finally {
       cleanup();
@@ -212,6 +218,7 @@ test('manifest policy permits action inputs named secrets', () => {
   for (const workflow of [
     'steps:\n  - uses: docker/build-push-action@v6\n    with:\n      secrets: |\n        "github_token=${{ secrets.GITHUB_TOKEN }}"\n',
     'steps:\n  - uses: example/action@v1\n    with:\n      secrets: "id=npm,src=.npmrc"\n',
+    'steps:\n  - with:\n      secrets: "id=npm,src=.npmrc"\n    uses: example/action@v1\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
