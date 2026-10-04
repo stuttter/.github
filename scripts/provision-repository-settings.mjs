@@ -29,17 +29,17 @@ export function commandArguments(argumentsList) {
   const [mode = 'audit', requested = 'all'] = argumentsList;
   if (!['audit', 'apply'].includes(mode)) throw new Error('Mode must be audit or apply.');
   if (mode === 'apply' && requested !== 'all') {
-    throw new Error('Apply mode must reconcile the complete enabled portfolio.');
+    throw new Error('Apply mode must reconcile every enabled centrally managed CI target.');
   }
   return { help: false, mode, requested };
 }
 
 export function selectTargets(inventory, requested = 'all') {
   const targets = inventory.repositories.filter((target) =>
-    target.enabled && (requested === 'all' || target.repository === requested)
+    target.enabled && target.managed_paths.includes('ci') && (requested === 'all' || target.repository === requested)
   );
   if (requested !== 'all' && targets.length !== 1) {
-    throw new Error(`${requested} is not an enabled portfolio target.`);
+    throw new Error(`${requested} is not an enabled centrally managed CI target.`);
   }
   return targets;
 }
@@ -277,7 +277,7 @@ function inspectTargets(targets, execute) {
 export function provisionRepositorySettings({ inventory, mode = 'audit', requested = 'all', execute = runGitHub }) {
   if (!['audit', 'apply'].includes(mode)) throw new Error('Mode must be audit or apply.');
   if (mode === 'apply' && requested !== 'all') {
-    throw new Error('Apply mode must reconcile the complete enabled portfolio.');
+    throw new Error('Apply mode must reconcile every enabled centrally managed CI target.');
   }
   const targets = selectTargets(inventory, requested);
   const inspections = inspectTargets(targets, execute);
