@@ -20,7 +20,7 @@ const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
 const gitSvnWriteCommands = new Set(['branch', 'dcommit', 'set-tree', 'tag']);
 const svnMuccWriteCommands = new Set(['cp', 'mkdir', 'mv', 'propdel', 'propset', 'put', 'rm']);
 const dynamicPublisherWriteCommands = new Set([...svnAlwaysRemoteWriteCommands, ...svnRdumpWriteCommands, ...svnSyncWriteCommands, 'put']);
-const commandWrappers = new Set(['builtin', 'command', 'doas', 'env', 'exec', 'flock', 'ionice', 'nice', 'nohup', 'setsid', 'stdbuf', 'sudo', 'time', 'timeout', 'xargs']);
+const commandWrappers = new Set(['builtin', 'command', 'doas', 'env', 'exec', 'find', 'flock', 'ionice', 'nice', 'nohup', 'parallel', 'setsid', 'stdbuf', 'sudo', 'time', 'timeout', 'watch', 'xargs']);
 const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'trap', 'zsh']);
 const shellControlPrefixes = new Set(['!', '(', '{', 'coproc', 'do', 'elif', 'else', 'if', 'then', 'until', 'while']);
 
@@ -328,6 +328,12 @@ function containsDirectPublisher(command) {
   if (/\|\s*(?:bash|dash|ksh|sh|zsh)\b/iu.test(command)
     && /\bsvn(?:mucc|rdump|sync)?\b[\s\S]*\b(?:branch|ci|commit|dcommit|import|init|load|lock|put|set-tree|sync|tag|unlock)\b/iu.test(command)) return true;
   return shellSegments(command).some(segmentContainsDirectPublisher);
+}
+
+function containsInterpreterShellPublisher(definition) {
+  const inspected = withoutYamlComments(definition);
+  if (!/^\s*(?:-\s+)?shell\s*:\s*["']?(?:node|perl|php|powershell|pwsh|python\d*(?:\.\d+)?|ruby)\b/imu.test(inspected)) return false;
+  return /\b(?:git\s+svn|git-svn|svn|svnmucc|svnrdump|svnsync)\b[\s\S]{0,512}\b(?:branch|ci|commit|copy|cp|dcommit|delete|del|import|init|load|lock|mkdir|move|mv|pd|pdel|pe|pedit|propdel|propedit|propset|ps|pset|put|remove|ren|rename|rm|set-tree|sync|tag|unlock)\b/iu.test(inspected);
 }
 
 function yamlQuotedScalarStarts(line, index) {
@@ -655,6 +661,7 @@ function verifyReleaseWorkflows(target, projectRoot, policyRef) {
     if (
       containsUnsupportedYamlEscape(definition) ||
       containsDirectPublisherAction(definition) ||
+      containsInterpreterShellPublisher(definition) ||
       containsUnexpectedPublisherCredentials(definition, path, projectRoot) ||
       workflowCommands(definition).some(containsDirectPublisher)
     ) {
