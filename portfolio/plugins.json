@@ -155,7 +155,7 @@
             { "path": "composer.json", "sha256": "912f4d3d08d94166d889fed2b9713bc80ce02176b11cd4d9f3c82eedade3bac4" },
             { "path": "composer.lock", "sha256": "e9e029feaae53ed805efa605be693e4c1d00fd0af9b6469deb15987e15dab054" },
             { "path": "phpunit.xml.dist", "sha256": "b3d7ea362089a835aedb77e47f647d413f06f020578aefa2fc009836530e43ba" },
-            { "path": "tests/bootstrap.php", "sha256": ["9892da68f63b5f3d082535a6d717e7cabe3938888c06dca7126a024ab0f429f4", "8915f7184852b960c0eabcd2c7883c2cb7dc15193b530bb17720af62ebd507ea"] }
+            { "path": "tests/bootstrap.php", "sha256": "9892da68f63b5f3d082535a6d717e7cabe3938888c06dca7126a024ab0f429f4" }
           ]
         },
         "node": {
@@ -170,20 +170,20 @@
             "vendor:check": "node bin/check-vendored-assets.mjs"
           },
           "files": [
-            { "path": "package.json", "sha256": ["6ab719f53b02ef311f4876ed53d6e917178c5ada0d2cb30e6a94e6766da0e3cd", "64f7d57083644e0273371ff560ea73677e790d1c0825132087bf0d280b5beda0"] },
-            { "path": "package-lock.json", "sha256": ["d035b7239b2ddcb7dd889b8325829ece02498c9b33807a7dec6621ee96c468b5", "ef9651814538459e191e1b7a4df8b29d461123034e1f477000f7284d5d41bd03"] },
+            { "path": "package.json", "sha256": "6ab719f53b02ef311f4876ed53d6e917178c5ada0d2cb30e6a94e6766da0e3cd" },
+            { "path": "package-lock.json", "sha256": "d035b7239b2ddcb7dd889b8325829ece02498c9b33807a7dec6621ee96c468b5" },
             { "path": "bin/check-generated-assets.mjs", "sha256": "14ee73f2f3aac0058a457844301115250ccd21eeaddb414eace77e350dbcaca2" },
-            { "path": "bin/check-vendored-assets.mjs", "sha256": ["fc0a490a6bed5edc025906663b5cb90571e70b23ad50f807e1ab1a8abc1328e1", "7874a69504167b851b33bd281c3601e450540c6719e7457bf4080fa55b712c57"] },
+            { "path": "bin/check-vendored-assets.mjs", "sha256": "fc0a490a6bed5edc025906663b5cb90571e70b23ad50f807e1ab1a8abc1328e1" },
             { "path": "wp-chosen/assets/css/postcss-configs/main/postcss.config.js", "sha256": "af529f1bb054423b3c28529a73b56390aa53dd54022a3635ed9db7e25f2e6a25" },
-            { "path": "wp-chosen/assets/css/wp-chosen.css", "sha256": ["190b53ff2377bf319cecf38024f96e5cf2bff39aab11a92edf45b8dce7a5e7de", "13f803d5f4ab6fc615e2ffb45acba562a1c63bc6fefad5d4787a3a1fb3f011f3"] },
-            { "path": "wp-chosen/assets/css/wp-chosen.css.map", "sha256": ["102dec7c08dcfad1936723018d83304a1fd3de1c193e27ade5bc89b6745162cd", "2f8565a088fdb19e31d0ef066dee6e7805deca3d495c6f9f54c95c884e77d49f"] },
-            { "path": "wp-chosen/assets/css/wp-chosen.min.css", "sha256": ["72c393fa3ac04241ed3e83902b26a4c1e6cc95c320fe156eaefc1d13f33ad608", "d194eea9e3cb6ea4264febaad69e6e7ccd2ec8686f2922de45367da74f77d93d"] },
-            { "path": "wp-chosen/assets/css/chosen.min.css", "sha256": ["24ff326610d42e825948574bc055367a906155e4c7b4b938c3646df1f3b9b304", "f56a9d3251cc74bd77f9c555555a0bb63dcb35e92616dc5f167108bf4066376b"] },
-            { "path": "wp-chosen/assets/js/chosen.jquery.min.js", "sha256": ["cc1fb7d4aef1be1ae2d0883a371c2dd50246633e9a83ee9020cb55a1e807ff41", "bcc5e08f69727b8ce8b7d27bd431ce4b7089ba3a81858bd51d22bc3cad6efc26"] },
-            { "path": "wp-chosen/assets/css/scss/general.scss", "sha256": ["823f4781b7a0cc1c2e121cc3f8672c6c360c3707326f6b3663214ff3c43014e1", "26030cdd9d2a678aa830427b300ae4a2cd3c3ffd6ab0e088bbaeeaa5302dedb8"] },
+            { "path": "wp-chosen/assets/css/wp-chosen.css", "sha256": "190b53ff2377bf319cecf38024f96e5cf2bff39aab11a92edf45b8dce7a5e7de" },
+            { "path": "wp-chosen/assets/css/wp-chosen.css.map", "sha256": "102dec7c08dcfad1936723018d83304a1fd3de1c193e27ade5bc89b6745162cd" },
+            { "path": "wp-chosen/assets/css/wp-chosen.min.css", "sha256": "72c393fa3ac04241ed3e83902b26a4c1e6cc95c320fe156eaefc1d13f33ad608" },
+            { "path": "wp-chosen/assets/css/chosen.min.css", "sha256": "24ff326610d42e825948574bc055367a906155e4c7b4b938c3646df1f3b9b304" },
+            { "path": "wp-chosen/assets/js/chosen.jquery.min.js", "sha256": "cc1fb7d4aef1be1ae2d0883a371c2dd50246633e9a83ee9020cb55a1e807ff41" },
+            { "path": "wp-chosen/assets/css/scss/general.scss", "sha256": "823f4781b7a0cc1c2e121cc3f8672c6c360c3707326f6b3663214ff3c43014e1" },
             { "path": "wp-chosen/assets/css/scss/min-max.scss", "sha256": "85875ee16220337416029ef24ea2fa133b17352060db6590929de766c1b9fe53" },
             { "path": "wp-chosen/assets/css/scss/mobile.scss", "sha256": "c023217daa4c5bd041d48bd52f94a64c90350893eff5aa85047a1915c40396e0" },
-            { "path": "wp-chosen/assets/css/scss/no-bg-images.scss", "sha256": ["b3c340a7513603cb8abc82d23a53747ba9e2dd0430a50319817e4547d16356c0", "4a75096f03fe451ccf4dbfdd656a835a2e5333ffdd55f3bd853da77c28971f42"] },
+            { "path": "wp-chosen/assets/css/scss/no-bg-images.scss", "sha256": "b3c340a7513603cb8abc82d23a53747ba9e2dd0430a50319817e4547d16356c0" },
             { "path": "wp-chosen/assets/css/scss/overrides.scss", "sha256": "5e4548f1ef68e9515113f1b151bf962e06f14ca3cd531265dee07dfedceb2100" },
             { "path": "wp-chosen/assets/css/scss/schemes.scss", "sha256": "9c465fb6cc1cdab3b1c5022b2a295dc544a4727e6c66dae447345cacd1b03822" },
             { "path": "wp-chosen/assets/css/scss/schemes/american/from-many-one.scss", "sha256": "6a7ad9ebebff77fd0c4ce587a0cd026b7b425dcbbaa67b92aa6c0607de18e1c7" },
