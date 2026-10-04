@@ -175,6 +175,9 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     'env:\n  P: "x: |\n    ${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P: "deploy\n    # ${{ secrets.WORDPRESS_ORG_PASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     "env:\n  P: 'deploy\n    # ${{ secrets.WORDPRESS_ORG_PASSWORD }}'\nsteps:\n  - run: ./bin/deploy.sh\n",
+    'env:\n  P:\n    "deploy\n    # ${{ secrets.WORDPRESS_ORG_PASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env: { A: "a", P: "deploy\n  # ${{ secrets.WORDPRESS_ORG_PASSWORD }}" }\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P:\n    |\n      #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
   ]) {
     const { root, cleanup } = fixture();
     try {

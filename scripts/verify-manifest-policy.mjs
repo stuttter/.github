@@ -300,6 +300,7 @@ function withoutYamlComments(definition) {
     const indent = /^\s*/u.exec(line)[0].length;
     if (blockIndent !== null && (!line.trim() || indent > blockIndent)) return line;
     blockIndent = null;
+    if (line.includes('${{')) return line;
     if (quote) {
       quote = yamlQuoteState(line, quote);
       return line;
