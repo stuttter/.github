@@ -51,7 +51,15 @@ export function validateRuntimeAudit(report) {
 export function validateRuntimeContract(lock, wordpressSources, now = Date.now()) {
   const errors = [];
   for (const [name, version] of Object.entries(expectedVersions)) {
-    if (lock?.packages?.[`node_modules/${name}`]?.version !== version) {
+    const expectedPath = `node_modules/${name}`;
+    const installedPaths = Object.keys(lock?.packages ?? {}).filter(
+      (path) => path === expectedPath || path.endsWith(`/node_modules/${name}`),
+    );
+    if (
+      installedPaths.length !== 1 ||
+      installedPaths[0] !== expectedPath ||
+      lock.packages[expectedPath]?.version !== version
+    ) {
       errors.push(`${name} is not locked to the reviewed ${version} version.`);
     }
   }
