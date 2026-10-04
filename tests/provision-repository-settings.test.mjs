@@ -109,17 +109,41 @@ function executor({ metadata = {}, protection = branchProtection() } = {}) {
   return { calls, execute };
 }
 
-test('command arguments and target selection keep apply fleet-wide', () => {
+test('command arguments and target selection keep apply scoped to centrally managed CI', () => {
   assert.deepEqual(commandArguments([]), { help: false, mode: 'audit', requested: 'all' });
   assert.deepEqual(commandArguments(['audit', target.repository]), { help: false, mode: 'audit', requested: target.repository });
-  assert.throws(() => commandArguments(['apply', target.repository]), /complete enabled portfolio/);
-  assert.deepEqual(selectTargets({ repositories: [target, { ...target, repository: 'stuttter/disabled', enabled: false }] }), [target]);
-  assert.throws(() => selectTargets({ repositories: [target] }, 'stuttter/missing'), /not an enabled portfolio target/);
+  assert.throws(() => commandArguments(['apply', target.repository]), /every enabled centrally managed CI target/);
+  assert.deepEqual(selectTargets({ repositories: [
+    target,
+    { ...target, repository: 'stuttter/disabled', enabled: false },
+    { ...target, repository: 'stuttter/release-only', managed_paths: ['release'] },
+  ] }), [target]);
+  assert.throws(() => selectTargets({ repositories: [target] }, 'stuttter/missing'), /not an enabled centrally managed CI target/);
+  assert.throws(
+    () => selectTargets({ repositories: [{ ...target, managed_paths: ['release'] }] }, target.repository),
+    /not an enabled centrally managed CI target/,
+  );
   assert.throws(() => provisionRepositorySettings({ inventory: { repositories: [target] }, mode: 'audti' }), /Mode must be audit or apply/);
   assert.throws(
     () => provisionRepositorySettings({ inventory: { repositories: [target] }, mode: 'apply', requested: target.repository }),
-    /complete enabled portfolio/,
+    /every enabled centrally managed CI target/,
   );
+});
+
+test('repository settings exclude release-only targets and retain CI-only targets', () => {
+  const { calls, execute } = executor();
+  const report = provisionRepositorySettings({
+    inventory: { repositories: [
+      { ...target, managed_paths: ['ci'] },
+      { ...target, repository: 'stuttter/release-only', managed_paths: ['release'] },
+    ] },
+    mode: 'audit',
+    execute,
+  });
+  assert.equal(report.inspections.length, 1);
+  assert.equal(report.inspections[0].repository, target.repository);
+  assert.ok(calls.length > 0);
+  assert.ok(calls.every(({ args }) => !args.some((argument) => argument.includes('stuttter/release-only'))));
 });
 
 test('required checks are deterministic and preserve declared local gates', () => {
