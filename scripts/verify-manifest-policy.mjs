@@ -268,6 +268,8 @@ function segmentContainsDirectPublisher(segment) {
   if (executable === 'command' && arguments_[0] === '-v') return false;
 
   if (commandWrappers.has(executable)) {
+    if (['parallel', 'watch'].includes(executable)
+      && arguments_.some((argument) => /\s/u.test(argument) && containsDirectPublisher(argument))) return true;
     for (let candidate = 0; candidate < arguments_.length; candidate += 1) {
       const candidateExecutable = executableName(arguments_[candidate]);
       const candidateArguments = arguments_.slice(candidate + 1);

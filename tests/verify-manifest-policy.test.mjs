@@ -99,6 +99,8 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['piped-shell.yml', 'run: echo \'svn commit -m release\' | sh\n'],
     ['find-exec.yml', 'run: find . -maxdepth 0 -exec svn commit -m release {} +\n'],
     ['parallel.yml', 'run: parallel svn commit -m release ::: .\n'],
+    ['parallel-template.yml', "run: parallel 'svn commit -m release {}' ::: .\n"],
+    ['watch-template.yml', "run: watch -g 'svn commit -m release'\n"],
     ['python-shell.yml', "steps:\n  - shell: python\n    run: |\n      import os\n      os.system('svn commit -m release')\n"],
     ['encoding.yml', 'run: svn --encoding UTF-8 commit -m release\n'],
     ['inline.yml', 'steps:\n  - { name: Deploy, run: svn commit -m release }\n'],
