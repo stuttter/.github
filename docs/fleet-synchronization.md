@@ -138,10 +138,16 @@ dismissal, linear history, resolved conversations, force-push and deletion
 protection, Dependabot vulnerability alerts and security updates, secret
 scanning, and push protection. Vulnerability alerts are enabled before
 automated security fixes because GitHub requires that ordering.
-Apply mode preflights the complete enabled portfolio twice before the first
-write, so a changed ownership, signature, ruleset, or check result aborts the
-fleet before mutation. Writes are reported per repository, and every target is
-verified afterward even when one of the independent GitHub API calls fails.
+Apply mode preflights every enabled centrally managed CI target twice before
+the first write, so a changed ownership, signature, ruleset, or check result
+aborts the fleet before mutation. Writes are reported per repository, and every
+target is verified afterward even when one of the independent GitHub API calls
+fails.
+
+Removing `ci` from an entry does not remove protections already applied to that
+repository. Reconcile or remove obsolete fleet-owned required checks before
+disabling CI management so the repository is not left waiting for checks that
+no longer run.
 
 ```sh
 npm run repository:settings -- audit all
