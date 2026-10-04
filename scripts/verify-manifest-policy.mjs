@@ -288,6 +288,7 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
   const lines = definition.split(/\r?\n/u);
   for (let index = 0; index < lines.length; index += 1) {
     if (/^\s*#/u.test(lines[index])) continue;
+    if (/(?:^|[{,]\s*)["']?secrets["']?\s*:\s*["']?inherit["']?(?:\s*[,}]|\s*$)/iu.test(yamlCode(lines[index]))) return true;
     const match = /^(\s*)(?:-\s+)?["']?secrets["']?\s*:\s*(.*)$/iu.exec(lines[index]);
     if (!match) continue;
     const value = yamlCode(match[2]).trim();
@@ -304,7 +305,25 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
 }
 
 function containsUnsupportedYamlEscape(definition) {
-  return definition.split(/\r?\n/u).some((line) => !/^\s*#/u.test(line) && /:\s*"[^"\r\n]*\\/u.test(line));
+  let quoted = false;
+  for (const line of definition.split(/\r?\n/u)) {
+    if (!quoted && /^\s*#/u.test(line)) continue;
+    let index = 0;
+    while (index < line.length) {
+      if (!quoted) {
+        const start = /:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*"/u.exec(line.slice(index));
+        if (!start) break;
+        index += start.index + start[0].length;
+        quoted = true;
+      }
+      while (quoted && index < line.length) {
+        if (line[index] === '\\') return true;
+        if (line[index] === '"') quoted = false;
+        index += 1;
+      }
+    }
+  }
+  return false;
 }
 
 function quotedYamlScalar(value) {

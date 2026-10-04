@@ -163,6 +163,10 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     "env:\n  ALL_SECRETS: ${{ toJSON((secrets)) }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     "env:\n  ALL_SECRETS: ${{ toJSON(secrets || '') }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     'env:\n  P: |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'jobs:\n  deploy: { uses: example/wporg.yml@v1, secrets: inherit }\n',
+    'env:\n  P: &password "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: !!str "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: "deploy\n    ${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
