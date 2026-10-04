@@ -268,17 +268,60 @@ function yamlCode(line) {
   return line;
 }
 
+function yamlQuoteState(line, initial = '') {
+  let quote = initial;
+  let index = 0;
+  if (!quote) {
+    const start = /(?:^\s*(?:-\s+)?|[{,]\s*)["']?[A-Za-z0-9_.-]+["']?\s*:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*(["'])/u.exec(line);
+    if (!start) return '';
+    quote = start[1];
+    index = start.index + start[0].length;
+  }
+  for (; index < line.length; index += 1) {
+    if (quote === '"' && line[index] === '\\') {
+      index += 1;
+      continue;
+    }
+    if (line[index] !== quote) continue;
+    if (quote === "'" && line[index + 1] === "'") {
+      index += 1;
+      continue;
+    }
+    return '';
+  }
+  return quote;
+}
+
 function withoutYamlComments(definition) {
   const lines = definition.split(/\r?\n/u);
   let blockIndent = null;
+  let quote = '';
   return lines.map((line) => {
     const indent = /^\s*/u.exec(line)[0].length;
     if (blockIndent !== null && (!line.trim() || indent > blockIndent)) return line;
     blockIndent = null;
+    if (quote) {
+      quote = yamlQuoteState(line, quote);
+      return line;
+    }
     const code = yamlCode(line);
+    quote = yamlQuoteState(code);
     if (/:\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(code)) blockIndent = indent;
     return code;
   }).join('\n');
+}
+
+function isActionInput(lines, index, indent) {
+  let ancestorIndent = indent;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (!lines[cursor].trim() || /^\s*#/u.test(lines[cursor])) continue;
+    const candidateIndent = /^\s*/u.exec(lines[cursor])[0].length;
+    if (candidateIndent >= ancestorIndent) continue;
+    const key = /^\s*(?:-\s+)?["']?([A-Za-z0-9_.-]+)["']?\s*:/u.exec(lines[cursor])?.[1];
+    if (key === 'with') return true;
+    ancestorIndent = candidateIndent;
+  }
+  return false;
 }
 
 function containsDirectPublisherAction(definition) {
@@ -305,6 +348,7 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
     if (/(?:^|[{,]\s*)["']?secrets["']?\s*:\s*["']?inherit["']?(?:\s*[,}]|\s*$)/iu.test(yamlCode(lines[index]))) return true;
     const match = /^(\s*)(?:-\s+)?["']?secrets["']?\s*:\s*(.*)$/iu.exec(lines[index]);
     if (!match) continue;
+    if (isActionInput(lines, index, match[1].length)) continue;
     const value = yamlCode(match[2]).trim();
     if (value && !/^\{[\s\S]*\}$/u.test(value)) return true;
     for (let nested = index + 1; nested < lines.length; nested += 1) {

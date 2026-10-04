@@ -173,6 +173,8 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     'env:\n  P: !!str "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P: "deploy\n    ${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P: "x: |\n    ${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: "deploy\n    # ${{ secrets.WORDPRESS_ORG_PASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
+    "env:\n  P: 'deploy\n    # ${{ secrets.WORDPRESS_ORG_PASSWORD }}'\nsteps:\n  - run: ./bin/deploy.sh\n",
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -195,6 +197,21 @@ test('manifest policy permits explicitly named unrelated secrets', () => {
     const { root, cleanup } = fixture();
     try {
       writeFileSync(join(root, '.github/workflows/reusable.yml'), workflow);
+      assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+    } finally {
+      cleanup();
+    }
+  }
+});
+
+test('manifest policy permits action inputs named secrets', () => {
+  for (const workflow of [
+    'steps:\n  - uses: docker/build-push-action@v6\n    with:\n      secrets: |\n        "github_token=${{ secrets.GITHUB_TOKEN }}"\n',
+    'steps:\n  - uses: example/action@v1\n    with:\n      secrets: "id=npm,src=.npmrc"\n',
+  ]) {
+    const { root, cleanup } = fixture();
+    try {
+      writeFileSync(join(root, '.github/workflows/action-input.yml'), workflow);
       assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
     } finally {
       cleanup();
