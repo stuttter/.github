@@ -172,6 +172,7 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     'env:\n  P: &password "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P: !!str "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P: "deploy\n    ${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: "x: |\n    ${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -187,12 +188,17 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
 });
 
 test('manifest policy permits explicitly named unrelated secrets', () => {
-  const { root, cleanup } = fixture();
-  try {
-    writeFileSync(join(root, '.github/workflows/reusable.yml'), 'jobs:\n  call:\n    uses: example/reusable/.github/workflows/ci.yml@v1\n    secrets:\n      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}\n');
-    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
-  } finally {
-    cleanup();
+  for (const workflow of [
+    'jobs:\n  call:\n    uses: example/reusable/.github/workflows/ci.yml@v1\n    secrets:\n      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}\n',
+    'jobs:\n  call:\n    uses: example/reusable/.github/workflows/ci.yml@v1\n    secrets: { OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}" }\n',
+  ]) {
+    const { root, cleanup } = fixture();
+    try {
+      writeFileSync(join(root, '.github/workflows/reusable.yml'), workflow);
+      assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+    } finally {
+      cleanup();
+    }
   }
 });
 
@@ -399,6 +405,7 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: sudo rm -rf "$SVN_DIR"\n',
     'run: timeout 60 ls "$SVN_CACHE"\n',
     'run: |\n  echo "Deploying to: "\n  rsync -av \\\n    build/ dist/\n',
+    'steps:\n  - run: echo "Building:" ${{ github.ref_name }}\n  - run: |\n      composer install \\\n        --no-interaction\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
   ]) {
     const { root, cleanup } = fixture();
@@ -411,10 +418,10 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
   }
 });
 
-test('manifest policy ignores unrelated YAML comments', () => {
+test('manifest policy ignores YAML comments', () => {
   const { root, cleanup } = fixture();
   try {
-    writeFileSync(join(root, '.github/workflows/comment.yml'), '# Release credentials remain central.\nname: Audit # No publication here.\n');
+    writeFileSync(join(root, '.github/workflows/comment.yml'), '# SVN_PASSWORD is available only to the central caller.\nname: Audit # WORDPRESS_ORG_PASSWORD remains central.\n');
     assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
   } finally {
     cleanup();

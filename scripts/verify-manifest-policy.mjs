@@ -268,6 +268,19 @@ function yamlCode(line) {
   return line;
 }
 
+function withoutYamlComments(definition) {
+  const lines = definition.split(/\r?\n/u);
+  let blockIndent = null;
+  return lines.map((line) => {
+    const indent = /^\s*/u.exec(line)[0].length;
+    if (blockIndent !== null && (!line.trim() || indent > blockIndent)) return line;
+    blockIndent = null;
+    const code = yamlCode(line);
+    if (/:\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(code)) blockIndent = indent;
+    return code;
+  }).join('\n');
+}
+
 function containsDirectPublisherAction(definition) {
   return definition.split(/\r?\n/u).some((rawLine) => {
     const line = yamlCode(rawLine);
@@ -280,19 +293,20 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
   const credential = /\b(?:(?:STUTTTER_)?(?:WORDPRESS|WP)_ORG|WPORG|SVN)_(?:USERNAME|USER|PASSWORD|PASS)\b/iu;
   const allowedCaller = relative(projectRoot, path) === '.github/workflows/release.yml';
   if (allowedCaller) return false;
-  if (credential.test(definition)) return true;
-  for (const match of definition.matchAll(/\$\{\{([\s\S]*?)\}\}/gu)) {
+  const inspected = withoutYamlComments(definition);
+  if (credential.test(inspected)) return true;
+  for (const match of inspected.matchAll(/\$\{\{([\s\S]*?)\}\}/gu)) {
     const unnamed = match[1].replace(/\bsecrets\.[A-Za-z_][A-Za-z0-9_]*\b/gu, '');
     if (/\bsecrets\b/iu.test(unnamed)) return true;
   }
-  const lines = definition.split(/\r?\n/u);
+  const lines = inspected.split(/\r?\n/u);
   for (let index = 0; index < lines.length; index += 1) {
     if (/^\s*#/u.test(lines[index])) continue;
     if (/(?:^|[{,]\s*)["']?secrets["']?\s*:\s*["']?inherit["']?(?:\s*[,}]|\s*$)/iu.test(yamlCode(lines[index]))) return true;
     const match = /^(\s*)(?:-\s+)?["']?secrets["']?\s*:\s*(.*)$/iu.exec(lines[index]);
     if (!match) continue;
     const value = yamlCode(match[2]).trim();
-    if (value) return true;
+    if (value && !/^\{[\s\S]*\}$/u.test(value)) return true;
     for (let nested = index + 1; nested < lines.length; nested += 1) {
       if (!lines[nested].trim() || /^\s*#/u.test(lines[nested])) continue;
       const indent = /^\s*/u.exec(lines[nested])[0].length;
@@ -310,7 +324,9 @@ function containsUnsupportedYamlEscape(definition) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
     if (!quoted && /^\s*#/u.test(line)) continue;
-    if (!quoted && /:\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(yamlCode(line))) {
+    const scalarStarts = [...line.matchAll(/(?:^\s*(?:-\s+)?|[{,]\s*)["']?[A-Za-z0-9_.-]+["']?\s*:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*"/gu)]
+      .map((match) => match.index + match[0].lastIndexOf('"'));
+    if (!quoted && scalarStarts.length === 0 && /:\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(yamlCode(line))) {
       const baseIndent = /^\s*/u.exec(line)[0].length;
       while (lineIndex + 1 < lines.length) {
         const next = lines[lineIndex + 1];
@@ -323,9 +339,9 @@ function containsUnsupportedYamlEscape(definition) {
     let index = 0;
     while (index < line.length) {
       if (!quoted) {
-        const start = /:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*"/u.exec(line.slice(index));
-        if (!start) break;
-        index += start.index + start[0].length;
+        const start = scalarStarts.find((position) => position >= index);
+        if (start === undefined) break;
+        index = start + 1;
         quoted = true;
       }
       while (quoted && index < line.length) {
