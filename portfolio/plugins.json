@@ -525,8 +525,8 @@
     },
     {
       "repository": "stuttter/wp-multi-network",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["release"],
       "checks": {
         "phpunit": false
       },
