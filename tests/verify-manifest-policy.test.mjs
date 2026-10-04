@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -40,9 +40,11 @@ test('manifest policy accepts the exact centrally declared metadata', () => {
 
 test('manifest policy rejects direct WordPress.org publishers outside the managed release caller', () => {
   for (const [name, workflow] of [
-    ['deploy.yml', 'uses: 10up/action-wordpress-plugin-deploy@stable\n'],
+    ['deploy.yml', 'uses: 10UP/Action-WordPress-Plugin-Deploy@stable\n'],
     ['assets.yaml', 'uses: 10up/action-wordpress-plugin-asset-update@stable\n'],
     ['custom.yml', 'run: svn commit https://plugins.svn.wordpress.org/example-plugin\n'],
+    ['options.yml', 'run: svn --non-interactive --username "$U" --password "$P" commit -m release\n'],
+    ['aliases.yml', 'run: svn rm https://plugins.svn.wordpress.org/example-plugin/tags/1.0 -m cleanup\n'],
     ['svnmucc.yml', 'run: svnmucc put artifact.zip https://plugins.svn.wordpress.org/example-plugin/trunk/artifact.zip\n'],
   ]) {
     const { root, cleanup } = fixture();
@@ -50,11 +52,39 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
       writeFileSync(join(root, '.github/workflows', name), workflow);
       assert.throws(
         () => verifyManifestPolicy(inventory, 'example/plugin', root),
-        new RegExp(`${name} contains a direct WordPress\\.org publisher`),
+        /contains a direct WordPress\.org publisher/u,
       );
     } finally {
       cleanup();
     }
+  }
+});
+
+test('manifest policy scans local composite actions for direct publishers', () => {
+  const { root, cleanup } = fixture();
+  try {
+    mkdirSync(join(root, '.github/actions/deploy'), { recursive: true });
+    writeFileSync(join(root, '.github/actions/deploy/action.yml'), 'runs:\n  steps:\n    - uses: 10up/action-wordpress-plugin-deploy@stable\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /contains a direct WordPress\.org publisher/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy rejects non-regular workflow definitions', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, 'outside.yml'), 'uses: 10up/action-wordpress-plugin-deploy@stable\n');
+    symlinkSync(join(root, 'outside.yml'), join(root, '.github/workflows/linked.yml'));
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /linked\.yml must not be a symbolic link/u,
+    );
+  } finally {
+    cleanup();
   }
 });
 
@@ -65,6 +95,19 @@ test('manifest policy leaves repository-owned workflows alone when release is no
     const unmanaged = structuredClone(inventory);
     unmanaged.repositories[0].managed_paths = ['ci'];
     assert.doesNotThrow(() => verifyManifestPolicy(unmanaged, 'example/plugin', root));
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy allows read-only Subversion inspection in managed repositories', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(
+      join(root, '.github/workflows/audit.yml'),
+      'run: svn --non-interactive info https://plugins.svn.wordpress.org/example-plugin\n',
+    );
+    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
   } finally {
     cleanup();
   }

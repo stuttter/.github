@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './sync-plugin-standards.mjs';
 
@@ -12,22 +12,40 @@ function comparableManifest(manifest) {
 }
 
 const directWordPressOrgPublisherPatterns = [
-  /10up\/action-wordpress-plugin-(?:asset-update|deploy)@/u,
-  /\bsvn\s+(?:ci|commit|copy|cp|delete|del|import|mkdir|move|mv)\b/u,
-  /\bsvnmucc\b/u,
+  /10up\/action-wordpress-plugin-(?:asset-update|deploy)@/iu,
+  /\bsvn\b[^\r\n]*?\b(?:ci|commit|copy|cp|delete|del|import|lock|mkdir|move|mv|pedit|propedit|propset|pset|remove|ren|rename|rm|unlock)\b/iu,
+  /\bsvnmucc\b/iu,
 ];
+
+function workflowDefinitions(root) {
+  if (!existsSync(root)) return [];
+
+  const definitions = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const path = resolve(root, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(`${path} must not be a symbolic link.`);
+    } else if (entry.isDirectory()) {
+      definitions.push(...workflowDefinitions(path));
+    } else if (/\.ya?ml$/iu.test(entry.name)) {
+      if (!entry.isFile()) throw new Error(`${path} must be a regular workflow file.`);
+      definitions.push(path);
+    }
+  }
+  return definitions;
+}
 
 function verifyReleaseWorkflows(target, projectRoot) {
   if (!target.managed_paths.includes('release')) return;
 
-  const workflowsRoot = resolve(projectRoot, '.github/workflows');
-  for (const entry of readdirSync(workflowsRoot, { withFileTypes: true })) {
-    if (!/\.ya?ml$/u.test(entry.name) || entry.name === 'release.yml') continue;
-    if (!entry.isFile()) throw new Error(`${entry.name} must be a regular workflow file.`);
-
-    const workflow = readFileSync(resolve(workflowsRoot, entry.name), 'utf8');
-    if (directWordPressOrgPublisherPatterns.some((pattern) => pattern.test(workflow))) {
-      throw new Error(`${entry.name} contains a direct WordPress.org publisher outside the fleet-managed release workflow.`);
+  const definitions = [
+    ...workflowDefinitions(resolve(projectRoot, '.github/workflows')),
+    ...workflowDefinitions(resolve(projectRoot, '.github/actions')),
+  ];
+  for (const path of definitions) {
+    if (path === resolve(projectRoot, '.github/workflows/release.yml')) continue;
+    if (directWordPressOrgPublisherPatterns.some((pattern) => pattern.test(readFileSync(path, 'utf8')))) {
+      throw new Error(`${relative(projectRoot, path)} contains a direct WordPress.org publisher outside the fleet-managed release workflow.`);
     }
   }
 }
