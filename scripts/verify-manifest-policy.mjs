@@ -310,7 +310,7 @@ function containsUnsupportedYamlEscape(definition) {
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
     if (!quoted && /^\s*#/u.test(line)) continue;
-    if (!quoted && /:\s*[>|](?:[-+]\d*)?\s*(?:#.*)?$/u.test(line)) {
+    if (!quoted && /:\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(yamlCode(line))) {
       const baseIndent = /^\s*/u.exec(line)[0].length;
       while (lineIndex + 1 < lines.length) {
         const next = lines[lineIndex + 1];
@@ -375,7 +375,7 @@ function workflowCommands(definition) {
     }
     value = value.replace(/^&[A-Za-z0-9_-]+\s+/u, '');
     value = quotedYamlScalar(value);
-    const scalar = /^([>|])(?:[-+]\d*)?\s*(?:#.*)?$/u.exec(value);
+    const scalar = /^([>|])(?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*(?:#.*)?$/u.exec(value);
     const parts = scalar ? [] : [value];
     while (index + 1 < lines.length) {
       const next = lines[index + 1];

@@ -108,6 +108,11 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['next-line-uses.yml', 'steps:\n  - uses:\n      10up/action-wordpress-plugin-deploy@stable\n'],
     ['which-path.yml', 'run: "$(which svn)" commit -m release\n'],
     ['type-path.yml', 'run: "$(type -P svn)" commit -m release\n'],
+    ['commented-header.yml', 'steps:\n  - name: Build # note: |\n    run: "\\x73vn commit -m release"\n'],
+    ['literal-indent.yml', 'run: |2\n    svn commit -m release\n'],
+    ['folded-indent.yml', 'run: >2\n    svn commit -m release\n'],
+    ['literal-indent-chomp.yml', 'run: |2-\n    svn commit -m release\n'],
+    ['literal-chomp-indent.yml', 'run: |-2\n    svn commit -m release\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
