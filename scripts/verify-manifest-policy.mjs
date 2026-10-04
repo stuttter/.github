@@ -17,6 +17,7 @@ const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
 const commandWrappers = new Set(['command', 'env', 'nice', 'nohup', 'sudo', 'time', 'xargs']);
 const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'zsh']);
+const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'else', 'if', 'then']);
 
 function shellSegments(command) {
   const normalized = command
@@ -62,7 +63,7 @@ function shellSegments(command) {
       current += character;
       continue;
     }
-    if (substitutionDepth === 0 && (character === '\n' || character === ';' || character === '|' || (character === '&' && next === '&'))) {
+    if (substitutionDepth === 0 && (character === '\n' || character === ';' || character === '|' || character === '&')) {
       if (current.trim()) segments.push(current.trim());
       current = '';
       if ((character === '|' || character === '&') && next === character) index += 1;
@@ -137,10 +138,12 @@ function commandSubstitutions(command) {
 function segmentContainsDirectPublisher(segment) {
   const tokens = shellTokens(segment);
   let index = 0;
-  while (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '')) index += 1;
+  while (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '') || shellControlPrefixes.has(tokens[index]?.toLowerCase())) index += 1;
   let variableExecutable = isSvnVariable(tokens[index] ?? '');
   let executable = executableName(tokens[index] ?? '');
   let arguments_ = tokens.slice(index + 1);
+
+  if (['echo', 'printf'].includes(executable)) return false;
 
   if (commandWrappers.has(executable)) {
     const nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)) || isSvnVariable(token));
@@ -160,6 +163,15 @@ function segmentContainsDirectPublisher(segment) {
     const nested = arguments_.filter((token) => !token.startsWith('-')).join(' ');
     if (/\b(?:svn|svnmucc|svnrdump|svnsync)\b/iu.test(nested)) return containsDirectPublisher(nested);
   }
+  for (let candidate = index + 1; candidate < tokens.length; candidate += 1) {
+    const candidateExecutable = executableName(tokens[candidate]);
+    const candidateArguments = tokens.slice(candidate + 1);
+    if (isSvnVariable(tokens[candidate]) && svnWritesRemotely(candidateArguments)) return true;
+    if (candidateExecutable === 'svnmucc') return true;
+    if (candidateExecutable === 'svn' && svnWritesRemotely(candidateArguments)) return true;
+    if (candidateExecutable === 'svnrdump' && hasWriteCommand(candidateArguments, svnRdumpWriteCommands)) return true;
+    if (candidateExecutable === 'svnsync' && hasWriteCommand(candidateArguments, svnSyncWriteCommands)) return true;
+  }
   return false;
 }
 
@@ -177,6 +189,36 @@ function containsDirectPublisherAction(definition) {
   });
 }
 
+function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
+  const credential = /\bsecrets\.(?:(?:STUTTTER_)?(?:WORDPRESS|WP)_ORG|SVN)_(?:USERNAME|PASSWORD)\b/iu;
+  const allowedCaller = relative(projectRoot, path) === '.github/workflows/release.yml';
+  return definition.split(/\r?\n/u).some((line) => {
+    if (!credential.test(line)) return /\bsecrets\s*:\s*inherit\b/iu.test(line);
+    if (!allowedCaller) return true;
+    return !/^\s+STUTTTER_WORDPRESS_ORG_(USERNAME|PASSWORD):\s+\$\{\{\s*secrets\.WORDPRESS_ORG_\1\s*\}\}\s*$/u.test(line);
+  });
+}
+
+function quotedYamlScalar(value) {
+  const quote = value[0];
+  if (quote !== '"' && quote !== "'") return value;
+  for (let index = 1; index < value.length; index += 1) {
+    if (quote === '"' && value[index] === '\\') {
+      index += 1;
+      continue;
+    }
+    if (value[index] !== quote) continue;
+    if (quote === "'" && value[index + 1] === "'") {
+      index += 1;
+      continue;
+    }
+    const remainder = value.slice(index + 1).trim();
+    if (!remainder || /^(?:#.*|[},].*)$/u.test(remainder)) return value.slice(1, index).replace(/''/gu, "'");
+    return value;
+  }
+  throw new Error('Quoted workflow run values must be statically inspectable.');
+}
+
 function workflowCommands(definition) {
   const lines = definition.split(/\r?\n/u);
   const commands = [];
@@ -192,7 +234,7 @@ function workflowCommands(definition) {
       throw new Error('Workflow run aliases are unsupported by the direct-publisher policy.');
     }
     value = value.replace(/^&[A-Za-z0-9_-]+\s+/u, '');
-    if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) value = value.slice(1, -1);
+    value = quotedYamlScalar(value);
     const scalar = /^([>|])(?:[-+]\d*)?\s*(?:#.*)?$/u.exec(value);
     const parts = scalar ? [] : [value];
     while (index + 1 < lines.length) {
@@ -212,8 +254,12 @@ function workflowCommands(definition) {
 function localActionDefinitions(definition, projectRoot) {
   const canonicalRoot = realpathSync(projectRoot);
   const paths = [];
-  const references = definition.matchAll(/^\s*(?:-\s*)?uses:\s*["']?(\.\/(?:[^"'\s#]+)?)["']?\s*(?:#.*)?$/gimu);
-  for (const [, reference] of references) {
+  const references = definition.split(/\r?\n/u).flatMap((line) => {
+    if (/^\s*#/u.test(line)) return [];
+    const match = /(?:^|[{,]\s*|[-]\s+)["']?uses["']?\s*:\s*["']?(\.\/(?:[^"'\s#,}]+)?)/iu.exec(line);
+    return match ? [match[1]] : [];
+  });
+  for (const reference of references) {
     if (reference.slice(2).split('/').includes('..')) throw new Error(`${reference} escapes the repository root.`);
     const actionRoot = resolve(projectRoot, reference.slice(2));
     if (actionRoot !== projectRoot && !actionRoot.startsWith(`${projectRoot}${sep}`)) {
@@ -263,6 +309,7 @@ function verifyReleaseWorkflows(target, projectRoot) {
     for (const localPath of localActionDefinitions(definition, projectRoot)) definitions.add(localPath);
     if (
       containsDirectPublisherAction(definition) ||
+      containsUnexpectedPublisherCredentials(definition, path, projectRoot) ||
       workflowCommands(definition).some(containsDirectPublisher)
     ) {
       throw new Error(`${relative(projectRoot, path)} contains a direct WordPress.org publisher instead of the fleet-managed release job.`);

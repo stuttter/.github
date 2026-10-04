@@ -70,6 +70,15 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['quoted-key.yml', 'steps:\n  - "run": svn commit -m release\n'],
     ['svnrdump.yml', 'run: svnrdump load https://plugins.svn.wordpress.org/example-plugin\n'],
     ['svnsync.yml', 'run: svnsync sync https://plugins.svn.wordpress.org/example-plugin\n'],
+    ['quoted-comment.yml', 'run: "svn commit -m release" # publish\n'],
+    ['quoted-flow.yml', 'steps:\n  - { name: Deploy, run: "svn commit -m release" }\n'],
+    ['conditional.yml', 'run: if ! svn commit -m release; then exit 1; fi\n'],
+    ['then.yml', 'run: then svn commit -m release\n'],
+    ['brace.yml', 'run: "{ svn commit -m release; }"\n'],
+    ['exec.yml', 'run: exec svn commit -m release\n'],
+    ['timeout.yml', 'run: timeout 300 svn commit -m release\n'],
+    ['background.yml', 'run: echo ready & svn commit -m release\n'],
+    ['git-options.yml', 'run: git -C build svn dcommit\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -102,6 +111,35 @@ test('manifest policy ignores publisher action references in YAML comments', () 
   const { root, cleanup } = fixture();
   try {
     writeFileSync(join(root, '.github/workflows/comment.yml'), '# replaced 10up/action-wordpress-plugin-deploy@stable\n');
+    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy rejects WordPress.org credentials outside the managed caller', () => {
+  for (const workflow of [
+    'env:\n  SVN_USERNAME: ${{ secrets.SVN_USERNAME }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - uses: example/wporg-deploy@v1\n',
+    'jobs:\n  deploy:\n    uses: example/wporg.yml@v1\n    secrets: inherit\n',
+  ]) {
+    const { root, cleanup } = fixture();
+    try {
+      writeFileSync(join(root, '.github/workflows/custom.yml'), workflow);
+      assert.throws(
+        () => verifyManifestPolicy(inventory, 'example/plugin', root),
+        /contains a direct WordPress\.org publisher/u,
+      );
+    } finally {
+      cleanup();
+    }
+  }
+});
+
+test('manifest policy permits only the exact central credential mapping in the managed caller', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/release.yml'), 'secrets:\n  STUTTTER_WORDPRESS_ORG_USERNAME: ${{ secrets.WORDPRESS_ORG_USERNAME }}\n  STUTTTER_WORDPRESS_ORG_PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}\n');
     assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
   } finally {
     cleanup();
@@ -148,6 +186,23 @@ test('manifest policy follows a local action at the repository root', () => {
     );
   } finally {
     cleanup();
+  }
+});
+
+test('manifest policy follows flow and quoted-key local actions', () => {
+  for (const reference of ['steps:\n  - { uses: ./deploy }\n', 'steps:\n  - "uses": ./deploy\n']) {
+    const { root, cleanup } = fixture();
+    try {
+      mkdirSync(join(root, 'deploy'));
+      writeFileSync(join(root, 'deploy/action.yml'), 'runs:\n  steps:\n    - run: svn commit -m release\n');
+      writeFileSync(join(root, '.github/workflows/local.yml'), reference);
+      assert.throws(
+        () => verifyManifestPolicy(inventory, 'example/plugin', root),
+        /deploy\/action\.yml contains a direct WordPress\.org publisher/u,
+      );
+    } finally {
+      cleanup();
+    }
   }
 });
 
