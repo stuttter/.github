@@ -74,6 +74,11 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['wrapped-variable.yml', 'run: env $WP_SVN commit -m release\n'],
     ['neutral-variable.yml', 'run: CMD=svn; "$CMD" commit -m release\n'],
     ['wrapped-neutral-variable.yml', 'run: env "$CMD" commit -m release\n'],
+    ['wrapped-options-variable.yml', 'run: timeout 300 "$CMD" commit -m release\n'],
+    ['wrapped-env-variable.yml', 'run: env FOO=1 "$CMD" commit -m release\n'],
+    ['positional-variable.yml', 'run: set -- svn; "$1" commit -m release\n'],
+    ['dynamic-executable.yml', 'run: "$(printf svn)" commit -m release\n'],
+    ['nested-variable.yml', 'run: export CMD=svn; bash -c \'"$CMD" commit -m release\'\n'],
     ['encoding.yml', 'run: svn --encoding UTF-8 commit -m release\n'],
     ['inline.yml', 'steps:\n  - { name: Deploy, run: svn commit -m release }\n'],
     ['quoted-key.yml', 'steps:\n  - "run": svn commit -m release\n'],
@@ -185,6 +190,8 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     "env:\n  ALL_SECRETS: ${{ toJSON((secrets)) }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     "env:\n  ALL_SECRETS: ${{ toJSON(secrets || '') }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     'env:\n  P: |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: &password |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: !!str |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
     'jobs:\n  deploy: { uses: example/wporg.yml@v1, secrets: inherit }\n',
     'env:\n  P: &password "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P: !!str "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
@@ -453,6 +460,12 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: |\n  echo "Deploying to: "\n  rsync -av \\\n    build/ dist/\n',
     'steps:\n  - run: echo "Building:" ${{ github.ref_name }}\n  - run: |\n      composer install \\\n        --no-interaction\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
+    'run: "$PHP" -l example-plugin.php\n',
+    'run: $COMPOSER install --no-interaction\n',
+    'run: timeout "$SECONDS" "$PHP" -l example-plugin.php\n',
+    'run: function inspect_url { svn info "$URL"; }\n',
+    'run: function copy_file { cp "$SRC" "$DST"; }\n',
+    'run: timeout "$SECONDS" echo commit\n',
   ]) {
     const { root, cleanup } = fixture();
     try {

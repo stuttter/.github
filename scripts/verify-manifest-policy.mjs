@@ -17,6 +17,7 @@ const svnReadOnlyCommands = new Set(['annotate', 'blame', 'cat', 'checkout', 'co
 const svnOptionsWithValues = new Set(['--accept', '--change', '--changelist', '--cl', '--config-dir', '--config-option', '--depth', '--diff-cmd', '--diff3-cmd', '--editor-cmd', '--encoding', '--extensions', '--file', '--limit', '--message', '--native-eol', '--new', '--old', '--password', '--revision', '--search', '--set-depth', '--show-revs', '--strip', '--targets', '--trust-server-cert-failures', '--username', '--with-revprop', '-c', '-F', '-l', '-m', '-r', '-x']);
 const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
+const dynamicPublisherWriteCommands = new Set([...svnAlwaysRemoteWriteCommands, ...svnRdumpWriteCommands, ...svnSyncWriteCommands, 'put']);
 const commandWrappers = new Set(['command', 'env', 'exec', 'nice', 'nohup', 'sudo', 'time', 'timeout', 'xargs']);
 const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'zsh']);
 const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'elif', 'else', 'if', 'then', 'until', 'while']);
@@ -141,8 +142,14 @@ function svnWritesRemotely(tokens) {
   });
 }
 
-function isVariableExecutable(token) {
-  return /^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$\{[^}\r\n]+\})$/u.test(token);
+function isDynamicExecutable(token) {
+  return /^(?:\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)|\$\{[^}\r\n]+\}|\$\([\s\S]+\)|`[\s\S]+`)$/u.test(token);
+}
+
+function dynamicPublisherWritesRemotely(tokens) {
+  const { command } = svnSubcommand(tokens);
+  if (dynamicPublisherWriteCommands.has(command)) return true;
+  return svnWriteCommands.has(command) && svnWritesRemotely(tokens);
 }
 
 function commandSubstitutions(command) {
@@ -204,7 +211,7 @@ function segmentContainsDirectPublisher(segment) {
   let index = 0;
   while (index < tokens.length) {
     const token = tokens[index];
-    if (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(token) || shellControlPrefixes.has(token.toLowerCase()) || /\)$/u.test(token)) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(token) || shellControlPrefixes.has(token.toLowerCase()) || (!token.startsWith('$(') && /\)$/u.test(token))) {
       index += 1;
       continue;
     }
@@ -214,7 +221,7 @@ function segmentContainsDirectPublisher(segment) {
     }
     break;
   }
-  let variableExecutable = isVariableExecutable(tokens[index] ?? '');
+  let dynamicExecutable = isDynamicExecutable(tokens[index] ?? '');
   let executable = executableName(tokens[index] ?? '');
   let arguments_ = tokens.slice(index + 1);
 
@@ -223,9 +230,16 @@ function segmentContainsDirectPublisher(segment) {
 
   if (commandWrappers.has(executable)) {
     let nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)));
-    if (nestedIndex < 0 && isVariableExecutable(arguments_[0] ?? '')) nestedIndex = 0;
+    if (nestedIndex < 0) {
+      for (let candidate = arguments_.length - 1; candidate >= 0; candidate -= 1) {
+        if (isDynamicExecutable(arguments_[candidate]) && dynamicPublisherWritesRemotely(arguments_.slice(candidate + 1))) {
+          nestedIndex = candidate;
+          break;
+        }
+      }
+    }
     if (nestedIndex < 0) return false;
-    variableExecutable = isVariableExecutable(arguments_[nestedIndex]);
+    dynamicExecutable = isDynamicExecutable(arguments_[nestedIndex]);
     executable = executableName(arguments_[nestedIndex]);
     arguments_ = arguments_.slice(nestedIndex + 1);
   }
@@ -235,7 +249,7 @@ function segmentContainsDirectPublisher(segment) {
     return patternIndex >= 0 && segmentContainsDirectPublisher(arguments_.slice(patternIndex + 1).join(' '));
   }
 
-  if (variableExecutable && svnWritesRemotely(arguments_)) return true;
+  if (dynamicExecutable && dynamicPublisherWritesRemotely(arguments_)) return true;
   if (executable === 'svnmucc') return true;
   if (executable === 'svn' && svnWritesRemotely(arguments_)) return true;
   if (executable === 'svnrdump' && hasWriteCommand(arguments_, svnRdumpWriteCommands)) return true;
@@ -243,7 +257,7 @@ function segmentContainsDirectPublisher(segment) {
   if (executable === 'git' && executableName(arguments_[0] ?? '') === 'svn' && hasWriteCommand(arguments_.slice(1), new Set(['dcommit']))) return true;
   if (shellCommands.has(executable)) {
     const nested = arguments_.filter((token) => !token.startsWith('-')).join(' ');
-    if (/\b(?:svn|svnmucc|svnrdump|svnsync)\b/iu.test(nested)) return containsDirectPublisher(nested);
+    return containsDirectPublisher(nested);
   }
   if (/^(?:node|perl|php|python\d*(?:\.\d+)?|ruby)$/u.test(executable)) {
     const nested = arguments_.join(' ');
@@ -254,7 +268,7 @@ function segmentContainsDirectPublisher(segment) {
     for (let candidate = index + 1; candidate < tokens.length; candidate += 1) {
       const candidateExecutable = executableName(tokens[candidate]);
       const candidateArguments = tokens.slice(candidate + 1);
-      if (isVariableExecutable(tokens[candidate]) && svnWritesRemotely(candidateArguments)) return true;
+      if (isDynamicExecutable(tokens[candidate]) && dynamicPublisherWritesRemotely(candidateArguments)) return true;
       if (candidateExecutable === 'svnmucc') return true;
       if (candidateExecutable === 'svn' && svnWritesRemotely(candidateArguments)) return true;
       if (candidateExecutable === 'svnrdump' && hasWriteCommand(candidateArguments, svnRdumpWriteCommands)) return true;
@@ -329,7 +343,7 @@ function withoutYamlComments(definition) {
     const lineQuote = yamlQuoteState(line);
     const code = yamlCode(line);
     quote = lineQuote || yamlQuoteState(code);
-    if (/(?:^\s*|:)\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(code)) blockIndent = indent;
+    if (/(?:^\s*|:)\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(code)) blockIndent = indent;
     return code.includes('${{') || (lineQuote && line.includes('${{')) ? line : code;
   }).join('\n');
 }
@@ -437,7 +451,7 @@ function containsUnsupportedYamlEscape(definition) {
     if (!quoted && /^\s*#/u.test(line)) continue;
     const scalarStarts = [...line.matchAll(/(?:^\s*(?:-\s+)?|[{,]\s*)["']?[A-Za-z0-9_.-]+["']?\s*:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*"/gu)]
       .map((match) => match.index + match[0].lastIndexOf('"'));
-    if (!quoted && scalarStarts.length === 0 && /:\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(yamlCode(line))) {
+    if (!quoted && scalarStarts.length === 0 && /(?:^\s*|:)\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(yamlCode(line))) {
       const baseIndent = /^\s*/u.exec(line)[0].length;
       while (lineIndex + 1 < lines.length) {
         const next = lines[lineIndex + 1];
