@@ -276,7 +276,8 @@ function yamlQuoteState(line, initial = '') {
   let quote = initial;
   let index = 0;
   if (!quote) {
-    const start = /(?:^\s*(?:-\s+)?|[{,]\s*)["']?[A-Za-z0-9_.-]+["']?\s*:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*(["'])/u.exec(line);
+    const start = /(?:^\s*(?:-\s+)?|[{,]\s*)["']?[A-Za-z0-9_.-]+["']?\s*:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*(["'])/u.exec(line)
+      ?? /^\s*(?:-\s+)?(?:(?:&|!!?)[^\s,}\]]+\s+)*(["'])/u.exec(line);
     if (!start) return '';
     quote = start[1];
     index = start.index + start[0].length;

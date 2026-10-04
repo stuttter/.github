@@ -184,6 +184,7 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     "env:\n  P: ${{ '}}' && secrets[format('WORDPRESS_ORG_{0}', 'PASSWORD')] }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     'jobs:\n  with:\n    uses: ./.github/workflows/called.yml\n    secrets:\n      inherit\n',
     'jobs:\n  with:\n    uses: ./.github/workflows/called.yml\n    secrets:\n      &shared inherit\n',
+    'env:\n  P:\n    "${{ format(\'{0}{1}\', \'x\n    #\', secrets.WORDPRESS_ORG_PASSWORD) }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
