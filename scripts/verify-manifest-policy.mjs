@@ -201,12 +201,18 @@ function commandSubstitutions(command) {
 function segmentContainsDirectPublisher(segment) {
   const tokens = shellTokens(segment);
   let index = 0;
-  while (
-    /^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '')
-    || shellControlPrefixes.has(tokens[index]?.toLowerCase())
-    || /^(?:\d*|&)?>{1,2}|^(?:\d*|&)?<{1,2}/u.test(tokens[index] ?? '')
-    || /\)$/u.test(tokens[index] ?? '')
-  ) index += 1;
+  while (index < tokens.length) {
+    const token = tokens[index];
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(token) || shellControlPrefixes.has(token.toLowerCase()) || /\)$/u.test(token)) {
+      index += 1;
+      continue;
+    }
+    if (/^(?:\d*|&)?(?:>{1,2}|<{1,2}|<>|>&|<&)/u.test(token)) {
+      index += /^(?:\d*|&)?(?:>{1,2}|<{1,2}|<>|>&|<&)$/u.test(token) ? 2 : 1;
+      continue;
+    }
+    break;
+  }
   let variableExecutable = isSvnVariable(tokens[index] ?? '');
   let executable = executableName(tokens[index] ?? '');
   let arguments_ = tokens.slice(index + 1);
@@ -224,11 +230,8 @@ function segmentContainsDirectPublisher(segment) {
   }
 
   if (executable === 'case') {
-    const nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)) || isSvnVariable(token));
-    if (nestedIndex < 0) return false;
-    variableExecutable = isSvnVariable(arguments_[nestedIndex]);
-    executable = executableName(arguments_[nestedIndex]);
-    arguments_ = arguments_.slice(nestedIndex + 1);
+    const patternIndex = arguments_.findIndex((token) => /\)$/u.test(token));
+    return patternIndex >= 0 && segmentContainsDirectPublisher(arguments_.slice(patternIndex + 1).join(' '));
   }
 
   if (variableExecutable && svnWritesRemotely(arguments_)) return true;
