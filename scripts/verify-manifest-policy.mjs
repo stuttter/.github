@@ -65,7 +65,8 @@ function shellSegments(command) {
       current += character;
       continue;
     }
-    if (substitutionDepth === 0 && (character === '\n' || character === ';' || character === '|' || character === '&')) {
+    const redirectionAmpersand = character === '&' && (['>', '<'].includes(normalized[index - 1]) || next === '>');
+    if (substitutionDepth === 0 && !redirectionAmpersand && (character === '\n' || character === ';' || character === '|' || character === '&')) {
       if (current.trim()) segments.push(current.trim());
       current = '';
       if ((character === '|' || character === '&') && next === character) index += 1;
