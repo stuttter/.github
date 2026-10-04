@@ -173,7 +173,7 @@ function writeManagedFile(root, relativePath, desired) {
   }
 }
 
-function desiredFiles(root, target, policyRef) {
+export function desiredFiles(root, target, policyRef) {
   const { manifest } = target;
   const releaseBranch = manifest.release_branch || 'main';
   const phpMatrix = manifest.php_matrix || [manifest.minimum_php];

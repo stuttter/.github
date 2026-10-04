@@ -3,7 +3,7 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadInventory } from './sync-plugin-standards.mjs';
+import { desiredFiles, loadInventory } from './sync-plugin-standards.mjs';
 
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -128,9 +128,54 @@ function isSvnVariable(token) {
 
 function commandSubstitutions(command) {
   const substitutions = [];
-  const patterns = [/`([^`]*)`/gu, /\$\(([^()]*)\)/gu];
-  for (const pattern of patterns) {
-    for (const match of command.matchAll(pattern)) substitutions.push(match[1]);
+  let quote = '';
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    if (character === '\\') {
+      index += 1;
+      continue;
+    }
+    if (quote === "'") {
+      if (character === "'") quote = '';
+      continue;
+    }
+    if (character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '`') {
+      let end = index + 1;
+      for (; end < command.length; end += 1) {
+        if (command[end] === '\\') end += 1;
+        else if (command[end] === '`') break;
+      }
+      if (end < command.length) substitutions.push(command.slice(index + 1, end));
+      index = end;
+      continue;
+    }
+    if (!['$', '<', '>'].includes(character) || command[index + 1] !== '(') continue;
+    let depth = 1;
+    let nestedQuote = '';
+    let end = index + 2;
+    for (; end < command.length && depth > 0; end += 1) {
+      const nested = command[end];
+      if (nested === '\\') {
+        end += 1;
+        continue;
+      }
+      if (nestedQuote) {
+        if (nested === nestedQuote) nestedQuote = '';
+        continue;
+      }
+      if (nested === '"' || nested === "'") {
+        nestedQuote = nested;
+        continue;
+      }
+      if (nested === '(') depth += 1;
+      else if (nested === ')') depth -= 1;
+    }
+    if (depth === 0) substitutions.push(command.slice(index + 2, end - 1));
+    index = end - 1;
   }
   return substitutions;
 }
@@ -190,12 +235,15 @@ function containsDirectPublisherAction(definition) {
 }
 
 function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
-  const credential = /\bsecrets\.(?:(?:STUTTTER_)?(?:WORDPRESS|WP)_ORG|SVN)_(?:USERNAME|PASSWORD)\b/iu;
+  const credential = /\b(?:(?:STUTTTER_)?(?:WORDPRESS|WP)_ORG|WPORG|SVN)_(?:USERNAME|USER|PASSWORD|PASS)\b/iu;
   const allowedCaller = relative(projectRoot, path) === '.github/workflows/release.yml';
+  if (allowedCaller) return false;
   return definition.split(/\r?\n/u).some((line) => {
-    if (!credential.test(line)) return /\bsecrets\s*:\s*inherit\b/iu.test(line);
-    if (!allowedCaller) return true;
-    return !/^\s+STUTTTER_WORDPRESS_ORG_(USERNAME|PASSWORD):\s+\$\{\{\s*secrets\.WORDPRESS_ORG_\1\s*\}\}\s*$/u.test(line);
+    return credential.test(line)
+      || /\bsecrets\s*\[/iu.test(line)
+      || /\b[A-Za-z_][A-Za-z0-9_]*\(\s*secrets\s*\)/iu.test(line)
+      || /\$\{\{\s*secrets\s*\}\}/iu.test(line)
+      || /\bsecrets\s*:\s*inherit\b/iu.test(line);
   });
 }
 
@@ -299,6 +347,14 @@ function workflowDefinitions(root) {
 
 function verifyReleaseWorkflows(target, projectRoot) {
   if (!target.managed_paths.includes('release')) return;
+
+  const releasePath = resolve(projectRoot, '.github/workflows/release.yml');
+  const releaseDefinition = readFileSync(releasePath, 'utf8');
+  const policyRef = /stuttter\/\.github\/\.github\/workflows\/wordpress-plugin-release\.yml@([0-9a-f]{40})/u.exec(releaseDefinition)?.[1];
+  const expectedRelease = policyRef && desiredFiles(projectRoot, target, policyRef).get('.github/workflows/release.yml');
+  if (!expectedRelease || releaseDefinition !== expectedRelease) {
+    throw new Error('.github/workflows/release.yml differs from the fleet-managed release caller.');
+  }
 
   const definitions = new Set([
     ...workflowDefinitions(resolve(projectRoot, '.github/workflows')),

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
 import { verifyManifestPolicy } from '../scripts/verify-manifest-policy.mjs';
+import { desiredFiles } from '../scripts/sync-plugin-standards.mjs';
 
 const manifest = {
   slug: 'example-plugin',
@@ -25,7 +26,7 @@ function fixture(local = manifest) {
   mkdirSync(join(root, '.github'));
   mkdirSync(join(root, '.github/workflows'));
   writeFileSync(join(root, '.github/plugin-standard.json'), `${JSON.stringify({ $schema: 'https://example.test/schema.json', ...local }, null, 2)}\n`);
-  writeFileSync(join(root, '.github/workflows/release.yml'), '# Managed release caller.\n');
+  writeFileSync(join(root, '.github/workflows/release.yml'), desiredFiles(root, inventory.repositories[0], 'a'.repeat(40)).get('.github/workflows/release.yml'));
   return { root, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
@@ -79,6 +80,8 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['timeout.yml', 'run: timeout 300 svn commit -m release\n'],
     ['background.yml', 'run: echo ready & svn commit -m release\n'],
     ['git-options.yml', 'run: git -C build svn dcommit\n'],
+    ['nested-substitution.yml', 'run: REV=$(svn commit -m "Release $(cat VERSION)")\n'],
+    ['process-substitution.yml', 'run: cat <(svn commit -m release)\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -97,10 +100,11 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
 test('manifest policy scans the managed release caller for appended publishers', () => {
   const { root, cleanup } = fixture();
   try {
-    writeFileSync(join(root, '.github/workflows/release.yml'), 'uses: 10up/action-wordpress-plugin-deploy@stable\n');
+    const path = join(root, '.github/workflows/release.yml');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\nuses: 10up/action-wordpress-plugin-deploy@stable\n`);
     assert.throws(
       () => verifyManifestPolicy(inventory, 'example/plugin', root),
-      /release\.yml contains a direct WordPress\.org publisher/u,
+      /release\.yml differs from the fleet-managed release caller/u,
     );
   } finally {
     cleanup();
@@ -122,6 +126,9 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     'env:\n  SVN_USERNAME: ${{ secrets.SVN_USERNAME }}\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - uses: example/wporg-deploy@v1\n',
     'jobs:\n  deploy:\n    uses: example/wporg.yml@v1\n    secrets: inherit\n',
+    "env:\n  PASSWORD: ${{ secrets['WORDPRESS_ORG_PASSWORD'] }}\nsteps:\n  - run: ./bin/deploy.sh\n",
+    'env:\n  ALL_SECRETS: ${{ toJSON(secrets) }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  PASSWORD: ${{ secrets.WPORG_PASS }}\nsteps:\n  - run: ./bin/deploy.sh\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -136,11 +143,14 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
   }
 });
 
-test('manifest policy permits only the exact central credential mapping in the managed caller', () => {
+test('manifest policy rejects central credential mappings outside the exact managed caller shape', () => {
   const { root, cleanup } = fixture();
   try {
-    writeFileSync(join(root, '.github/workflows/release.yml'), 'secrets:\n  STUTTTER_WORDPRESS_ORG_USERNAME: ${{ secrets.WORDPRESS_ORG_USERNAME }}\n  STUTTTER_WORDPRESS_ORG_PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}\n');
-    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+    writeFileSync(join(root, '.github/workflows/release.yml'), 'jobs:\n  deploy:\n    runs-on: ubuntu-latest\n    env:\n      STUTTTER_WORDPRESS_ORG_USERNAME: ${{ secrets.WORDPRESS_ORG_USERNAME }}\n      STUTTTER_WORDPRESS_ORG_PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}\n    steps:\n      - run: ./bin/deploy.sh\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /release\.yml differs from the fleet-managed release caller/u,
+    );
   } finally {
     cleanup();
   }
