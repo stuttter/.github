@@ -273,6 +273,8 @@ function segmentContainsDirectPublisher(segment) {
     for (let candidate = 0; candidate < arguments_.length; candidate += 1) {
       const candidateExecutable = executableName(arguments_[candidate]);
       const candidateArguments = arguments_.slice(candidate + 1);
+      if (['parallel', 'watch'].includes(candidateExecutable)
+        && candidateArguments.some((argument) => /\s/u.test(argument) && containsDirectPublisher(argument))) return true;
       if (isDynamicExecutable(arguments_[candidate]) && dynamicPublisherWritesRemotely(candidateArguments)) return true;
       if (candidateExecutable === 'svnmucc' && hasWriteCommand(candidateArguments, svnMuccWriteCommands)) return true;
       if (candidateExecutable === 'svn') {
