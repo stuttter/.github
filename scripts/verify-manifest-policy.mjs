@@ -14,11 +14,11 @@ function comparableManifest(manifest) {
 const svnWriteCommands = new Set(['ci', 'commit', 'copy', 'cp', 'dcommit', 'delete', 'del', 'import', 'lock', 'mkdir', 'move', 'mv', 'pd', 'pdel', 'pe', 'pedit', 'propdel', 'propedit', 'propset', 'ps', 'pset', 'remove', 'ren', 'rename', 'rm', 'unlock']);
 const svnAlwaysRemoteWriteCommands = new Set(['ci', 'commit', 'dcommit', 'import', 'lock', 'unlock']);
 const svnReadOnlyCommands = new Set(['annotate', 'blame', 'cat', 'checkout', 'co', 'cleanup', 'diff', 'export', 'help', 'info', 'list', 'log', 'ls', 'mergeinfo', 'pg', 'pl', 'praise', 'propget', 'proplist', 'stat', 'status', 'st', 'update', 'up']);
-const svnOptionsWithValues = new Set(['--accept', '--change', '--changelist', '--cl', '--config-dir', '--config-option', '--depth', '--diff-cmd', '--diff3-cmd', '--editor-cmd', '--encoding', '--extensions', '--file', '--limit', '--message', '--native-eol', '--new', '--old', '--password', '--revision', '--search', '--set-depth', '--show-revs', '--strip', '--targets', '--trust-server-cert-failures', '--username', '--with-revprop', '-c', '-F', '-l', '-m', '-r', '-x']);
+const svnOptionsWithValues = new Set(['--accept', '--change', '--changelist', '--cl', '--config-dir', '--config-option', '--depth', '--diff-cmd', '--diff3-cmd', '--editor-cmd', '--encoding', '--extra-args', '--extensions', '--file', '--limit', '--message', '--native-eol', '--new', '--old', '--password', '--revision', '--root-url', '--search', '--set-depth', '--show-revs', '--source-password', '--source-username', '--strip', '--sync-password', '--sync-username', '--targets', '--trust-server-cert-failures', '--username', '--with-revprop', '-c', '-F', '-l', '-m', '-p', '-r', '-u', '-U', '-x', '-X']);
 const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
 const dynamicPublisherWriteCommands = new Set([...svnAlwaysRemoteWriteCommands, ...svnRdumpWriteCommands, ...svnSyncWriteCommands, 'put']);
-const commandWrappers = new Set(['command', 'env', 'exec', 'nice', 'nohup', 'sudo', 'time', 'timeout', 'xargs']);
+const commandWrappers = new Set(['builtin', 'command', 'doas', 'env', 'exec', 'flock', 'ionice', 'nice', 'nohup', 'setsid', 'stdbuf', 'sudo', 'time', 'timeout', 'xargs']);
 const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'zsh']);
 const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'elif', 'else', 'if', 'then', 'until', 'while']);
 
@@ -83,6 +83,8 @@ function shellTokens(command) {
   const tokens = [];
   let current = '';
   let quote = '';
+  let substitutionDepth = 0;
+  let backtick = false;
 
   for (let index = 0; index < command.length; index += 1) {
     const character = command[index];
@@ -95,11 +97,27 @@ function shellTokens(command) {
       else current += character;
       continue;
     }
+    if (character === '`') {
+      backtick = !backtick;
+      current += character;
+      continue;
+    }
+    if (!backtick && character === '$' && command[index + 1] === '(') {
+      substitutionDepth += 1;
+      current += '$(';
+      index += 1;
+      continue;
+    }
+    if (!backtick && character === ')' && substitutionDepth > 0) {
+      substitutionDepth -= 1;
+      current += character;
+      continue;
+    }
     if (character === '"' || character === "'") {
       quote = character;
       continue;
     }
-    if (/\s/u.test(character)) {
+    if (/\s/u.test(character) && !backtick && substitutionDepth === 0) {
       if (current) tokens.push(current);
       current = '';
       continue;
@@ -143,7 +161,7 @@ function svnWritesRemotely(tokens) {
 }
 
 function isDynamicExecutable(token) {
-  return /^(?:\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)|\$\{[^}\r\n]+\}|\$\([\s\S]+\)|`[\s\S]+`)$/u.test(token);
+  return /[$`*?\[]/u.test(token);
 }
 
 function dynamicPublisherWritesRemotely(tokens) {
@@ -211,7 +229,7 @@ function segmentContainsDirectPublisher(segment) {
   let index = 0;
   while (index < tokens.length) {
     const token = tokens[index];
-    if (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(token) || shellControlPrefixes.has(token.toLowerCase()) || (!token.startsWith('$(') && /\)$/u.test(token))) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(token) || shellControlPrefixes.has(token.toLowerCase()) || (!token.includes('$(') && /\)$/u.test(token))) {
       index += 1;
       continue;
     }
@@ -229,19 +247,19 @@ function segmentContainsDirectPublisher(segment) {
   if (executable === 'command' && arguments_[0] === '-v') return false;
 
   if (commandWrappers.has(executable)) {
-    let nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)));
-    if (nestedIndex < 0) {
-      for (let candidate = arguments_.length - 1; candidate >= 0; candidate -= 1) {
-        if (isDynamicExecutable(arguments_[candidate]) && dynamicPublisherWritesRemotely(arguments_.slice(candidate + 1))) {
-          nestedIndex = candidate;
-          break;
-        }
+    for (let candidate = 0; candidate < arguments_.length; candidate += 1) {
+      const candidateExecutable = executableName(arguments_[candidate]);
+      const candidateArguments = arguments_.slice(candidate + 1);
+      if (isDynamicExecutable(arguments_[candidate]) && dynamicPublisherWritesRemotely(candidateArguments)) return true;
+      if (candidateExecutable === 'svnmucc' && candidateArguments.length > 0) return true;
+      if (candidateExecutable === 'svn' && candidateArguments.length > 0 && svnWritesRemotely(candidateArguments)) return true;
+      if (candidateExecutable === 'svnrdump' && hasWriteCommand(candidateArguments, svnRdumpWriteCommands)) return true;
+      if (candidateExecutable === 'svnsync' && hasWriteCommand(candidateArguments, svnSyncWriteCommands)) return true;
+      if (shellCommands.has(candidateExecutable) || commandWrappers.has(candidateExecutable) || /^(?:node|perl|php|python\d*(?:\.\d+)?|ruby)$/u.test(candidateExecutable)) {
+        if (segmentContainsDirectPublisher(arguments_.slice(candidate).join(' '))) return true;
       }
     }
-    if (nestedIndex < 0) return false;
-    dynamicExecutable = isDynamicExecutable(arguments_[nestedIndex]);
-    executable = executableName(arguments_[nestedIndex]);
-    arguments_ = arguments_.slice(nestedIndex + 1);
+    return false;
   }
 
   if (executable === 'case') {
@@ -256,8 +274,13 @@ function segmentContainsDirectPublisher(segment) {
   if (executable === 'svnsync' && hasWriteCommand(arguments_, svnSyncWriteCommands)) return true;
   if (executable === 'git' && executableName(arguments_[0] ?? '') === 'svn' && hasWriteCommand(arguments_.slice(1), new Set(['dcommit']))) return true;
   if (shellCommands.has(executable)) {
-    const nested = arguments_.filter((token) => !token.startsWith('-')).join(' ');
-    return containsDirectPublisher(nested);
+    if (executable === 'eval') return containsDirectPublisher(arguments_.join(' '));
+    const commandIndex = arguments_.findIndex((token) => token === '-c' || /^-[^-]*c[^-]*$/u.test(token));
+    if (commandIndex < 0 || commandIndex + 1 >= arguments_.length) return false;
+    const script = arguments_[commandIndex + 1];
+    if (containsDirectPublisher(script)) return true;
+    if (/\$\{?[@*]\}?/u.test(script)) return containsDirectPublisher(arguments_.slice(commandIndex + 3).join(' '));
+    return false;
   }
   if (/^(?:node|perl|php|python\d*(?:\.\d+)?|ruby)$/u.test(executable)) {
     const nested = arguments_.join(' ');
@@ -285,6 +308,10 @@ function containsDirectPublisher(command) {
   return shellSegments(command).some(segmentContainsDirectPublisher);
 }
 
+function yamlQuotedScalarStarts(line, index) {
+  return /(?:^|[:\-,[?{])\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*$/u.test(line.slice(0, index));
+}
+
 function yamlCode(line) {
   let quote = '';
   for (let index = 0; index < line.length; index += 1) {
@@ -297,7 +324,7 @@ function yamlCode(line) {
       if (character === quote) quote = '';
       continue;
     }
-    if (character === '"' || character === "'") quote = character;
+    if ((character === '"' || character === "'") && yamlQuotedScalarStarts(line, index)) quote = character;
     else if (character === '#' && (index === 0 || /\s/u.test(line[index - 1]))) return line.slice(0, index);
   }
   return line;
@@ -340,11 +367,11 @@ function withoutYamlComments(definition) {
       quote = yamlQuoteState(line, quote);
       return line;
     }
-    const lineQuote = yamlQuoteState(line);
+    if (/^\s*#/u.test(line)) return '';
     const code = yamlCode(line);
-    quote = lineQuote || yamlQuoteState(code);
+    quote = yamlQuoteState(code);
     if (/(?:^\s*|:)\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(code)) blockIndent = indent;
-    return code.includes('${{') || (lineQuote && line.includes('${{')) ? line : code;
+    return code;
   }).join('\n');
 }
 
