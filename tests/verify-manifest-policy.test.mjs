@@ -106,6 +106,8 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['newline-escape.yml', 'run: "echo ok\\nsvn commit -m release"\n'],
     ['slash-escape.yml', 'uses: "10up\\/action-wordpress-plugin-deploy@stable"\n'],
     ['next-line-uses.yml', 'steps:\n  - uses:\n      10up/action-wordpress-plugin-deploy@stable\n'],
+    ['which-path.yml', 'run: "$(which svn)" commit -m release\n'],
+    ['type-path.yml', 'run: "$(type -P svn)" commit -m release\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -342,6 +344,20 @@ test('manifest policy rejects non-regular workflow definitions', () => {
   }
 });
 
+test('manifest policy permits non-YAML symlinked action assets', () => {
+  const { root, cleanup } = fixture();
+  try {
+    mkdirSync(join(root, 'bin'));
+    mkdirSync(join(root, '.github/actions/build'), { recursive: true });
+    writeFileSync(join(root, 'bin/build.sh'), '#!/bin/sh\n');
+    writeFileSync(join(root, '.github/actions/build/action.yml'), 'runs:\n  using: composite\n  steps:\n    - run: ./entrypoint.sh\n      shell: bash\n');
+    symlinkSync('../../../bin/build.sh', join(root, '.github/actions/build/entrypoint.sh'));
+    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+  } finally {
+    cleanup();
+  }
+});
+
 test('manifest policy leaves repository-owned workflows alone when release is not centrally managed', () => {
   const { root, cleanup } = fixture();
   try {
@@ -370,6 +386,9 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: type svn\n',
     'run: git ls-files | grep -v svn\n',
     'run: svn propget stable_tag https://plugins.svn.wordpress.org/example-plugin/trunk\n',
+    'run: |\n  printf "version=%s\\n" "$VERSION" >> "$GITHUB_OUTPUT"\n  composer install --working-dir "plugin" \\\n    --no-interaction\n',
+    'run: sudo rm -rf "$SVN_DIR"\n',
+    'run: timeout 60 ls "$SVN_CACHE"\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
   ]) {
     const { root, cleanup } = fixture();

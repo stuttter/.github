@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { desiredFiles, loadInventory } from './sync-plugin-standards.mjs';
@@ -23,8 +23,8 @@ const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'else', 'if', 'then']
 
 function shellSegments(command) {
   const normalized = command
-    .replace(/\$\(\s*command\s+-v\s+(?:svn|svnmucc)\s*\)/giu, (match) => match.toLowerCase().includes('svnmucc') ? 'svnmucc' : 'svn')
-    .replace(/`\s*command\s+-v\s+(?:svn|svnmucc)\s*`/giu, (match) => match.toLowerCase().includes('svnmucc') ? 'svnmucc' : 'svn');
+    .replace(/\$\(\s*(?:command\s+-v|which|type\s+-P)\s+(?:svn|svnmucc)\s*\)/giu, (match) => match.toLowerCase().includes('svnmucc') ? 'svnmucc' : 'svn')
+    .replace(/`\s*(?:command\s+-v|which|type\s+-P)\s+(?:svn|svnmucc)\s*`/giu, (match) => match.toLowerCase().includes('svnmucc') ? 'svnmucc' : 'svn');
   const segments = [];
   let current = '';
   let quote = '';
@@ -210,7 +210,8 @@ function segmentContainsDirectPublisher(segment) {
   if (executable === 'command' && arguments_[0] === '-v') return false;
 
   if (commandWrappers.has(executable)) {
-    const nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)) || isSvnVariable(token));
+    let nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)));
+    if (nestedIndex < 0 && isSvnVariable(arguments_[0] ?? '')) nestedIndex = 0;
     if (nestedIndex < 0) return false;
     variableExecutable = isSvnVariable(arguments_[nestedIndex]);
     executable = executableName(arguments_[nestedIndex]);
@@ -303,7 +304,7 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
 }
 
 function containsUnsupportedYamlEscape(definition) {
-  return definition.split(/\r?\n/u).some((line) => !/^\s*#/u.test(line) && /"[^"\r\n]*\\/u.test(line));
+  return definition.split(/\r?\n/u).some((line) => !/^\s*#/u.test(line) && /:\s*"[^"\r\n]*\\/u.test(line));
 }
 
 function quotedYamlScalar(value) {
@@ -394,7 +395,7 @@ function workflowDefinitions(root) {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     const path = resolve(root, entry.name);
     if (entry.isSymbolicLink()) {
-      throw new Error(`${path} must not be a symbolic link.`);
+      if (/\.ya?ml$/iu.test(entry.name) || statSync(path).isDirectory()) throw new Error(`${path} must not be a symbolic link.`);
     } else if (entry.isDirectory()) {
       definitions.push(...workflowDefinitions(path));
     } else if (/\.ya?ml$/iu.test(entry.name)) {
