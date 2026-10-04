@@ -44,7 +44,9 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['assets.yaml', 'uses: 10up/action-wordpress-plugin-asset-update@stable\n'],
     ['custom.yml', 'run: svn commit https://plugins.svn.wordpress.org/example-plugin\n'],
     ['options.yml', 'run: svn --non-interactive --username "$U" --password "$P" commit -m release\n'],
+    ['continued.yml', 'run: |\n  svn --non-interactive \\\n    commit -m release\n'],
     ['aliases.yml', 'run: svn rm https://plugins.svn.wordpress.org/example-plugin/tags/1.0 -m cleanup\n'],
+    ['git-svn.yml', 'run: git svn dcommit\n'],
     ['svnmucc.yml', 'run: svnmucc put artifact.zip https://plugins.svn.wordpress.org/example-plugin/trunk/artifact.zip\n'],
   ]) {
     const { root, cleanup } = fixture();
@@ -57,6 +59,19 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     } finally {
       cleanup();
     }
+  }
+});
+
+test('manifest policy scans the managed release caller for appended publishers', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/release.yml'), 'uses: 10up/action-wordpress-plugin-deploy@stable\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /release\.yml contains a direct WordPress\.org publisher/u,
+    );
+  } finally {
+    cleanup();
   }
 });
 

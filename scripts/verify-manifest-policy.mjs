@@ -13,7 +13,7 @@ function comparableManifest(manifest) {
 
 const directWordPressOrgPublisherPatterns = [
   /10up\/action-wordpress-plugin-(?:asset-update|deploy)@/iu,
-  /\bsvn\b[^\r\n]*?\b(?:ci|commit|copy|cp|delete|del|import|lock|mkdir|move|mv|pedit|propedit|propset|pset|remove|ren|rename|rm|unlock)\b/iu,
+  /\bsvn\b[^\r\n]*?\b(?:ci|commit|copy|cp|dcommit|delete|del|import|lock|mkdir|move|mv|pedit|propedit|propset|pset|remove|ren|rename|rm|unlock)\b/iu,
   /\bsvnmucc\b/iu,
 ];
 
@@ -43,9 +43,9 @@ function verifyReleaseWorkflows(target, projectRoot) {
     ...workflowDefinitions(resolve(projectRoot, '.github/actions')),
   ];
   for (const path of definitions) {
-    if (path === resolve(projectRoot, '.github/workflows/release.yml')) continue;
-    if (directWordPressOrgPublisherPatterns.some((pattern) => pattern.test(readFileSync(path, 'utf8')))) {
-      throw new Error(`${relative(projectRoot, path)} contains a direct WordPress.org publisher outside the fleet-managed release workflow.`);
+    const definition = readFileSync(path, 'utf8').replace(/\\\r?\n[\t ]*/gu, ' ');
+    if (directWordPressOrgPublisherPatterns.some((pattern) => pattern.test(definition))) {
+      throw new Error(`${relative(projectRoot, path)} contains a direct WordPress.org publisher instead of the fleet-managed release job.`);
     }
   }
 }
