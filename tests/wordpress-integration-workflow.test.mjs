@@ -57,6 +57,7 @@ test('wp-env is exact, locked, and carries the audited transitive override', () 
   assert.equal(runtime.overrides.qs, '6.16.0');
   assert.equal(lock.packages['node_modules/@wordpress/env'].version, '11.15.0');
   assert.equal(lock.packages['node_modules/qs'].version, '6.16.0');
+  assert.equal(lock.packages['node_modules/http-cache-semantics'].version, '4.3.0');
   assert.match(lock.packages['node_modules/@wordpress/env'].integrity, /^sha512-/u);
   assert.doesNotMatch(workflow, /patch-wordpress-env\.mjs/u);
 
@@ -67,7 +68,7 @@ test('wp-env is exact, locked, and carries the audited transitive override', () 
   }
 });
 
-test('the runtime audit keeps a fail-closed reviewed advisory exception', () => {
+test('the runtime audit remains a fail-closed central policy check', () => {
   const standards = readFileSync(new URL('../.github/workflows/standards-ci.yml', import.meta.url), 'utf8');
   assert.match(standards, /node scripts\/audit-wordpress-runtime\.mjs/u);
   assert.doesNotMatch(standards, /npm audit --audit-level=moderate --prefix runtime\/wordpress/u);
