@@ -175,7 +175,7 @@ function isDynamicExecutable(token) {
 function dynamicPublisherWritesRemotely(tokens) {
   const { command } = svnSubcommand(tokens);
   if (dynamicPublisherWriteCommands.has(command)) return true;
-  if (executableName(tokens[0] ?? '') === 'svn' && hasWriteCommand(tokens.slice(1), gitSvnWriteCommands)) return true;
+  if (tokens.some((token) => executableName(token) === 'svn') && hasWriteCommand(tokens, gitSvnWriteCommands)) return true;
   return svnWriteCommands.has(command) && svnWritesRemotely(tokens);
 }
 
