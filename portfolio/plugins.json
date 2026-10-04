@@ -524,6 +524,27 @@
       }
     },
     {
+      "repository": "stuttter/wp-multi-network",
+      "enabled": false,
+      "managed_paths": [],
+      "checks": {
+        "phpunit": false
+      },
+      "integration": {},
+      "manifest": {
+        "slug": "wp-multi-network",
+        "main_file": "wpmn-loader.php",
+        "risk": "critical",
+        "minimum_php": "7.4",
+        "minimum_wordpress": "6.4",
+        "tested_wordpress": "7.0",
+        "wordpress_org": true,
+        "multisite": true,
+        "release_branch": "master",
+        "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
+      }
+    },
+    {
       "repository": "stuttter/ludicrousdb",
       "enabled": true,
       "managed_paths": ["ci", "dependabot"],
