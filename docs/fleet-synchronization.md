@@ -124,8 +124,9 @@ limit organization credentials to the selected repositories and pinned workflow
 jobs that require them.
 
 Repository settings are reconciled separately from file synchronization. The
-settings provisioner derives each enabled target's required status checks from
-the immutable inventory, including syntax versions, enrolled project checks,
+settings provisioner selects only enabled targets whose `managed_paths`
+include `ci`, then derives their required status checks from the immutable
+inventory, including syntax versions, enrolled project checks,
 Plugin Check, WordPress integration cells, and the production artifact. A
 repository-specific workflow may contribute an explicit extra required check,
 but only through `protection.extra_required_checks` in the reviewed inventory.

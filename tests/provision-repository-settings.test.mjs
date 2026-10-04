@@ -109,12 +109,20 @@ function executor({ metadata = {}, protection = branchProtection() } = {}) {
   return { calls, execute };
 }
 
-test('command arguments and target selection keep apply fleet-wide', () => {
+test('command arguments and target selection keep apply scoped to centrally managed CI', () => {
   assert.deepEqual(commandArguments([]), { help: false, mode: 'audit', requested: 'all' });
   assert.deepEqual(commandArguments(['audit', target.repository]), { help: false, mode: 'audit', requested: target.repository });
   assert.throws(() => commandArguments(['apply', target.repository]), /complete enabled portfolio/);
-  assert.deepEqual(selectTargets({ repositories: [target, { ...target, repository: 'stuttter/disabled', enabled: false }] }), [target]);
-  assert.throws(() => selectTargets({ repositories: [target] }, 'stuttter/missing'), /not an enabled portfolio target/);
+  assert.deepEqual(selectTargets({ repositories: [
+    target,
+    { ...target, repository: 'stuttter/disabled', enabled: false },
+    { ...target, repository: 'stuttter/release-only', managed_paths: ['release'] },
+  ] }), [target]);
+  assert.throws(() => selectTargets({ repositories: [target] }, 'stuttter/missing'), /not an enabled centrally managed CI target/);
+  assert.throws(
+    () => selectTargets({ repositories: [{ ...target, managed_paths: ['release'] }] }, target.repository),
+    /not an enabled centrally managed CI target/,
+  );
   assert.throws(() => provisionRepositorySettings({ inventory: { repositories: [target] }, mode: 'audti' }), /Mode must be audit or apply/);
   assert.throws(
     () => provisionRepositorySettings({ inventory: { repositories: [target] }, mode: 'apply', requested: target.repository }),

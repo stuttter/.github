@@ -36,10 +36,10 @@ export function commandArguments(argumentsList) {
 
 export function selectTargets(inventory, requested = 'all') {
   const targets = inventory.repositories.filter((target) =>
-    target.enabled && (requested === 'all' || target.repository === requested)
+    target.enabled && target.managed_paths.includes('ci') && (requested === 'all' || target.repository === requested)
   );
   if (requested !== 'all' && targets.length !== 1) {
-    throw new Error(`${requested} is not an enabled portfolio target.`);
+    throw new Error(`${requested} is not an enabled centrally managed CI target.`);
   }
   return targets;
 }
