@@ -102,6 +102,10 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['anchored-uses.yml', 'uses: &deploy 10up/action-wordpress-plugin-deploy@stable\n'],
     ['tagged-uses.yml', 'uses: !!str 10up/action-wordpress-plugin-deploy@stable\n'],
     ['aliased-uses.yml', 'uses: *deploy\n'],
+    ['tab-escape.yml', 'run: "svn\\tcommit -m release"\n'],
+    ['newline-escape.yml', 'run: "echo ok\\nsvn commit -m release"\n'],
+    ['slash-escape.yml', 'uses: "10up\\/action-wordpress-plugin-deploy@stable"\n'],
+    ['next-line-uses.yml', 'steps:\n  - uses:\n      10up/action-wordpress-plugin-deploy@stable\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -151,6 +155,12 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     'env:\n  PASSWORD: ${{ secrets.WPORG_PASS }}\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  PASSWORD: "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     "env:\n  ALL_SECRETS: ${{ toJSON(secrets.*) }}\nsteps:\n  - run: ./bin/deploy.sh\n",
+    "jobs:\n  deploy:\n    uses: example/wporg.yml@v1\n    secrets: 'inherit'\n",
+    'jobs:\n  deploy:\n    uses: example/wporg.yml@v1\n    "secrets": inherit\n',
+    'jobs:\n  deploy:\n    uses: example/wporg.yml@v1\n    secrets:\n      inherit\n',
+    "env:\n  ALL_SECRETS: ${{ toJSON((secrets)) }}\nsteps:\n  - run: ./bin/deploy.sh\n",
+    "env:\n  ALL_SECRETS: ${{ toJSON(secrets || '') }}\nsteps:\n  - run: ./bin/deploy.sh\n",
+    'env:\n  P: |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -355,6 +365,11 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: svn rm --force /tmp/wp-tests/.svn\n',
     'run: svn mkdir local-working-copy-directory\n',
     'run: svn rm --force "${RUNNER_TEMP}/wp-tests/.svn"\n',
+    'run: svn --version\n',
+    'run: which svn\n',
+    'run: type svn\n',
+    'run: git ls-files | grep -v svn\n',
+    'run: svn propget stable_tag https://plugins.svn.wordpress.org/example-plugin/trunk\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
   ]) {
     const { root, cleanup } = fixture();
@@ -367,10 +382,10 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
   }
 });
 
-test('manifest policy ignores credential names in YAML comments', () => {
+test('manifest policy ignores unrelated YAML comments', () => {
   const { root, cleanup } = fixture();
   try {
-    writeFileSync(join(root, '.github/workflows/comment.yml'), '# WORDPRESS_ORG_PASSWORD is available only to the central caller.\nname: Audit # WORDPRESS_ORG_PASSWORD remains central\n');
+    writeFileSync(join(root, '.github/workflows/comment.yml'), '# Release credentials remain central.\nname: Audit # No publication here.\n');
     assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
   } finally {
     cleanup();

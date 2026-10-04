@@ -13,11 +13,11 @@ function comparableManifest(manifest) {
 
 const svnWriteCommands = new Set(['ci', 'commit', 'copy', 'cp', 'dcommit', 'delete', 'del', 'import', 'lock', 'mkdir', 'move', 'mv', 'pd', 'pdel', 'pe', 'pedit', 'propdel', 'propedit', 'propset', 'ps', 'pset', 'remove', 'ren', 'rename', 'rm', 'unlock']);
 const svnAlwaysRemoteWriteCommands = new Set(['ci', 'commit', 'dcommit', 'import', 'lock', 'unlock']);
-const svnReadOnlyCommands = new Set(['annotate', 'blame', 'cat', 'checkout', 'co', 'cleanup', 'diff', 'export', 'help', 'info', 'list', 'log', 'ls', 'mergeinfo', 'praise', 'stat', 'status', 'st', 'update', 'up', 'version']);
+const svnReadOnlyCommands = new Set(['annotate', 'blame', 'cat', 'checkout', 'co', 'cleanup', 'diff', 'export', 'help', 'info', 'list', 'log', 'ls', 'mergeinfo', 'pg', 'pl', 'praise', 'propget', 'proplist', 'stat', 'status', 'st', 'update', 'up']);
 const svnOptionsWithValues = new Set(['--accept', '--change', '--changelist', '--cl', '--config-dir', '--config-option', '--depth', '--diff-cmd', '--diff3-cmd', '--editor-cmd', '--encoding', '--extensions', '--file', '--limit', '--message', '--native-eol', '--new', '--old', '--password', '--revision', '--search', '--set-depth', '--show-revs', '--strip', '--targets', '--trust-server-cert-failures', '--username', '--with-revprop', '-c', '-F', '-l', '-m', '-r', '-x']);
 const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
-const commandWrappers = new Set(['command', 'env', 'nice', 'nohup', 'sudo', 'time', 'xargs']);
+const commandWrappers = new Set(['command', 'env', 'exec', 'nice', 'nohup', 'sudo', 'time', 'timeout', 'xargs']);
 const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'zsh']);
 const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'else', 'if', 'then']);
 
@@ -127,6 +127,7 @@ function svnSubcommand(tokens) {
 }
 
 function svnWritesRemotely(tokens) {
+  if (tokens[0] === '--version') return false;
   const { command, index: commandIndex } = svnSubcommand(tokens);
   if (!command) return true;
   if (svnReadOnlyCommands.has(command)) return false;
@@ -226,14 +227,17 @@ function segmentContainsDirectPublisher(segment) {
     const nested = arguments_.filter((token) => !token.startsWith('-')).join(' ');
     if (/\b(?:svn|svnmucc|svnrdump|svnsync)\b/iu.test(nested)) return containsDirectPublisher(nested);
   }
-  for (let candidate = index + 1; candidate < tokens.length; candidate += 1) {
-    const candidateExecutable = executableName(tokens[candidate]);
-    const candidateArguments = tokens.slice(candidate + 1);
-    if (isSvnVariable(tokens[candidate]) && svnWritesRemotely(candidateArguments)) return true;
-    if (candidateExecutable === 'svnmucc') return true;
-    if (candidateExecutable === 'svn' && svnWritesRemotely(candidateArguments)) return true;
-    if (candidateExecutable === 'svnrdump' && hasWriteCommand(candidateArguments, svnRdumpWriteCommands)) return true;
-    if (candidateExecutable === 'svnsync' && hasWriteCommand(candidateArguments, svnSyncWriteCommands)) return true;
+  if (executable === 'git' && hasWriteCommand(arguments_, new Set(['dcommit'])) && arguments_.some((token) => executableName(token) === 'svn')) return true;
+  if (/^[A-Za-z_][A-Za-z0-9_]*\(\)$/u.test(tokens[index] ?? '') || tokens.slice(index + 1).includes('{')) {
+    for (let candidate = index + 1; candidate < tokens.length; candidate += 1) {
+      const candidateExecutable = executableName(tokens[candidate]);
+      const candidateArguments = tokens.slice(candidate + 1);
+      if (isSvnVariable(tokens[candidate]) && svnWritesRemotely(candidateArguments)) return true;
+      if (candidateExecutable === 'svnmucc') return true;
+      if (candidateExecutable === 'svn' && svnWritesRemotely(candidateArguments)) return true;
+      if (candidateExecutable === 'svnrdump' && hasWriteCommand(candidateArguments, svnRdumpWriteCommands)) return true;
+      if (candidateExecutable === 'svnsync' && hasWriteCommand(candidateArguments, svnSyncWriteCommands)) return true;
+    }
   }
   return false;
 }
@@ -266,7 +270,7 @@ function yamlCode(line) {
 function containsDirectPublisherAction(definition) {
   return definition.split(/\r?\n/u).some((rawLine) => {
     const line = yamlCode(rawLine);
-    if (/^\s*(?:-\s+)?["']?uses["']?\s*:\s*(?:[>|]|[&*!])/iu.test(line)) return true;
+    if (/^\s*(?:-\s+)?["']?uses["']?\s*:\s*(?:$|[>|]|[&*!])/iu.test(line)) return true;
     return /(?:^\s*(?:-\s+)?|[{,]\s*)["']?uses["']?\s*:\s*["']?[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu.test(line);
   });
 }
@@ -275,15 +279,31 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
   const credential = /\b(?:(?:STUTTTER_)?(?:WORDPRESS|WP)_ORG|WPORG|SVN)_(?:USERNAME|USER|PASSWORD|PASS)\b/iu;
   const allowedCaller = relative(projectRoot, path) === '.github/workflows/release.yml';
   if (allowedCaller) return false;
-  return definition.split(/\r?\n/u).some((rawLine) => {
-    const line = yamlCode(rawLine);
-    if (credential.test(line) || /\bsecrets\s*:\s*inherit\b/iu.test(line)) return true;
-    return [...line.matchAll(/\$\{\{([\s\S]*?)\}\}/gu)].some((match) => /\bsecrets\s*\[|\bsecrets\.\*|\b[A-Za-z_][A-Za-z0-9_]*\(\s*secrets(?:\.\*)?\s*\)|^\s*secrets\s*$/iu.test(match[1]));
-  });
+  if (credential.test(definition)) return true;
+  for (const match of definition.matchAll(/\$\{\{([\s\S]*?)\}\}/gu)) {
+    const unnamed = match[1].replace(/\bsecrets\.[A-Za-z_][A-Za-z0-9_]*\b/gu, '');
+    if (/\bsecrets\b/iu.test(unnamed)) return true;
+  }
+  const lines = definition.split(/\r?\n/u);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (/^\s*#/u.test(lines[index])) continue;
+    const match = /^(\s*)(?:-\s+)?["']?secrets["']?\s*:\s*(.*)$/iu.exec(lines[index]);
+    if (!match) continue;
+    const value = yamlCode(match[2]).trim();
+    if (value) return true;
+    for (let nested = index + 1; nested < lines.length; nested += 1) {
+      if (!lines[nested].trim() || /^\s*#/u.test(lines[nested])) continue;
+      const indent = /^\s*/u.exec(lines[nested])[0].length;
+      if (indent <= match[1].length) break;
+      if (/^\s*["']?inherit["']?\s*(?:#.*)?$/iu.test(lines[nested])) return true;
+      break;
+    }
+  }
+  return false;
 }
 
 function containsUnsupportedYamlEscape(definition) {
-  return definition.split(/\r?\n/u).some((line) => /\\(?:x[0-9a-f]{2}|u[0-9a-f]{4}|U[0-9a-f]{8})/iu.test(yamlCode(line)));
+  return definition.split(/\r?\n/u).some((line) => !/^\s*#/u.test(line) && /"[^"\r\n]*\\/u.test(line));
 }
 
 function quotedYamlScalar(value) {
