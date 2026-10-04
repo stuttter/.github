@@ -141,8 +141,8 @@ function svnWritesRemotely(tokens) {
   });
 }
 
-function isSvnVariable(token) {
-  return /^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$\{[^}\r\n]+\})$/u.test(token) && token.toUpperCase().includes('SVN');
+function isVariableExecutable(token) {
+  return /^(?:\$[A-Za-z_][A-Za-z0-9_]*|\$\{[^}\r\n]+\})$/u.test(token);
 }
 
 function commandSubstitutions(command) {
@@ -214,7 +214,7 @@ function segmentContainsDirectPublisher(segment) {
     }
     break;
   }
-  let variableExecutable = isSvnVariable(tokens[index] ?? '');
+  let variableExecutable = isVariableExecutable(tokens[index] ?? '');
   let executable = executableName(tokens[index] ?? '');
   let arguments_ = tokens.slice(index + 1);
 
@@ -223,9 +223,9 @@ function segmentContainsDirectPublisher(segment) {
 
   if (commandWrappers.has(executable)) {
     let nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)));
-    if (nestedIndex < 0 && isSvnVariable(arguments_[0] ?? '')) nestedIndex = 0;
+    if (nestedIndex < 0 && isVariableExecutable(arguments_[0] ?? '')) nestedIndex = 0;
     if (nestedIndex < 0) return false;
-    variableExecutable = isSvnVariable(arguments_[nestedIndex]);
+    variableExecutable = isVariableExecutable(arguments_[nestedIndex]);
     executable = executableName(arguments_[nestedIndex]);
     arguments_ = arguments_.slice(nestedIndex + 1);
   }
@@ -254,7 +254,7 @@ function segmentContainsDirectPublisher(segment) {
     for (let candidate = index + 1; candidate < tokens.length; candidate += 1) {
       const candidateExecutable = executableName(tokens[candidate]);
       const candidateArguments = tokens.slice(candidate + 1);
-      if (isSvnVariable(tokens[candidate]) && svnWritesRemotely(candidateArguments)) return true;
+      if (isVariableExecutable(tokens[candidate]) && svnWritesRemotely(candidateArguments)) return true;
       if (candidateExecutable === 'svnmucc') return true;
       if (candidateExecutable === 'svn' && svnWritesRemotely(candidateArguments)) return true;
       if (candidateExecutable === 'svnrdump' && hasWriteCommand(candidateArguments, svnRdumpWriteCommands)) return true;
@@ -309,7 +309,7 @@ function yamlQuoteState(line, initial = '') {
       index += 1;
       continue;
     }
-    return '';
+    return yamlQuoteState(yamlCode(line.slice(index + 1)));
   }
   return quote;
 }
@@ -326,10 +326,11 @@ function withoutYamlComments(definition) {
       quote = yamlQuoteState(line, quote);
       return line;
     }
+    const lineQuote = yamlQuoteState(line);
     const code = yamlCode(line);
-    quote = yamlQuoteState(code);
-    if (/:\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(code)) blockIndent = indent;
-    return line.includes('${{') ? line : code;
+    quote = lineQuote || yamlQuoteState(code);
+    if (/(?:^\s*|:)\s*[>|](?:(?:[1-9][-+]?)|(?:[-+][1-9]?))?\s*$/u.test(code)) blockIndent = indent;
+    return code.includes('${{') || (lineQuote && line.includes('${{')) ? line : code;
   }).join('\n');
 }
 
