@@ -19,7 +19,7 @@ const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
 const commandWrappers = new Set(['command', 'env', 'exec', 'nice', 'nohup', 'sudo', 'time', 'timeout', 'xargs']);
 const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'zsh']);
-const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'else', 'if', 'then']);
+const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'elif', 'else', 'if', 'then', 'until', 'while']);
 
 function shellSegments(command) {
   const normalized = command
@@ -212,6 +212,14 @@ function segmentContainsDirectPublisher(segment) {
   if (commandWrappers.has(executable)) {
     let nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)));
     if (nestedIndex < 0 && isSvnVariable(arguments_[0] ?? '')) nestedIndex = 0;
+    if (nestedIndex < 0) return false;
+    variableExecutable = isSvnVariable(arguments_[nestedIndex]);
+    executable = executableName(arguments_[nestedIndex]);
+    arguments_ = arguments_.slice(nestedIndex + 1);
+  }
+
+  if (executable === 'case') {
+    const nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)) || isSvnVariable(token));
     if (nestedIndex < 0) return false;
     variableExecutable = isSvnVariable(arguments_[nestedIndex]);
     executable = executableName(arguments_[nestedIndex]);
