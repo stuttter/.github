@@ -56,6 +56,8 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['folded.yml', 'run: >\n  svn --non-interactive\n  commit -m release\n'],
     ['aliases.yml', 'run: svn rm https://plugins.svn.wordpress.org/example-plugin/tags/1.0 -m cleanup\n'],
     ['git-svn.yml', 'run: git svn dcommit\n'],
+    ['git-svn-tag.yml', 'run: git svn tag 1.0.0\n'],
+    ['git-svn-path.yml', 'run: /usr/lib/git-core/git-svn branch release\n'],
     ['svnmucc.yml', 'run: svnmucc put artifact.zip https://plugins.svn.wordpress.org/example-plugin/trunk/artifact.zip\n'],
     ['list-step.yml', 'steps:\n  - run: svn commit -m release\n'],
     ['message-option.yml', 'run: svn -m release commit https://plugins.svn.wordpress.org/example-plugin\n'],
@@ -72,6 +74,35 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['split-name.yml', "run: 's'vn commit -m release\n"],
     ['variable.yml', 'run: $SVN commit -m release\n'],
     ['wrapped-variable.yml', 'run: env $WP_SVN commit -m release\n'],
+    ['neutral-variable.yml', 'run: CMD=svn; "$CMD" commit -m release\n'],
+    ['wrapped-neutral-variable.yml', 'run: env "$CMD" commit -m release\n'],
+    ['wrapped-options-variable.yml', 'run: timeout 300 "$CMD" commit -m release\n'],
+    ['wrapped-env-variable.yml', 'run: env FOO=1 "$CMD" commit -m release\n'],
+    ['positional-variable.yml', 'run: set -- svn; "$1" commit -m release\n'],
+    ['dynamic-executable.yml', 'run: "$(printf svn)" commit -m release\n'],
+    ['unquoted-dynamic-executable.yml', 'run: $(printf svn) commit -m release\n'],
+    ['backtick-dynamic-executable.yml', 'run: `printf svn` commit -m release\n'],
+    ['composed-variable.yml', 'run: "$A$B" commit -m release\n'],
+    ['dynamic-path.yml', 'run: "$DIR/$CMD" commit -m release\n'],
+    ['nested-variable.yml', 'run: export CMD=svn; bash -c \'"$CMD" commit -m release\'\n'],
+    ['wrapped-shell.yml', 'run: sudo bash -c \'svn commit -m release\'\n'],
+    ['wrapped-shell-prefix.yml', 'run: sudo bash -c \'cd build && svn commit -m release\'\n'],
+    ['shell-options.yml', 'run: bash -o pipefail -c \'svn commit -m release\'\n'],
+    ['shell-positional.yml', 'run: bash -c \'"$@"\' _ svn commit -m release\n'],
+    ['shell-zero-positional.yml', 'run: bash -c \'"$0" "$@"\' svn commit -m release\n'],
+    ['dynamic-mucc-options.yml', 'run: "$CMD" -U https://plugins.svn.wordpress.org/example-plugin put artifact.zip trunk/artifact.zip -m release\n'],
+    ['folded-blank-line.yml', 'run: >\n  true\n\n  svn commit -m release\n'],
+    ['escaped-comment-space.yml', 'run: |\n  echo a\\ #b; svn commit -m release\n'],
+    ['trap.yml', 'run: trap \'svn commit -m release\' EXIT\n'],
+    ['coproc.yml', 'run: coproc svn commit -m release\n'],
+    ['here-string.yml', 'run: bash <<< "svn commit -m release"\n'],
+    ['piped-shell.yml', 'run: echo \'svn commit -m release\' | sh\n'],
+    ['find-exec.yml', 'run: find . -maxdepth 0 -exec svn commit -m release {} +\n'],
+    ['parallel.yml', 'run: parallel svn commit -m release ::: .\n'],
+    ['parallel-template.yml', "run: parallel 'svn commit -m release {}' ::: .\n"],
+    ['watch-template.yml', "run: watch -g 'svn commit -m release'\n"],
+    ['wrapped-watch-template.yml', "run: timeout 60 watch -g 'svn commit -m release'\n"],
+    ['python-shell.yml', "steps:\n  - shell: python\n    run: |\n      import os\n      os.system('svn commit -m release')\n"],
     ['encoding.yml', 'run: svn --encoding UTF-8 commit -m release\n'],
     ['inline.yml', 'steps:\n  - { name: Deploy, run: svn commit -m release }\n'],
     ['quoted-key.yml', 'steps:\n  - "run": svn commit -m release\n'],
@@ -183,6 +214,10 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     "env:\n  ALL_SECRETS: ${{ toJSON((secrets)) }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     "env:\n  ALL_SECRETS: ${{ toJSON(secrets || '') }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     'env:\n  P: |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: &password |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  P: !!str |\n    #${{ secrets.WORDPRESS_ORG_PASSWORD }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    "env:\n  P: 'a'' #${{ secrets.WORDPRESS_ORG_PASSWORD }}'\nsteps:\n  - run: ./bin/deploy.sh\n",
+    '# e.g. {key: "\nenv:\n  P: "deploy\n    # ${{ secrets.WORDPRESS_ORG_PASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'jobs:\n  deploy: { uses: example/wporg.yml@v1, secrets: inherit }\n',
     'env:\n  P: &password "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  P: !!str "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
@@ -196,6 +231,8 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     "env:\n  P: '${{ ''\n    #'' && secrets.WORDPRESS_ORG_PASSWORD }}'\nsteps:\n  - run: ./bin/deploy.sh\n",
     "env:\n  P: ${{ '}}' && secrets[format('WORDPRESS_ORG_{0}', 'PASSWORD')] }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     'jobs:\n  with:\n    uses: ./.github/workflows/called.yml\n    secrets:\n      inherit\n',
+    'jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n  with:\n    uses: example/deploy/.github/workflows/wporg.yml@v1\n    secrets: inherit\n',
+    'jobs:\n  deploy: { uses: example/deploy/.github/workflows/wporg.yml@v1, secrets: &shared inherit }\n',
     'jobs:\n  with:\n    uses: ./.github/workflows/called.yml\n    secrets:\n      &shared inherit\n',
     'env:\n  P:\n    "${{ format(\'{0}{1}\', \'x\n    #\', secrets.WORDPRESS_ORG_PASSWORD) }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
   ]) {
@@ -451,6 +488,18 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: |\n  echo "Deploying to: "\n  rsync -av \\\n    build/ dist/\n',
     'steps:\n  - run: echo "Building:" ${{ github.ref_name }}\n  - run: |\n      composer install \\\n        --no-interaction\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
+    'run: "$PHP" -l example-plugin.php\n',
+    'run: $COMPOSER install --no-interaction\n',
+    'run: timeout "$SECONDS" "$PHP" -l example-plugin.php\n',
+    'run: function inspect_url { svn info "$URL"; }\n',
+    'run: function copy_file { cp "$SRC" "$DST"; }\n',
+    'run: timeout "$SECONDS" echo commit\n',
+    'run: sudo rm -rf svn\n',
+    'run: nice rsync -a build/ svn/\n',
+    'run: timeout 10 which svn\n',
+    'run: command -V svn\n',
+    'run: sudo -u svn whoami\n',
+    'run: nice rsync -a svn/ build/\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -465,7 +514,10 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
 test('manifest policy ignores YAML comments', () => {
   const { root, cleanup } = fixture();
   try {
-    writeFileSync(join(root, '.github/workflows/comment.yml'), '# SVN_PASSWORD is available only to the central caller.\nname: Audit # WORDPRESS_ORG_PASSWORD remains central.\n');
+    writeFileSync(
+      join(root, '.github/workflows/comment.yml'),
+      '# SVN_PASSWORD and ${{ secrets.WORDPRESS_ORG_PASSWORD }} are available only to the central caller.\nname: Audit # ${{ secrets.WORDPRESS_ORG_PASSWORD }} remains central.\nenv:\n  TOKEN: ${{ secrets.GITHUB_TOKEN }} # ${{ secrets.WORDPRESS_ORG_PASSWORD }} remains central.\n',
+    );
     assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
   } finally {
     cleanup();
