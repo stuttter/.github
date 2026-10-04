@@ -393,6 +393,7 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: |\n  printf "version=%s\\n" "$VERSION" >> "$GITHUB_OUTPUT"\n  composer install --working-dir "plugin" \\\n    --no-interaction\n',
     'run: sudo rm -rf "$SVN_DIR"\n',
     'run: timeout 60 ls "$SVN_CACHE"\n',
+    'run: |\n  echo "Deploying to: "\n  rsync -av \\\n    build/ dist/\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
   ]) {
     const { root, cleanup } = fixture();

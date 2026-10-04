@@ -306,8 +306,20 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
 
 function containsUnsupportedYamlEscape(definition) {
   let quoted = false;
-  for (const line of definition.split(/\r?\n/u)) {
+  const lines = definition.split(/\r?\n/u);
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
     if (!quoted && /^\s*#/u.test(line)) continue;
+    if (!quoted && /:\s*[>|](?:[-+]\d*)?\s*(?:#.*)?$/u.test(line)) {
+      const baseIndent = /^\s*/u.exec(line)[0].length;
+      while (lineIndex + 1 < lines.length) {
+        const next = lines[lineIndex + 1];
+        const indent = /^\s*/u.exec(next)[0].length;
+        if (next.trim() && indent <= baseIndent) break;
+        lineIndex += 1;
+      }
+      continue;
+    }
     let index = 0;
     while (index < line.length) {
       if (!quoted) {
