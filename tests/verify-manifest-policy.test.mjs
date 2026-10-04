@@ -41,10 +41,12 @@ test('manifest policy accepts the exact centrally declared metadata', () => {
 test('manifest policy rejects direct WordPress.org publishers outside the managed release caller', () => {
   for (const [name, workflow] of [
     ['deploy.yml', 'uses: 10UP/Action-WordPress-Plugin-Deploy@stable\n'],
+    ['fork.yml', 'uses: example/action-wordpress-plugin-deploy@v2\n'],
     ['assets.yaml', 'uses: 10up/action-wordpress-plugin-asset-update@stable\n'],
     ['custom.yml', 'run: svn commit https://plugins.svn.wordpress.org/example-plugin\n'],
     ['options.yml', 'run: svn --non-interactive --username "$U" --password "$P" commit -m release\n'],
     ['continued.yml', 'run: |\n  svn --non-interactive \\\n    commit -m release\n'],
+    ['folded.yml', 'run: >\n  svn --non-interactive\n  commit -m release\n'],
     ['aliases.yml', 'run: svn rm https://plugins.svn.wordpress.org/example-plugin/tags/1.0 -m cleanup\n'],
     ['git-svn.yml', 'run: git svn dcommit\n'],
     ['svnmucc.yml', 'run: svnmucc put artifact.zip https://plugins.svn.wordpress.org/example-plugin/trunk/artifact.zip\n'],
@@ -89,6 +91,21 @@ test('manifest policy scans local composite actions for direct publishers', () =
   }
 });
 
+test('manifest policy follows local actions outside the conventional directory', () => {
+  const { root, cleanup } = fixture();
+  try {
+    mkdirSync(join(root, 'deploy'), { recursive: true });
+    writeFileSync(join(root, 'deploy/action.yml'), 'runs:\n  steps:\n    - uses: example/action-wordpress-plugin-asset-update@v1\n');
+    writeFileSync(join(root, '.github/workflows/local.yml'), 'steps:\n  - uses: ./deploy\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /deploy\/action\.yml contains a direct WordPress\.org publisher/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
 test('manifest policy rejects non-regular workflow definitions', () => {
   const { root, cleanup } = fixture();
   try {
@@ -116,15 +133,19 @@ test('manifest policy leaves repository-owned workflows alone when release is no
 });
 
 test('manifest policy allows read-only Subversion inspection in managed repositories', () => {
-  const { root, cleanup } = fixture();
-  try {
-    writeFileSync(
-      join(root, '.github/workflows/audit.yml'),
-      'run: svn --non-interactive info https://plugins.svn.wordpress.org/example-plugin\n',
-    );
-    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
-  } finally {
-    cleanup();
+  for (const workflow of [
+    'run: svn --non-interactive info https://plugins.svn.wordpress.org/example-plugin\n',
+    'run: svn export --quiet https://develop.svn.wordpress.org/tags/6.4/tests/phpunit/includes/ /tmp/wp-tests && rm -rf /tmp/wp-tests/.svn\n',
+    'run: svn checkout https://plugins.svn.wordpress.org/example-plugin/trunk ci-cache\n',
+    'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
+  ]) {
+    const { root, cleanup } = fixture();
+    try {
+      writeFileSync(join(root, '.github/workflows/audit.yml'), workflow);
+      assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+    } finally {
+      cleanup();
+    }
   }
 });
 

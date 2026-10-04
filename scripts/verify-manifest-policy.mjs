@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './sync-plugin-standards.mjs';
 
@@ -11,11 +11,76 @@ function comparableManifest(manifest) {
   return Object.fromEntries(Object.entries(manifest).filter(([key]) => key !== '$schema').sort(([left], [right]) => left.localeCompare(right)));
 }
 
-const directWordPressOrgPublisherPatterns = [
-  /10up\/action-wordpress-plugin-(?:asset-update|deploy)@/iu,
-  /\bsvn\b[^\r\n]*?\b(?:ci|commit|copy|cp|dcommit|delete|del|import|lock|mkdir|move|mv|pedit|propedit|propset|pset|remove|ren|rename|rm|unlock)\b/iu,
-  /\bsvnmucc\b/iu,
-];
+const directPublisherAction = /[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu;
+const svnWriteCommands = new Set(['ci', 'commit', 'copy', 'cp', 'dcommit', 'delete', 'del', 'import', 'lock', 'mkdir', 'move', 'mv', 'pedit', 'propedit', 'propset', 'pset', 'remove', 'ren', 'rename', 'rm', 'unlock']);
+const svnOptionsWithValues = new Set(['--config-dir', '--config-option', '--password', '--trust-server-cert-failures', '--username']);
+
+function containsDirectPublisher(command) {
+  const tokens = command
+    .replace(/[;&|`()]/gu, ' ')
+    .split(/\s+/u)
+    .map((token) => token.replace(/^["']|["']$/gu, ''))
+    .filter(Boolean);
+
+  if (tokens.some((token) => token.toLowerCase() === 'svnmucc')) return true;
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index].toLowerCase() !== 'svn') continue;
+    index += 1;
+    while (index < tokens.length && tokens[index].startsWith('-')) {
+      const option = tokens[index].toLowerCase();
+      index += svnOptionsWithValues.has(option) && !option.includes('=') ? 2 : 1;
+    }
+    if (svnWriteCommands.has(tokens[index]?.toLowerCase())) return true;
+  }
+  return false;
+}
+
+function workflowCommands(definition) {
+  const lines = definition.split(/\r?\n/u);
+  const commands = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^([\t ]*)run:\s*(.*)$/u.exec(lines[index]);
+    if (!match) continue;
+
+    const baseIndent = match[1].length;
+    const scalar = /^([>|])(?:[-+]\d*)?\s*(?:#.*)?$/u.exec(match[2].trim());
+    const parts = scalar ? [] : [match[2].trim()];
+    while (index + 1 < lines.length) {
+      const next = lines[index + 1];
+      const indent = /^[\t ]*/u.exec(next)[0].length;
+      if (next.trim() && indent <= baseIndent) break;
+      index += 1;
+      parts.push(next.trim());
+    }
+
+    const separator = scalar?.[1] === '|' ? '\n' : ' ';
+    commands.push(parts.join(separator).replace(/\\\r?\n[\t ]*/gu, ' '));
+  }
+  return commands;
+}
+
+function localActionDefinitions(definition, projectRoot) {
+  const canonicalRoot = realpathSync(projectRoot);
+  const paths = [];
+  const references = definition.matchAll(/^\s*(?:-\s*)?uses:\s*["']?(\.\/[^"'\s#]+)["']?\s*(?:#.*)?$/gimu);
+  for (const [, reference] of references) {
+    const actionRoot = resolve(projectRoot, reference.slice(2));
+    if (actionRoot !== projectRoot && !actionRoot.startsWith(`${projectRoot}${sep}`)) {
+      throw new Error(`${reference} escapes the repository root.`);
+    }
+    for (const name of ['action.yml', 'action.yaml']) {
+      const path = resolve(actionRoot, name);
+      if (!existsSync(path)) continue;
+      const canonicalPath = realpathSync(path);
+      const expectedPath = resolve(canonicalRoot, relative(projectRoot, path));
+      if (!lstatSync(path).isFile() || canonicalPath !== expectedPath || !canonicalPath.startsWith(`${canonicalRoot}${sep}`)) {
+        throw new Error(`${relative(projectRoot, path)} must be a regular in-repository action definition.`);
+      }
+      paths.push(path);
+    }
+  }
+  return paths;
+}
 
 function workflowDefinitions(root) {
   if (!existsSync(root)) return [];
@@ -38,13 +103,17 @@ function workflowDefinitions(root) {
 function verifyReleaseWorkflows(target, projectRoot) {
   if (!target.managed_paths.includes('release')) return;
 
-  const definitions = [
+  const definitions = new Set([
     ...workflowDefinitions(resolve(projectRoot, '.github/workflows')),
     ...workflowDefinitions(resolve(projectRoot, '.github/actions')),
-  ];
+  ]);
   for (const path of definitions) {
-    const definition = readFileSync(path, 'utf8').replace(/\\\r?\n[\t ]*/gu, ' ');
-    if (directWordPressOrgPublisherPatterns.some((pattern) => pattern.test(definition))) {
+    const definition = readFileSync(path, 'utf8');
+    for (const localPath of localActionDefinitions(definition, projectRoot)) definitions.add(localPath);
+    if (
+      directPublisherAction.test(definition) ||
+      workflowCommands(definition).some(containsDirectPublisher)
+    ) {
       throw new Error(`${relative(projectRoot, path)} contains a direct WordPress.org publisher instead of the fleet-managed release job.`);
     }
   }
