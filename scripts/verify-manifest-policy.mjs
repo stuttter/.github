@@ -19,7 +19,7 @@ const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
 const gitSvnWriteCommands = new Set(['branch', 'dcommit', 'set-tree', 'tag']);
 const svnMuccWriteCommands = new Set(['cp', 'mkdir', 'mv', 'propdel', 'propset', 'put', 'rm']);
-const dynamicPublisherWriteCommands = new Set([...svnAlwaysRemoteWriteCommands, ...svnRdumpWriteCommands, ...svnSyncWriteCommands, 'put']);
+const dynamicPublisherWriteCommands = new Set([...svnAlwaysRemoteWriteCommands, ...svnRdumpWriteCommands, ...svnSyncWriteCommands, ...gitSvnWriteCommands, 'put']);
 const commandWrappers = new Set(['builtin', 'command', 'doas', 'env', 'exec', 'find', 'flock', 'ionice', 'nice', 'nohup', 'parallel', 'setsid', 'stdbuf', 'sudo', 'time', 'timeout', 'watch', 'xargs']);
 const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'trap', 'zsh']);
 const shellControlPrefixes = new Set(['!', '(', '{', 'coproc', 'do', 'elif', 'else', 'if', 'then', 'until', 'while']);
@@ -175,6 +175,7 @@ function isDynamicExecutable(token) {
 function dynamicPublisherWritesRemotely(tokens) {
   const { command } = svnSubcommand(tokens);
   if (dynamicPublisherWriteCommands.has(command)) return true;
+  if (executableName(tokens[0] ?? '') === 'svn' && hasWriteCommand(tokens.slice(1), gitSvnWriteCommands)) return true;
   return svnWriteCommands.has(command) && svnWritesRemotely(tokens);
 }
 
