@@ -17,10 +17,12 @@ const svnReadOnlyCommands = new Set(['annotate', 'blame', 'cat', 'checkout', 'co
 const svnOptionsWithValues = new Set(['--accept', '--change', '--changelist', '--cl', '--config-dir', '--config-option', '--depth', '--diff-cmd', '--diff3-cmd', '--editor-cmd', '--encoding', '--extra-args', '--extensions', '--file', '--limit', '--message', '--native-eol', '--new', '--old', '--password', '--revision', '--root-url', '--search', '--set-depth', '--show-revs', '--source-password', '--source-username', '--strip', '--sync-password', '--sync-username', '--targets', '--trust-server-cert-failures', '--username', '--with-revprop', '-c', '-F', '-l', '-m', '-p', '-r', '-u', '-U', '-x', '-X']);
 const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
+const gitSvnWriteCommands = new Set(['branch', 'dcommit', 'set-tree', 'tag']);
+const svnMuccWriteCommands = new Set(['cp', 'mkdir', 'mv', 'propdel', 'propset', 'put', 'rm']);
 const dynamicPublisherWriteCommands = new Set([...svnAlwaysRemoteWriteCommands, ...svnRdumpWriteCommands, ...svnSyncWriteCommands, 'put']);
 const commandWrappers = new Set(['builtin', 'command', 'doas', 'env', 'exec', 'flock', 'ionice', 'nice', 'nohup', 'setsid', 'stdbuf', 'sudo', 'time', 'timeout', 'xargs']);
-const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'zsh']);
-const shellControlPrefixes = new Set(['!', '(', '{', 'do', 'elif', 'else', 'if', 'then', 'until', 'while']);
+const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'trap', 'zsh']);
+const shellControlPrefixes = new Set(['!', '(', '{', 'coproc', 'do', 'elif', 'else', 'if', 'then', 'until', 'while']);
 
 function shellSegments(command) {
   const normalized = command
@@ -49,7 +51,13 @@ function shellSegments(command) {
       current += character;
       continue;
     }
-    if (character === '#' && (index === 0 || /\s/u.test(normalized[index - 1]))) {
+    let escapedBoundary = false;
+    if (character === '#' && index > 0 && /\s/u.test(normalized[index - 1])) {
+      let slashes = 0;
+      for (let cursor = index - 2; cursor >= 0 && normalized[cursor] === '\\'; cursor -= 1) slashes += 1;
+      escapedBoundary = slashes % 2 === 1;
+    }
+    if (character === '#' && (index === 0 || (/\s/u.test(normalized[index - 1]) && !escapedBoundary))) {
       while (index + 1 < normalized.length && normalized[index + 1] !== '\n') index += 1;
       if (current.trim()) segments.push(current.trim());
       current = '';
@@ -170,6 +178,19 @@ function dynamicPublisherWritesRemotely(tokens) {
   return svnWriteCommands.has(command) && svnWritesRemotely(tokens);
 }
 
+function shellInvocationContainsPublisher(executable, arguments_) {
+  if (executable === 'eval' || executable === 'trap') return containsDirectPublisher(arguments_.join(' '));
+  const commandIndex = arguments_.findIndex((token) => token === '-c' || /^-[^-]*c[^-]*$/u.test(token));
+  if (commandIndex >= 0 && commandIndex + 1 < arguments_.length) {
+    const script = arguments_[commandIndex + 1];
+    if (containsDirectPublisher(script)) return true;
+    if (/\$\{?0\}?/u.test(script) && containsDirectPublisher(arguments_.slice(commandIndex + 2).join(' '))) return true;
+    if (/\$\{?[@*]\}?/u.test(script) && containsDirectPublisher(arguments_.slice(commandIndex + 3).join(' '))) return true;
+  }
+  const hereString = arguments_.indexOf('<<<');
+  return hereString >= 0 && containsDirectPublisher(arguments_.slice(hereString + 1).join(' '));
+}
+
 function commandSubstitutions(command) {
   const substitutions = [];
   let quote = '';
@@ -251,13 +272,17 @@ function segmentContainsDirectPublisher(segment) {
       const candidateExecutable = executableName(arguments_[candidate]);
       const candidateArguments = arguments_.slice(candidate + 1);
       if (isDynamicExecutable(arguments_[candidate]) && dynamicPublisherWritesRemotely(candidateArguments)) return true;
-      if (candidateExecutable === 'svnmucc' && candidateArguments.length > 0) return true;
-      if (candidateExecutable === 'svn' && candidateArguments.length > 0 && svnWritesRemotely(candidateArguments)) return true;
+      if (candidateExecutable === 'svnmucc' && hasWriteCommand(candidateArguments, svnMuccWriteCommands)) return true;
+      if (candidateExecutable === 'svn') {
+        const { command } = svnSubcommand(candidateArguments);
+        if (executable === 'xargs') return true;
+        if (svnWriteCommands.has(command) && svnWritesRemotely(candidateArguments)) return true;
+      }
       if (candidateExecutable === 'svnrdump' && hasWriteCommand(candidateArguments, svnRdumpWriteCommands)) return true;
       if (candidateExecutable === 'svnsync' && hasWriteCommand(candidateArguments, svnSyncWriteCommands)) return true;
-      if (shellCommands.has(candidateExecutable) || commandWrappers.has(candidateExecutable) || /^(?:node|perl|php|python\d*(?:\.\d+)?|ruby)$/u.test(candidateExecutable)) {
-        if (segmentContainsDirectPublisher(arguments_.slice(candidate).join(' '))) return true;
-      }
+      if (shellCommands.has(candidateExecutable) && shellInvocationContainsPublisher(candidateExecutable, candidateArguments)) return true;
+      if (/^(?:node|perl|php|python\d*(?:\.\d+)?|ruby)$/u.test(candidateExecutable)
+        && /\bsvn(?:mucc|rdump|sync)?\b[\s\S]*\b(?:branch|ci|commit|copy|cp|dcommit|delete|del|import|init|load|lock|mkdir|move|mv|pd|pdel|pe|pedit|propdel|propedit|propset|ps|pset|put|remove|ren|rename|rm|set-tree|sync|tag|unlock)\b/iu.test(candidateArguments.join(' '))) return true;
     }
     return false;
   }
@@ -272,21 +297,16 @@ function segmentContainsDirectPublisher(segment) {
   if (executable === 'svn' && svnWritesRemotely(arguments_)) return true;
   if (executable === 'svnrdump' && hasWriteCommand(arguments_, svnRdumpWriteCommands)) return true;
   if (executable === 'svnsync' && hasWriteCommand(arguments_, svnSyncWriteCommands)) return true;
-  if (executable === 'git' && executableName(arguments_[0] ?? '') === 'svn' && hasWriteCommand(arguments_.slice(1), new Set(['dcommit']))) return true;
+  if (executable === 'git' && executableName(arguments_[0] ?? '') === 'svn' && hasWriteCommand(arguments_.slice(1), gitSvnWriteCommands)) return true;
+  if (executable === 'git-svn' && hasWriteCommand(arguments_, gitSvnWriteCommands)) return true;
   if (shellCommands.has(executable)) {
-    if (executable === 'eval') return containsDirectPublisher(arguments_.join(' '));
-    const commandIndex = arguments_.findIndex((token) => token === '-c' || /^-[^-]*c[^-]*$/u.test(token));
-    if (commandIndex < 0 || commandIndex + 1 >= arguments_.length) return false;
-    const script = arguments_[commandIndex + 1];
-    if (containsDirectPublisher(script)) return true;
-    if (/\$\{?[@*]\}?/u.test(script)) return containsDirectPublisher(arguments_.slice(commandIndex + 3).join(' '));
-    return false;
+    return shellInvocationContainsPublisher(executable, arguments_);
   }
   if (/^(?:node|perl|php|python\d*(?:\.\d+)?|ruby)$/u.test(executable)) {
     const nested = arguments_.join(' ');
     if (/\bsvn(?:mucc|rdump|sync)?\b[\s\S]*\b(?:ci|commit|copy|cp|dcommit|delete|del|import|init|load|lock|mkdir|move|mv|pd|pdel|pe|pedit|propdel|propedit|propset|ps|pset|put|remove|ren|rename|rm|sync|unlock)\b/iu.test(nested)) return true;
   }
-  if (executable === 'git' && hasWriteCommand(arguments_, new Set(['dcommit'])) && arguments_.some((token) => executableName(token) === 'svn')) return true;
+  if (executable === 'git' && hasWriteCommand(arguments_, gitSvnWriteCommands) && arguments_.some((token) => executableName(token) === 'svn')) return true;
   if (/^[A-Za-z_][A-Za-z0-9_]*\(\)$/u.test(tokens[index] ?? '') || tokens.slice(index + 1).includes('{')) {
     for (let candidate = index + 1; candidate < tokens.length; candidate += 1) {
       const candidateExecutable = executableName(tokens[candidate]);
@@ -305,6 +325,8 @@ function containsDirectPublisher(command) {
   for (const substitution of commandSubstitutions(command)) {
     if (containsDirectPublisher(substitution)) return true;
   }
+  if (/\|\s*(?:bash|dash|ksh|sh|zsh)\b/iu.test(command)
+    && /\bsvn(?:mucc|rdump|sync)?\b[\s\S]*\b(?:branch|ci|commit|dcommit|import|init|load|lock|put|set-tree|sync|tag|unlock)\b/iu.test(command)) return true;
   return shellSegments(command).some(segmentContainsDirectPublisher);
 }
 
@@ -321,6 +343,10 @@ function yamlCode(line) {
       continue;
     }
     if (quote) {
+      if (quote === "'" && character === "'" && line[index + 1] === "'") {
+        index += 1;
+        continue;
+      }
       if (character === quote) quote = '';
       continue;
     }
@@ -399,6 +425,8 @@ function isActionInput(lines, index, indent) {
     break;
   }
   if (stepIndex < 0) return false;
+  const parentIndent = /^\s*/u.exec(lines[parentIndex])[0].length;
+  if (stepIndex !== parentIndex && stepIndent >= parentIndent) return false;
 
   for (let cursor = stepIndex; cursor < lines.length; cursor += 1) {
     if (!lines[cursor].trim() || /^\s*#/u.test(lines[cursor])) continue;
@@ -453,7 +481,7 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
   const lines = inspected.split(/\r?\n/u);
   for (let index = 0; index < lines.length; index += 1) {
     if (/^\s*#/u.test(lines[index])) continue;
-    if (/(?:^|[{,]\s*)["']?secrets["']?\s*:\s*["']?inherit["']?(?:\s*[,}]|\s*$)/iu.test(yamlCode(lines[index]))) return true;
+    if (/(?:^|[{,]\s*)["']?secrets["']?\s*:\s*(?:(?:&|!!?)[^\s,}\]]+\s+)*["']?inherit["']?(?:\s*[,}]|\s*$)/iu.test(yamlCode(lines[index]))) return true;
     const match = /^(\s*)(?:-\s+)?["']?secrets["']?\s*:\s*(.*)$/iu.exec(lines[index]);
     if (!match) continue;
     if (isActionInput(lines, index, match[1].length)) continue;
@@ -555,6 +583,7 @@ function workflowCommands(definition) {
 
     const separator = scalar?.[1] === '|' ? '\n' : ' ';
     commands.push(parts.join(separator).replace(/\\\r?\n[\t ]*/gu, ' '));
+    if (parts.length > 1 && separator !== '\n') commands.push(parts.join('\n').replace(/\\\r?\n[\t ]*/gu, ' '));
   }
   return commands;
 }
