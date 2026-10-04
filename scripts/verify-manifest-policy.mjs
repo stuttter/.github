@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { lstatSync, readFileSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './sync-plugin-standards.mjs';
@@ -9,6 +9,27 @@ const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function comparableManifest(manifest) {
   return Object.fromEntries(Object.entries(manifest).filter(([key]) => key !== '$schema').sort(([left], [right]) => left.localeCompare(right)));
+}
+
+const directWordPressOrgPublisherPatterns = [
+  /10up\/action-wordpress-plugin-(?:asset-update|deploy)@/u,
+  /\bsvn\s+(?:ci|commit|copy|cp|delete|del|import|mkdir|move|mv)\b/u,
+  /\bsvnmucc\b/u,
+];
+
+function verifyReleaseWorkflows(target, projectRoot) {
+  if (!target.managed_paths.includes('release')) return;
+
+  const workflowsRoot = resolve(projectRoot, '.github/workflows');
+  for (const entry of readdirSync(workflowsRoot, { withFileTypes: true })) {
+    if (!/\.ya?ml$/u.test(entry.name) || entry.name === 'release.yml') continue;
+    if (!entry.isFile()) throw new Error(`${entry.name} must be a regular workflow file.`);
+
+    const workflow = readFileSync(resolve(workflowsRoot, entry.name), 'utf8');
+    if (directWordPressOrgPublisherPatterns.some((pattern) => pattern.test(workflow))) {
+      throw new Error(`${entry.name} contains a direct WordPress.org publisher outside the fleet-managed release workflow.`);
+    }
+  }
 }
 
 export function verifyManifestPolicy(inventory, repository, projectRoot) {
@@ -24,6 +45,8 @@ export function verifyManifestPolicy(inventory, repository, projectRoot) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error('Plugin manifest differs from the immutable portfolio inventory.');
   }
+
+  verifyReleaseWorkflows(matches[0], projectRoot);
 }
 
 function parseArguments(argv) {
