@@ -13,6 +13,8 @@ function comparableManifest(manifest) {
 
 const svnWriteCommands = new Set(['ci', 'commit', 'copy', 'cp', 'dcommit', 'delete', 'del', 'import', 'lock', 'mkdir', 'move', 'mv', 'pd', 'pdel', 'pe', 'pedit', 'propdel', 'propedit', 'propset', 'ps', 'pset', 'remove', 'ren', 'rename', 'rm', 'unlock']);
 const svnAlwaysRemoteWriteCommands = new Set(['ci', 'commit', 'dcommit', 'import', 'lock', 'unlock']);
+const svnReadOnlyCommands = new Set(['annotate', 'blame', 'cat', 'checkout', 'co', 'cleanup', 'diff', 'export', 'help', 'info', 'list', 'log', 'ls', 'mergeinfo', 'praise', 'stat', 'status', 'st', 'update', 'up', 'version']);
+const svnOptionsWithValues = new Set(['--accept', '--change', '--changelist', '--cl', '--config-dir', '--config-option', '--depth', '--diff-cmd', '--diff3-cmd', '--editor-cmd', '--encoding', '--extensions', '--file', '--limit', '--message', '--native-eol', '--new', '--old', '--password', '--revision', '--search', '--set-depth', '--show-revs', '--strip', '--targets', '--trust-server-cert-failures', '--username', '--with-revprop', '-c', '-F', '-l', '-m', '-r', '-x']);
 const svnRdumpWriteCommands = new Set(['load']);
 const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
 const commandWrappers = new Set(['command', 'env', 'nice', 'nohup', 'sudo', 'time', 'xargs']);
@@ -114,12 +116,27 @@ function hasWriteCommand(tokens, commands) {
   return tokens.some((token) => commands.has(token.replace(/[),}]+$/gu, '').toLowerCase()));
 }
 
+function svnSubcommand(tokens) {
+  let index = 0;
+  while (index < tokens.length && tokens[index].startsWith('-')) {
+    const option = tokens[index];
+    const optionName = option.includes('=') ? option.slice(0, option.indexOf('=')) : option;
+    index += svnOptionsWithValues.has(optionName) && !option.includes('=') ? 2 : 1;
+  }
+  return { command: tokens[index]?.replace(/[),}]+$/gu, '').toLowerCase(), index };
+}
+
 function svnWritesRemotely(tokens) {
-  const commandIndex = tokens.findIndex((token) => svnWriteCommands.has(token.replace(/[),}]+$/gu, '').toLowerCase()));
-  if (commandIndex < 0) return false;
-  const command = tokens[commandIndex].replace(/[),}]+$/gu, '').toLowerCase();
+  const { command, index: commandIndex } = svnSubcommand(tokens);
+  if (!command) return true;
+  if (svnReadOnlyCommands.has(command)) return false;
+  if (!svnWriteCommands.has(command)) return true;
   if (svnAlwaysRemoteWriteCommands.has(command)) return true;
-  return tokens.slice(commandIndex + 1).some((token) => /(?:\$|:\/\/|^\^\/)/u.test(token));
+  if (tokens.some((token) => /^(?:--targets|-targets)(?:=|$)/u.test(token))) return true;
+  return tokens.slice(commandIndex + 1).some((token) => {
+    if (/^(?:\$\{?(?:RUNNER_TEMP|GITHUB_WORKSPACE|TMPDIR)\}?)(?:\/|$)/u.test(token)) return false;
+    return /(?:\$|:\/\/|^\^\/)/u.test(token);
+  });
 }
 
 function isSvnVariable(token) {
@@ -189,6 +206,7 @@ function segmentContainsDirectPublisher(segment) {
   let arguments_ = tokens.slice(index + 1);
 
   if (['echo', 'printf'].includes(executable)) return false;
+  if (executable === 'command' && arguments_[0] === '-v') return false;
 
   if (commandWrappers.has(executable)) {
     const nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)) || isSvnVariable(token));
@@ -227,10 +245,28 @@ function containsDirectPublisher(command) {
   return shellSegments(command).some(segmentContainsDirectPublisher);
 }
 
+function yamlCode(line) {
+  let quote = '';
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === '\\' && quote === '"') {
+      index += 1;
+      continue;
+    }
+    if (quote) {
+      if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === '#' && (index === 0 || /\s/u.test(line[index - 1]))) return line.slice(0, index);
+  }
+  return line;
+}
+
 function containsDirectPublisherAction(definition) {
-  return definition.split(/\r?\n/u).some((line) => {
-    if (/^\s*#/u.test(line)) return false;
-    if (/^\s*(?:-\s+)?["']?uses["']?\s*:\s*[>|]/iu.test(line)) return true;
+  return definition.split(/\r?\n/u).some((rawLine) => {
+    const line = yamlCode(rawLine);
+    if (/^\s*(?:-\s+)?["']?uses["']?\s*:\s*(?:[>|]|[&*!])/iu.test(line)) return true;
     return /(?:^\s*(?:-\s+)?|[{,]\s*)["']?uses["']?\s*:\s*["']?[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu.test(line);
   });
 }
@@ -239,20 +275,15 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
   const credential = /\b(?:(?:STUTTTER_)?(?:WORDPRESS|WP)_ORG|WPORG|SVN)_(?:USERNAME|USER|PASSWORD|PASS)\b/iu;
   const allowedCaller = relative(projectRoot, path) === '.github/workflows/release.yml';
   if (allowedCaller) return false;
-  return definition.split(/\r?\n/u).some((line) => {
-    if (/^\s*#/u.test(line)) return false;
-    return credential.test(line)
-      || /\bsecrets\b(?!\.[A-Za-z_][A-Za-z0-9_]*\b)/iu.test(line)
-      || /\bsecrets\s*:\s*inherit\b/iu.test(line);
+  return definition.split(/\r?\n/u).some((rawLine) => {
+    const line = yamlCode(rawLine);
+    if (credential.test(line) || /\bsecrets\s*:\s*inherit\b/iu.test(line)) return true;
+    return [...line.matchAll(/\$\{\{([\s\S]*?)\}\}/gu)].some((match) => /\bsecrets\s*\[|\bsecrets\.\*|\b[A-Za-z_][A-Za-z0-9_]*\(\s*secrets(?:\.\*)?\s*\)|^\s*secrets\s*$/iu.test(match[1]));
   });
 }
 
-function decodeYamlDoubleQuotedEscapes(definition) {
-  return definition.replace(/"(?:\\.|[^"\\])*"/gsu, (value) => value
-    .replace(/\\x([0-9a-f]{2})/giu, (_match, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/\\u([0-9a-f]{4})/giu, (_match, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/\\U([0-9a-f]{8})/gu, (_match, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/\\\r?\n[\t ]*/gu, ''));
+function containsUnsupportedYamlEscape(definition) {
+  return definition.split(/\r?\n/u).some((line) => /\\(?:x[0-9a-f]{2}|u[0-9a-f]{4}|U[0-9a-f]{8})/iu.test(yamlCode(line)));
 }
 
 function quotedYamlScalar(value) {
@@ -286,6 +317,7 @@ function workflowCommands(definition) {
     const runKey = /["']?run["']?\s*:/iu.exec(lines[index]);
     const baseIndent = runKey.index;
     let value = match[1].trim();
+    if (/^!!/u.test(value)) throw new Error('Workflow contains a direct WordPress.org publisher or an unsupported tagged run value.');
     if (/^\*[A-Za-z0-9_-]+(?:\s+#.*)?[},]?$/u.test(value)) {
       throw new Error('Workflow run aliases are unsupported by the direct-publisher policy.');
     }
@@ -310,8 +342,8 @@ function workflowCommands(definition) {
 function localActionDefinitions(definition, projectRoot) {
   const canonicalRoot = realpathSync(projectRoot);
   const paths = [];
-  const references = definition.split(/\r?\n/u).flatMap((line) => {
-    if (/^\s*#/u.test(line)) return [];
+  const references = definition.split(/\r?\n/u).flatMap((rawLine) => {
+    const line = yamlCode(rawLine);
     const match = /(?:^\s*(?:-\s+)?|[{,]\s*)["']?uses["']?\s*:\s*["']?(\.\/(?:[^"'\s#,}]+)?)/iu.exec(line);
     return match ? [match[1]] : [];
   });
@@ -369,9 +401,10 @@ function verifyReleaseWorkflows(target, projectRoot, policyRef) {
     ...workflowDefinitions(resolve(projectRoot, '.github/actions')),
   ]);
   for (const path of definitions) {
-    const definition = decodeYamlDoubleQuotedEscapes(readFileSync(path, 'utf8'));
+    const definition = readFileSync(path, 'utf8');
     for (const localPath of localActionDefinitions(definition, projectRoot)) definitions.add(localPath);
     if (
+      containsUnsupportedYamlEscape(definition) ||
       containsDirectPublisherAction(definition) ||
       containsUnexpectedPublisherCredentials(definition, path, projectRoot) ||
       workflowCommands(definition).some(containsDirectPublisher)

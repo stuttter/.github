@@ -93,6 +93,15 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['block-uses.yml', 'steps:\n  - name: Deploy\n    uses: >-\n      10up/action-wordpress-plugin-deploy@stable\n'],
     ['escaped-run.yml', 'run: "\\x73vn commit -m release"\n'],
     ['escaped-uses.yml', 'uses: "10up/action-wordpress-plugin-\\x64eploy@stable"\n'],
+    ['quote-desync.yml', '# "\nenv:\n  P: "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\n'],
+    ['variable-subcommand.yml', 'run: svn "$OP" -m release\n'],
+    ['targets.yml', 'run: svn rm --targets urls.txt -m release\n'],
+    ['function.yml', 'run: publish() { svn "$@"; }; publish commit -m release\n'],
+    ['xargs.yml', 'run: echo commit | xargs svn -m release\n'],
+    ['tagged-run.yml', 'run: !!str "svn commit -m release"\n'],
+    ['anchored-uses.yml', 'uses: &deploy 10up/action-wordpress-plugin-deploy@stable\n'],
+    ['tagged-uses.yml', 'uses: !!str 10up/action-wordpress-plugin-deploy@stable\n'],
+    ['aliased-uses.yml', 'uses: *deploy\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -153,6 +162,16 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     } finally {
       cleanup();
     }
+  }
+});
+
+test('manifest policy permits explicitly named unrelated secrets', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/reusable.yml'), 'jobs:\n  call:\n    uses: example/reusable/.github/workflows/ci.yml@v1\n    secrets:\n      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}\n');
+    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+  } finally {
+    cleanup();
   }
 });
 
@@ -335,6 +354,7 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: svn info https://plugins.svn.wordpress.org/example-plugin # svn commit is intentionally disabled\n',
     'run: svn rm --force /tmp/wp-tests/.svn\n',
     'run: svn mkdir local-working-copy-directory\n',
+    'run: svn rm --force "${RUNNER_TEMP}/wp-tests/.svn"\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
   ]) {
     const { root, cleanup } = fixture();
@@ -350,7 +370,7 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
 test('manifest policy ignores credential names in YAML comments', () => {
   const { root, cleanup } = fixture();
   try {
-    writeFileSync(join(root, '.github/workflows/comment.yml'), '# WORDPRESS_ORG_PASSWORD is available only to the central caller.\n');
+    writeFileSync(join(root, '.github/workflows/comment.yml'), '# WORDPRESS_ORG_PASSWORD is available only to the central caller.\nname: Audit # WORDPRESS_ORG_PASSWORD remains central\n');
     assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
   } finally {
     cleanup();
