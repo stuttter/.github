@@ -11,34 +11,12 @@ function comparableManifest(manifest) {
   return Object.fromEntries(Object.entries(manifest).filter(([key]) => key !== '$schema').sort(([left], [right]) => left.localeCompare(right)));
 }
 
-const directPublisherAction = /[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu;
 const svnWriteCommands = new Set(['ci', 'commit', 'copy', 'cp', 'dcommit', 'delete', 'del', 'import', 'lock', 'mkdir', 'move', 'mv', 'pd', 'pdel', 'pe', 'pedit', 'propdel', 'propedit', 'propset', 'ps', 'pset', 'remove', 'ren', 'rename', 'rm', 'unlock']);
-const svnOptionsWithValues = new Set([
-  '--accept',
-  '--changelist',
-  '--cl',
-  '--config-dir',
-  '--config-option',
-  '--depth',
-  '--diff-cmd',
-  '--editor-cmd',
-  '--extensions',
-  '--file',
-  '--limit',
-  '--message',
-  '--native-eol',
-  '--password',
-  '--revision',
-  '--targets',
-  '--trust-server-cert-failures',
-  '--username',
-  '--with-revprop',
-  '-F',
-  '-l',
-  '-m',
-  '-r',
-  '-x',
-]);
+const svnAlwaysRemoteWriteCommands = new Set(['ci', 'commit', 'dcommit', 'import', 'lock', 'unlock']);
+const svnRdumpWriteCommands = new Set(['load']);
+const svnSyncWriteCommands = new Set(['copy-revprops', 'init', 'sync']);
+const commandWrappers = new Set(['command', 'env', 'nice', 'nohup', 'sudo', 'time', 'xargs']);
+const shellCommands = new Set(['bash', 'dash', 'eval', 'ksh', 'sh', 'zsh']);
 
 function shellSegments(command) {
   const normalized = command
@@ -67,6 +45,12 @@ function shellSegments(command) {
       current += character;
       continue;
     }
+    if (character === '#' && (index === 0 || /\s/u.test(normalized[index - 1]))) {
+      while (index + 1 < normalized.length && normalized[index + 1] !== '\n') index += 1;
+      if (current.trim()) segments.push(current.trim());
+      current = '';
+      continue;
+    }
     if (character === '$' && next === '(') {
       substitutionDepth += 1;
       current += '$(';
@@ -91,47 +75,126 @@ function shellSegments(command) {
 }
 
 function shellTokens(command) {
-  return command
-    .match(/(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s]+)/gu)
-    ?.map((token) => token.replace(/^[({]+|[),}]+$/gu, '').replace(/^["']|["']$/gu, ''))
-    .filter(Boolean) ?? [];
+  const tokens = [];
+  let current = '';
+  let quote = '';
+
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    if (character === '\\') {
+      if (command[index + 1] !== undefined) current += command[index += 1];
+      continue;
+    }
+    if (quote) {
+      if (character === quote) quote = '';
+      else current += character;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (/\s/u.test(character)) {
+      if (current) tokens.push(current);
+      current = '';
+      continue;
+    }
+    current += character;
+  }
+  if (current) tokens.push(current);
+  return tokens;
 }
 
 function executableName(token) {
-  return basename(token.replace(/^["']|["']$/gu, '')).toLowerCase();
+  return basename(token.replace(/^[({]+|[),}]+$/gu, '')).toLowerCase();
+}
+
+function hasWriteCommand(tokens, commands) {
+  return tokens.some((token) => commands.has(token.replace(/[),}]+$/gu, '').toLowerCase()));
+}
+
+function svnWritesRemotely(tokens) {
+  const commandIndex = tokens.findIndex((token) => svnWriteCommands.has(token.replace(/[),}]+$/gu, '').toLowerCase()));
+  if (commandIndex < 0) return false;
+  const command = tokens[commandIndex].replace(/[),}]+$/gu, '').toLowerCase();
+  if (svnAlwaysRemoteWriteCommands.has(command)) return true;
+  return tokens.slice(commandIndex + 1).some((token) => /(?:\$|:\/\/|^\^\/)/u.test(token));
+}
+
+function isSvnVariable(token) {
+  return /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/u.test(token) && token.toUpperCase().includes('SVN');
+}
+
+function commandSubstitutions(command) {
+  const substitutions = [];
+  const patterns = [/`([^`]*)`/gu, /\$\(([^()]*)\)/gu];
+  for (const pattern of patterns) {
+    for (const match of command.matchAll(pattern)) substitutions.push(match[1]);
+  }
+  return substitutions;
+}
+
+function segmentContainsDirectPublisher(segment) {
+  const tokens = shellTokens(segment);
+  let index = 0;
+  while (/^[A-Za-z_][A-Za-z0-9_]*=/u.test(tokens[index] ?? '')) index += 1;
+  let variableExecutable = isSvnVariable(tokens[index] ?? '');
+  let executable = executableName(tokens[index] ?? '');
+  let arguments_ = tokens.slice(index + 1);
+
+  if (commandWrappers.has(executable)) {
+    const nestedIndex = arguments_.findIndex((token) => ['svn', 'svnmucc', 'svnrdump', 'svnsync'].includes(executableName(token)) || isSvnVariable(token));
+    if (nestedIndex < 0) return false;
+    variableExecutable = isSvnVariable(arguments_[nestedIndex]);
+    executable = executableName(arguments_[nestedIndex]);
+    arguments_ = arguments_.slice(nestedIndex + 1);
+  }
+
+  if (variableExecutable && svnWritesRemotely(arguments_)) return true;
+  if (executable === 'svnmucc') return true;
+  if (executable === 'svn' && svnWritesRemotely(arguments_)) return true;
+  if (executable === 'svnrdump' && hasWriteCommand(arguments_, svnRdumpWriteCommands)) return true;
+  if (executable === 'svnsync' && hasWriteCommand(arguments_, svnSyncWriteCommands)) return true;
+  if (executable === 'git' && executableName(arguments_[0] ?? '') === 'svn' && hasWriteCommand(arguments_.slice(1), new Set(['dcommit']))) return true;
+  if (shellCommands.has(executable)) {
+    const nested = arguments_.filter((token) => !token.startsWith('-')).join(' ');
+    if (/\b(?:svn|svnmucc|svnrdump|svnsync)\b/iu.test(nested)) return containsDirectPublisher(nested);
+  }
+  return false;
 }
 
 function containsDirectPublisher(command) {
-  for (const segment of shellSegments(command)) {
-    const tokens = shellTokens(segment);
-    if (tokens.some((token) => executableName(token) === 'svnmucc')) return true;
-    for (let index = 0; index < tokens.length; index += 1) {
-      if (executableName(tokens[index]) !== 'svn') continue;
-      index += 1;
-      while (index < tokens.length && tokens[index].startsWith('-')) {
-        const option = tokens[index];
-        const optionName = option.includes('=') ? option.slice(0, option.indexOf('=')) : option;
-        index += svnOptionsWithValues.has(optionName) && !option.includes('=') ? 2 : 1;
-      }
-      if (svnWriteCommands.has(tokens[index]?.toLowerCase())) return true;
-    }
+  for (const substitution of commandSubstitutions(command)) {
+    if (containsDirectPublisher(substitution)) return true;
   }
-  return false;
+  return shellSegments(command).some(segmentContainsDirectPublisher);
+}
+
+function containsDirectPublisherAction(definition) {
+  return definition.split(/\r?\n/u).some((line) => {
+    if (/^\s*#/u.test(line)) return false;
+    return /(?:^|[{,]\s*|[-]\s+)["']?uses["']?\s*:\s*["']?[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu.test(line);
+  });
 }
 
 function workflowCommands(definition) {
   const lines = definition.split(/\r?\n/u);
   const commands = [];
   for (let index = 0; index < lines.length; index += 1) {
-    const match = /^([\t ]*)(?:-\s+)?run:\s*(.*)$/u.exec(lines[index]);
+    if (/^\s*#/u.test(lines[index])) continue;
+    const match = /(?:^|[{,]\s*|[-]\s+)["']?run["']?\s*:\s*(.*)$/iu.exec(lines[index]);
     if (!match) continue;
 
-    const baseIndent = lines[index].indexOf('run:');
-    if (/^\*[A-Za-z0-9_-]+(?:\s+#.*)?$/u.test(match[2].trim())) {
+    const runKey = /["']?run["']?\s*:/iu.exec(lines[index]);
+    const baseIndent = runKey.index;
+    let value = match[1].trim();
+    if (/^\*[A-Za-z0-9_-]+(?:\s+#.*)?[},]?$/u.test(value)) {
       throw new Error('Workflow run aliases are unsupported by the direct-publisher policy.');
     }
-    const scalar = /^([>|])(?:[-+]\d*)?\s*(?:#.*)?$/u.exec(match[2].trim());
-    const parts = scalar ? [] : [match[2].trim()];
+    value = value.replace(/^&[A-Za-z0-9_-]+\s+/u, '');
+    if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) value = value.slice(1, -1);
+    const scalar = /^([>|])(?:[-+]\d*)?\s*(?:#.*)?$/u.exec(value);
+    const parts = scalar ? [] : [value];
     while (index + 1 < lines.length) {
       const next = lines[index + 1];
       const indent = /^[\t ]*/u.exec(next)[0].length;
@@ -199,7 +262,7 @@ function verifyReleaseWorkflows(target, projectRoot) {
     const definition = readFileSync(path, 'utf8');
     for (const localPath of localActionDefinitions(definition, projectRoot)) definitions.add(localPath);
     if (
-      directPublisherAction.test(definition) ||
+      containsDirectPublisherAction(definition) ||
       workflowCommands(definition).some(containsDirectPublisher)
     ) {
       throw new Error(`${relative(projectRoot, path)} contains a direct WordPress.org publisher instead of the fleet-managed release job.`);

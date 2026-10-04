@@ -56,6 +56,20 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['path.yml', 'run: /usr/bin/svn commit -m release\n'],
     ['resolved-path.yml', 'run: "$(command -v svn)" ci -m release\n'],
     ['prop-alias.yml', 'run: svn ps stable_tag 1.0 https://plugins.svn.wordpress.org/example-plugin/trunk\n'],
+    ['quoted.yml', "run: 'svn commit -m release'\n"],
+    ['substitution.yml', 'run: result=$(svn commit -m release)\n'],
+    ['backticks.yml', 'run: result=`svn commit -m release`\n'],
+    ['shell.yml', "run: bash -c 'svn commit -m release'\n"],
+    ['eval.yml', 'run: eval "svn commit -m release"\n'],
+    ['escaped.yml', 'run: \\svn commit -m release\n'],
+    ['split-name.yml', "run: 's'vn commit -m release\n"],
+    ['variable.yml', 'run: $SVN commit -m release\n'],
+    ['wrapped-variable.yml', 'run: env $WP_SVN commit -m release\n'],
+    ['encoding.yml', 'run: svn --encoding UTF-8 commit -m release\n'],
+    ['inline.yml', 'steps:\n  - { name: Deploy, run: svn commit -m release }\n'],
+    ['quoted-key.yml', 'steps:\n  - "run": svn commit -m release\n'],
+    ['svnrdump.yml', 'run: svnrdump load https://plugins.svn.wordpress.org/example-plugin\n'],
+    ['svnsync.yml', 'run: svnsync sync https://plugins.svn.wordpress.org/example-plugin\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -63,6 +77,7 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
       assert.throws(
         () => verifyManifestPolicy(inventory, 'example/plugin', root),
         /contains a direct WordPress\.org publisher/u,
+        name,
       );
     } finally {
       cleanup();
@@ -78,6 +93,16 @@ test('manifest policy scans the managed release caller for appended publishers',
       () => verifyManifestPolicy(inventory, 'example/plugin', root),
       /release\.yml contains a direct WordPress\.org publisher/u,
     );
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy ignores publisher action references in YAML comments', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/comment.yml'), '# replaced 10up/action-wordpress-plugin-deploy@stable\n');
+    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
   } finally {
     cleanup();
   }
@@ -168,6 +193,19 @@ test('manifest policy rejects unresolved run aliases', () => {
   }
 });
 
+test('manifest policy inspects anchored run definitions', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/anchor.yml'), 'steps:\n  - run: &publish svn commit -m release\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /contains a direct WordPress\.org publisher/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
 test('manifest policy rejects non-regular workflow definitions', () => {
   const { root, cleanup } = fixture();
   try {
@@ -200,12 +238,16 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     'run: svn export --quiet https://develop.svn.wordpress.org/tags/6.4/tests/phpunit/includes/ /tmp/wp-tests && rm -rf /tmp/wp-tests/.svn\n',
     'run: svn checkout https://plugins.svn.wordpress.org/example-plugin/trunk ci-cache\n',
     'run: |\n  command -v svn\n  rm -rf /tmp/wp-tests/.svn\n',
+    'run: echo Skipping svn commit during the dry run\n',
+    'run: svn info https://plugins.svn.wordpress.org/example-plugin # svn commit is intentionally disabled\n',
+    'run: svn rm --force /tmp/wp-tests/.svn\n',
+    'run: svn mkdir local-working-copy-directory\n',
     'run: curl -sO https://plugins.svn.wordpress.org/example-plugin/trunk/readme.txt # CI\n',
   ]) {
     const { root, cleanup } = fixture();
     try {
       writeFileSync(join(root, '.github/workflows/audit.yml'), workflow);
-      assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+      assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root), workflow);
     } finally {
       cleanup();
     }
