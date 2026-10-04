@@ -13,7 +13,8 @@ test('integration selection comes only from immutable central inventory', () => 
 });
 
 test('metadata rejects a local manifest that drifts from immutable policy', () => {
-  assert.match(workflow, /verify-manifest-policy\.mjs --repository "\$\{TARGET_REPOSITORY\}" --project-root \./u);
+  assert.match(workflow, /POLICY_REF: \$\{\{ job\.workflow_sha \}\}/u);
+  assert.match(workflow, /verify-manifest-policy\.mjs --repository "\$\{TARGET_REPOSITORY\}" --project-root \. --policy-ref "\$\{POLICY_REF\}"/u);
 });
 
 test('reusable CI defaults do not schedule PHP below the fleet baseline', () => {

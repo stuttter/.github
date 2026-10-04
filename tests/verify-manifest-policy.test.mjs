@@ -4,8 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { verifyManifestPolicy } from '../scripts/verify-manifest-policy.mjs';
+import { verifyManifestPolicy as verifyManifestPolicyAtRef } from '../scripts/verify-manifest-policy.mjs';
 import { desiredFiles } from '../scripts/sync-plugin-standards.mjs';
+
+const policyRef = 'a'.repeat(40);
+
+function verifyManifestPolicy(inventory_, repository, root) {
+  return verifyManifestPolicyAtRef(inventory_, repository, root, policyRef);
+}
 
 const manifest = {
   slug: 'example-plugin',
@@ -26,7 +32,7 @@ function fixture(local = manifest) {
   mkdirSync(join(root, '.github'));
   mkdirSync(join(root, '.github/workflows'));
   writeFileSync(join(root, '.github/plugin-standard.json'), `${JSON.stringify({ $schema: 'https://example.test/schema.json', ...local }, null, 2)}\n`);
-  writeFileSync(join(root, '.github/workflows/release.yml'), desiredFiles(root, inventory.repositories[0], 'a'.repeat(40)).get('.github/workflows/release.yml'));
+  writeFileSync(join(root, '.github/workflows/release.yml'), desiredFiles(root, inventory.repositories[0], policyRef).get('.github/workflows/release.yml'));
   return { root, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
@@ -82,6 +88,11 @@ test('manifest policy rejects direct WordPress.org publishers outside the manage
     ['git-options.yml', 'run: git -C build svn dcommit\n'],
     ['nested-substitution.yml', 'run: REV=$(svn commit -m "Release $(cat VERSION)")\n'],
     ['process-substitution.yml', 'run: cat <(svn commit -m release)\n'],
+    ['indented-run.yml', 'steps:\n  - name: Publish\n    run: svn commit -m release\n'],
+    ['indented-uses.yml', 'steps:\n  - name: Deploy\n    uses: 10up/action-wordpress-plugin-deploy@stable\n'],
+    ['block-uses.yml', 'steps:\n  - name: Deploy\n    uses: >-\n      10up/action-wordpress-plugin-deploy@stable\n'],
+    ['escaped-run.yml', 'run: "\\x73vn commit -m release"\n'],
+    ['escaped-uses.yml', 'uses: "10up/action-wordpress-plugin-\\x64eploy@stable"\n'],
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -129,6 +140,8 @@ test('manifest policy rejects WordPress.org credentials outside the managed call
     "env:\n  PASSWORD: ${{ secrets['WORDPRESS_ORG_PASSWORD'] }}\nsteps:\n  - run: ./bin/deploy.sh\n",
     'env:\n  ALL_SECRETS: ${{ toJSON(secrets) }}\nsteps:\n  - run: ./bin/deploy.sh\n',
     'env:\n  PASSWORD: ${{ secrets.WPORG_PASS }}\nsteps:\n  - run: ./bin/deploy.sh\n',
+    'env:\n  PASSWORD: "${{ secrets.WORDPRESS_ORG_\\x50ASSWORD }}"\nsteps:\n  - run: ./bin/deploy.sh\n',
+    "env:\n  ALL_SECRETS: ${{ toJSON(secrets.*) }}\nsteps:\n  - run: ./bin/deploy.sh\n",
   ]) {
     const { root, cleanup } = fixture();
     try {
@@ -164,6 +177,21 @@ test('manifest policy scans local composite actions for direct publishers', () =
     assert.throws(
       () => verifyManifestPolicy(inventory, 'example/plugin', root),
       /contains a direct WordPress\.org publisher/u,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy follows an indented local-action key', () => {
+  const { root, cleanup } = fixture();
+  try {
+    mkdirSync(join(root, 'deploy'));
+    writeFileSync(join(root, 'deploy/action.yml'), 'runs:\n  steps:\n    - run: svn commit -m release\n');
+    writeFileSync(join(root, '.github/workflows/local.yml'), 'steps:\n  - name: Deploy\n    uses: ./deploy\n');
+    assert.throws(
+      () => verifyManifestPolicy(inventory, 'example/plugin', root),
+      /deploy\/action\.yml contains a direct WordPress\.org publisher/u,
     );
   } finally {
     cleanup();
@@ -316,6 +344,28 @@ test('manifest policy allows read-only Subversion inspection in managed reposito
     } finally {
       cleanup();
     }
+  }
+});
+
+test('manifest policy ignores credential names in YAML comments', () => {
+  const { root, cleanup } = fixture();
+  try {
+    writeFileSync(join(root, '.github/workflows/comment.yml'), '# WORDPRESS_ORG_PASSWORD is available only to the central caller.\n');
+    assert.doesNotThrow(() => verifyManifestPolicy(inventory, 'example/plugin', root));
+  } finally {
+    cleanup();
+  }
+});
+
+test('manifest policy binds the managed caller to the executing policy revision', () => {
+  const { root, cleanup } = fixture();
+  try {
+    assert.throws(
+      () => verifyManifestPolicyAtRef(inventory, 'example/plugin', root, 'b'.repeat(40)),
+      /release\.yml differs from the fleet-managed release caller/u,
+    );
+  } finally {
+    cleanup();
   }
 });
 

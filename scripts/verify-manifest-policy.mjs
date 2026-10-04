@@ -230,7 +230,8 @@ function containsDirectPublisher(command) {
 function containsDirectPublisherAction(definition) {
   return definition.split(/\r?\n/u).some((line) => {
     if (/^\s*#/u.test(line)) return false;
-    return /(?:^|[{,]\s*|[-]\s+)["']?uses["']?\s*:\s*["']?[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu.test(line);
+    if (/^\s*(?:-\s+)?["']?uses["']?\s*:\s*[>|]/iu.test(line)) return true;
+    return /(?:^\s*(?:-\s+)?|[{,]\s*)["']?uses["']?\s*:\s*["']?[A-Za-z0-9_.-]+\/action-wordpress-plugin-(?:asset-update|deploy)@/iu.test(line);
   });
 }
 
@@ -239,12 +240,19 @@ function containsUnexpectedPublisherCredentials(definition, path, projectRoot) {
   const allowedCaller = relative(projectRoot, path) === '.github/workflows/release.yml';
   if (allowedCaller) return false;
   return definition.split(/\r?\n/u).some((line) => {
+    if (/^\s*#/u.test(line)) return false;
     return credential.test(line)
-      || /\bsecrets\s*\[/iu.test(line)
-      || /\b[A-Za-z_][A-Za-z0-9_]*\(\s*secrets\s*\)/iu.test(line)
-      || /\$\{\{\s*secrets\s*\}\}/iu.test(line)
+      || /\bsecrets\b(?!\.[A-Za-z_][A-Za-z0-9_]*\b)/iu.test(line)
       || /\bsecrets\s*:\s*inherit\b/iu.test(line);
   });
+}
+
+function decodeYamlDoubleQuotedEscapes(definition) {
+  return definition.replace(/"(?:\\.|[^"\\])*"/gsu, (value) => value
+    .replace(/\\x([0-9a-f]{2})/giu, (_match, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/\\u([0-9a-f]{4})/giu, (_match, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/\\U([0-9a-f]{8})/gu, (_match, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/\\\r?\n[\t ]*/gu, ''));
 }
 
 function quotedYamlScalar(value) {
@@ -272,7 +280,7 @@ function workflowCommands(definition) {
   const commands = [];
   for (let index = 0; index < lines.length; index += 1) {
     if (/^\s*#/u.test(lines[index])) continue;
-    const match = /(?:^|[{,]\s*|[-]\s+)["']?run["']?\s*:\s*(.*)$/iu.exec(lines[index]);
+    const match = /(?:^\s*(?:-\s+)?|[{,]\s*)["']?run["']?\s*:\s*(.*)$/iu.exec(lines[index]);
     if (!match) continue;
 
     const runKey = /["']?run["']?\s*:/iu.exec(lines[index]);
@@ -304,7 +312,7 @@ function localActionDefinitions(definition, projectRoot) {
   const paths = [];
   const references = definition.split(/\r?\n/u).flatMap((line) => {
     if (/^\s*#/u.test(line)) return [];
-    const match = /(?:^|[{,]\s*|[-]\s+)["']?uses["']?\s*:\s*["']?(\.\/(?:[^"'\s#,}]+)?)/iu.exec(line);
+    const match = /(?:^\s*(?:-\s+)?|[{,]\s*)["']?uses["']?\s*:\s*["']?(\.\/(?:[^"'\s#,}]+)?)/iu.exec(line);
     return match ? [match[1]] : [];
   });
   for (const reference of references) {
@@ -345,14 +353,14 @@ function workflowDefinitions(root) {
   return definitions;
 }
 
-function verifyReleaseWorkflows(target, projectRoot) {
+function verifyReleaseWorkflows(target, projectRoot, policyRef) {
   if (!target.managed_paths.includes('release')) return;
+  if (typeof policyRef !== 'string' || !/^[0-9a-f]{40}$/u.test(policyRef)) throw new Error('The immutable fleet policy reference is invalid.');
 
   const releasePath = resolve(projectRoot, '.github/workflows/release.yml');
   const releaseDefinition = readFileSync(releasePath, 'utf8');
-  const policyRef = /stuttter\/\.github\/\.github\/workflows\/wordpress-plugin-release\.yml@([0-9a-f]{40})/u.exec(releaseDefinition)?.[1];
-  const expectedRelease = policyRef && desiredFiles(projectRoot, target, policyRef).get('.github/workflows/release.yml');
-  if (!expectedRelease || releaseDefinition !== expectedRelease) {
+  const expectedRelease = desiredFiles(projectRoot, target, policyRef).get('.github/workflows/release.yml');
+  if (releaseDefinition !== expectedRelease) {
     throw new Error('.github/workflows/release.yml differs from the fleet-managed release caller.');
   }
 
@@ -361,7 +369,7 @@ function verifyReleaseWorkflows(target, projectRoot) {
     ...workflowDefinitions(resolve(projectRoot, '.github/actions')),
   ]);
   for (const path of definitions) {
-    const definition = readFileSync(path, 'utf8');
+    const definition = decodeYamlDoubleQuotedEscapes(readFileSync(path, 'utf8'));
     for (const localPath of localActionDefinitions(definition, projectRoot)) definitions.add(localPath);
     if (
       containsDirectPublisherAction(definition) ||
@@ -373,7 +381,7 @@ function verifyReleaseWorkflows(target, projectRoot) {
   }
 }
 
-export function verifyManifestPolicy(inventory, repository, projectRoot) {
+export function verifyManifestPolicy(inventory, repository, projectRoot, policyRef) {
   if (typeof repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository)) throw new Error('Repository identity is invalid.');
   const matches = inventory.repositories.filter((item) => item.repository === repository && item.enabled === true);
   if (matches.length !== 1) throw new Error(`${repository} must have exactly one enabled portfolio entry.`);
@@ -387,16 +395,16 @@ export function verifyManifestPolicy(inventory, repository, projectRoot) {
     throw new Error('Plugin manifest differs from the immutable portfolio inventory.');
   }
 
-  verifyReleaseWorkflows(matches[0], projectRoot);
+  verifyReleaseWorkflows(matches[0], projectRoot, policyRef);
 }
 
 function parseArguments(argv) {
   const options = {};
   for (let index = 0; index < argv.length; index += 2) {
-    if (!['--repository', '--project-root'].includes(argv[index]) || !argv[index + 1]) throw new Error('Usage: verify-manifest-policy.mjs --repository owner/repository --project-root path');
+    if (!['--repository', '--project-root', '--policy-ref'].includes(argv[index]) || !argv[index + 1]) throw new Error('Usage: verify-manifest-policy.mjs --repository owner/repository --project-root path --policy-ref sha');
     options[argv[index].slice(2).replace('-', '_')] = argv[index + 1];
   }
-  if (!options.repository || !options.project_root || Object.keys(options).length !== 2) throw new Error('Usage: verify-manifest-policy.mjs --repository owner/repository --project-root path');
+  if (!options.repository || !options.project_root || !options.policy_ref || Object.keys(options).length !== 3) throw new Error('Usage: verify-manifest-policy.mjs --repository owner/repository --project-root path --policy-ref sha');
   return options;
 }
 
@@ -404,7 +412,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const options = parseArguments(process.argv.slice(2));
     const inventory = loadInventory(resolve(scriptRoot, 'portfolio/plugins.json'));
-    verifyManifestPolicy(inventory, options.repository, resolve(options.project_root));
+    verifyManifestPolicy(inventory, options.repository, resolve(options.project_root), options.policy_ref);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exitCode = 2;

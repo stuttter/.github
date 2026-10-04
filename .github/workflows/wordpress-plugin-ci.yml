@@ -56,8 +56,9 @@ jobs:
 
       - name: Verify manifest against immutable portfolio policy
         env:
+          POLICY_REF: ${{ job.workflow_sha }}
           TARGET_REPOSITORY: ${{ github.repository }}
-        run: node .portfolio-standard/scripts/verify-manifest-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root .
+        run: node .portfolio-standard/scripts/verify-manifest-policy.mjs --repository "${TARGET_REPOSITORY}" --project-root . --policy-ref "${POLICY_REF}"
 
       - name: Resolve trusted project checks
         id: project-policy
