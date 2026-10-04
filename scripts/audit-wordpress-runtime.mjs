@@ -50,16 +50,16 @@ export function validateRuntimeAudit(report) {
 
 export function validateRuntimeContract(lock, wordpressSources, now = Date.now()) {
   const errors = [];
+  const packages = lock?.packages ?? {};
+  const packagePaths = Object.keys(packages);
   for (const [name, version] of Object.entries(expectedVersions)) {
     const expectedPath = `node_modules/${name}`;
-    const installedPaths = Object.keys(lock?.packages ?? {}).filter(
+    const installedPaths = packagePaths.filter(
       (path) => path === expectedPath || path.endsWith(`/node_modules/${name}`),
     );
-    if (
-      installedPaths.length !== 1 ||
-      installedPaths[0] !== expectedPath ||
-      lock.packages[expectedPath]?.version !== version
-    ) {
+    if (installedPaths.length !== 1 || installedPaths[0] !== expectedPath) {
+      errors.push(`${name} must be installed only at its reviewed top-level lockfile path.`);
+    } else if (packages[expectedPath]?.version !== version) {
       errors.push(`${name} is not locked to the reviewed ${version} version.`);
     }
   }

@@ -67,7 +67,16 @@ test('rejects nested overrides of reviewed runtime packages', () => {
   const { lock, sources } = runtimeFixture();
   lock.packages['node_modules/@wordpress/env/node_modules/got'] = { version: '11.8.5' };
   const errors = validateRuntimeContract(lock, sources, Date.parse('2026-10-03T00:00:00Z'));
-  assert.match(errors.join('\n'), /got is not locked/u);
+  assert.match(errors.join('\n'), /got must be installed only at its reviewed top-level lockfile path/u);
+});
+
+test('rejects a missing runtime lockfile without throwing', () => {
+  const { sources } = runtimeFixture();
+  assert.doesNotThrow(() => validateRuntimeContract(undefined, sources, Date.parse('2026-10-03T00:00:00Z')));
+  assert.match(
+    validateRuntimeContract(undefined, sources, Date.parse('2026-10-03T00:00:00Z')).join('\n'),
+    /@wordpress\/env must be installed only at its reviewed top-level lockfile path/u,
+  );
 });
 
 test('expires the temporary applicability review', () => {
