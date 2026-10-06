@@ -11,10 +11,14 @@ const runtimeRoot = resolve(repositoryRoot, 'runtime/wordpress');
 // Keep the reviewed uncached-use contract until upstream remediation is confirmed.
 const exceptionExpires = Date.parse('2026-11-03T00:00:00Z');
 const expectedVersions = {
-  '@wordpress/env': '11.15.0',
+  '@simple-git/argv-parser': '2.0.1',
+  '@wordpress/env': '11.16.0',
   got: '11.8.6',
   'cacheable-request': '7.0.4',
   'http-cache-semantics': '4.3.0',
+  'js-yaml': '4.3.2',
+  'proxy-addr': '2.0.8',
+  'simple-git': '4.0.2',
 };
 
 function sameValues(actual, expected) {
@@ -67,6 +71,7 @@ export function validateRuntimeContract(lock, wordpressSources, now = Date.now()
   const gotSources = Object.entries(wordpressSources).filter(([, source]) => /\bgot\b/u.test(source));
   const wordpressSource = wordpressSources['wordpress.js'] ?? '';
   const downloadSource = wordpressSources['download-sources.js'] ?? '';
+  const phpunitDownloadSource = wordpressSources['runtime/docker/download-wp-phpunit.js'] ?? '';
   const allSources = Object.values(wordpressSources).join('\n');
   if (
     !sameValues(gotSources.map(([path]) => path), ['download-sources.js', 'wordpress.js']) ||
@@ -80,6 +85,20 @@ export function validateRuntimeContract(lock, wordpressSources, now = Date.now()
     /\bcache\s*:/u.test(allSources)
   ) {
     errors.push('@wordpress/env no longer matches the reviewed uncached got request paths.');
+  }
+
+  const simpleGitSources = Object.entries(wordpressSources)
+    .filter(([, source]) => /require\( 'simple-git' \)/u.test(source));
+  if (
+    !sameValues(
+      simpleGitSources.map(([path]) => path),
+      ['download-sources.js', 'runtime/docker/download-wp-phpunit.js'],
+    ) ||
+    (downloadSource.match(/const \{ simpleGit: SimpleGit \} = require\( 'simple-git' \);/gu) ?? []).length !== 1 ||
+    (phpunitDownloadSource.match(/const \{ simpleGit: SimpleGit \} = require\( 'simple-git' \);/gu) ?? []).length !== 1 ||
+    /const SimpleGit = require\( 'simple-git' \);/u.test(allSources)
+  ) {
+    errors.push('@wordpress/env no longer matches the reviewed simple-git 4 compatibility patch.');
   }
 
   if (now >= exceptionExpires) {
