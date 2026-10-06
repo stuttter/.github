@@ -220,7 +220,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   assert.equal(termOrder.integration.plugin_check, true);
   assert.deepEqual(termOrder.integration.wordpress, {
     path: 'tests/integration/smoke.php',
-    sha256: '5cdc5b34a9fc6b8502186df7ded8be10a2d676266fad8d8c1ca604118110d004',
+    sha256: '1b6bd0ca462881c60e64edf737dd7a51f31436a596cb81d7a229bf58e29b5e67',
   });
   assert.equal(termOrder.manifest.risk, 'elevated');
   assert.equal(termOrder.manifest.multisite, false);
