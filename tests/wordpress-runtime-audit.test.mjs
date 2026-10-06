@@ -7,16 +7,21 @@ function runtimeFixture() {
   return {
     lock: {
       packages: {
-        'node_modules/@wordpress/env': { version: '11.15.0' },
+        'node_modules/@simple-git/argv-parser': { version: '2.0.1' },
+        'node_modules/@wordpress/env': { version: '11.16.0' },
         'node_modules/got': { version: '11.8.6' },
         'node_modules/cacheable-request': { version: '7.0.4' },
         'node_modules/http-cache-semantics': { version: '4.3.0' },
+        'node_modules/js-yaml': { version: '4.3.2' },
+        'node_modules/proxy-addr': { version: '2.0.8' },
+        'node_modules/simple-git': { version: '4.0.2' },
       },
     },
     sources: {
       'wordpress.js': "const got = require('got');\nconst versions = await got('https://api.wordpress.org/').json();",
-      'download-sources.js': "const got = require('got');\nconst responseStream = got.stream(source.url);",
+      'download-sources.js': "const got = require('got');\nconst { simpleGit: SimpleGit } = require( 'simple-git' );\nconst responseStream = got.stream(source.url);",
       'config/parse-config.js': 'module.exports = {};',
+      'runtime/docker/download-wp-phpunit.js': "const { simpleGit: SimpleGit } = require( 'simple-git' );",
     },
   };
 }
@@ -61,6 +66,16 @@ test('rejects runtime version or request-path drift', () => {
   const errors = validateRuntimeContract(lock, sources, Date.parse('2026-10-03T00:00:00Z'));
   assert.match(errors.join('\n'), /http-cache-semantics is not locked/u);
   assert.match(errors.join('\n'), /uncached got request paths/u);
+});
+
+test('rejects a missing or legacy simple-git compatibility import', () => {
+  const { lock, sources } = runtimeFixture();
+  sources['download-sources.js'] = sources['download-sources.js'].replace(
+    "const { simpleGit: SimpleGit } = require( 'simple-git' );",
+    "const SimpleGit = require( 'simple-git' );",
+  );
+  const errors = validateRuntimeContract(lock, sources, Date.parse('2026-10-03T00:00:00Z'));
+  assert.match(errors.join('\n'), /simple-git 4 compatibility patch/u);
 });
 
 test('rejects nested overrides of reviewed runtime packages', () => {

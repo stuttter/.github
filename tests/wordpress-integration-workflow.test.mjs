@@ -53,14 +53,21 @@ test('integration and Plugin Check are credential-free artifact gates', () => {
   assert.match(workflow, /needs: \[metadata, syntax, quality, project-checks, plugin-check, wordpress-integration\]/u);
 });
 
-test('wp-env is exact, locked, and carries the audited transitive override', () => {
-  assert.equal(runtime.dependencies['@wordpress/env'], '11.15.0');
+test('wp-env is exact, locked, and carries the audited transitive overrides', () => {
+  assert.equal(runtime.dependencies['@wordpress/env'], '11.16.0');
+  assert.equal(runtime.overrides['js-yaml'], '4.3.2');
+  assert.equal(runtime.overrides['proxy-addr'], '2.0.8');
   assert.equal(runtime.overrides.qs, '6.16.0');
-  assert.equal(lock.packages['node_modules/@wordpress/env'].version, '11.15.0');
+  assert.equal(runtime.overrides['simple-git'], '4.0.2');
+  assert.equal(lock.packages['node_modules/@simple-git/argv-parser'].version, '2.0.1');
+  assert.equal(lock.packages['node_modules/@wordpress/env'].version, '11.16.0');
+  assert.equal(lock.packages['node_modules/js-yaml'].version, '4.3.2');
+  assert.equal(lock.packages['node_modules/proxy-addr'].version, '2.0.8');
   assert.equal(lock.packages['node_modules/qs'].version, '6.16.0');
+  assert.equal(lock.packages['node_modules/simple-git'].version, '4.0.2');
   assert.equal(lock.packages['node_modules/http-cache-semantics'].version, '4.3.0');
   assert.match(lock.packages['node_modules/@wordpress/env'].integrity, /^sha512-/u);
-  assert.doesNotMatch(workflow, /patch-wordpress-env\.mjs/u);
+  assert.match(workflow, /node \.\.\/\.\.\/scripts\/patch-wordpress-env\.mjs node_modules\/@wordpress\/env\/lib/u);
 
   for (const [path, dependency] of Object.entries(lock.packages)) {
     if (path === '') continue;
@@ -71,6 +78,7 @@ test('wp-env is exact, locked, and carries the audited transitive override', () 
 
 test('the runtime audit remains a fail-closed central policy check', () => {
   const standards = readFileSync(new URL('../.github/workflows/standards-ci.yml', import.meta.url), 'utf8');
+  assert.match(standards, /node scripts\/patch-wordpress-env\.mjs runtime\/wordpress\/node_modules\/@wordpress\/env\/lib/u);
   assert.match(standards, /node scripts\/audit-wordpress-runtime\.mjs/u);
   assert.doesNotMatch(standards, /npm audit --audit-level=moderate --prefix runtime\/wordpress/u);
 });

@@ -7,9 +7,12 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@wordpress/env": "11.15.0"
+    "@wordpress/env": "11.16.0"
   },
   "overrides": {
-    "qs": "6.16.0"
+    "js-yaml": "4.3.2",
+    "proxy-addr": "2.0.8",
+    "qs": "6.16.0",
+    "simple-git": "4.0.2"
   }
 }
