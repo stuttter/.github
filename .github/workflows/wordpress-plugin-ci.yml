@@ -414,7 +414,9 @@ jobs:
       - name: Install the locked WordPress runtime
         if: ${{ matrix.target != 'disabled' }}
         working-directory: .portfolio-standard/runtime/wordpress
-        run: npm ci --ignore-scripts
+        run: |
+          npm ci --ignore-scripts
+          node ../../scripts/patch-wordpress-env.mjs node_modules/@wordpress/env/lib
 
       - name: Build plugin for WordPress integration
         if: ${{ matrix.target != 'disabled' }}
