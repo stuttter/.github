@@ -297,7 +297,7 @@ function phpstanRetirementRepository() {
   });
 }
 
-function wpCompatPhpstanRetirementRepository() {
+function wpCompatPhpstanRetirementRepository(extension = 'vendor/johnbillion/wp-compat/extension.neon') {
   return createRepository({
     'composer.json': JSON.stringify({
       'require-dev': {
@@ -309,7 +309,7 @@ function wpCompatPhpstanRetirementRepository() {
     'phpstan-baseline.neon': canonicalPhpstanBaseline,
     'phpstan.neon.dist': [
       'includes:',
-      '    - vendor/johnbillion/wp-compat/extension.neon',
+      '    - ' + extension,
       '    - phpstan-baseline.neon',
       '',
       'parameters:',
@@ -323,6 +323,30 @@ function wpCompatPhpstanRetirementRepository() {
       '',
     ].join('\n'),
   });
+}
+
+function retireWpCompatPhpstanBaseline(fixture, {
+  extension = 'vendor/johnbillion/wp-compat/extension.neon',
+  pluginFile = 'wp-media-categories.php',
+} = {}) {
+  unlinkSync(join(fixture.root, 'phpstan-baseline.neon'));
+  writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
+    'includes:',
+    '    - ' + extension,
+    '',
+    'parameters:',
+    '    level: 7',
+    '    phpVersion: 70400',
+    '    paths:',
+    '        - includes',
+    '    stubFiles:',
+    '        - phpstan-wordpress-compat.stub',
+    '',
+    '    WPCompat:',
+    '        pluginFile: ' + pluginFile,
+    '',
+  ].join('\n'));
+  writeFixtureFile(fixture.root, 'phpstan-wordpress-compat.stub', '<?php\n');
 }
 
 function retirePhpstanBaseline(fixture, { level = 7, path = 'includes', stub = true, ignoreErrors = false } = {}) {
@@ -352,24 +376,17 @@ test('cleared PHPStan baseline permits a higher level and one named compatibilit
 test('cleared PHPStan baseline preserves an existing WPCompat include and configuration', (t) => {
   const fixture = wpCompatPhpstanRetirementRepository();
   t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
-  unlinkSync(join(fixture.root, 'phpstan-baseline.neon'));
-  writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
-    'includes:',
-    '    - vendor/johnbillion/wp-compat/extension.neon',
-    '',
-    'parameters:',
-    '    level: 7',
-    '    phpVersion: 70400',
-    '    paths:',
-    '        - includes',
-    '    stubFiles:',
-    '        - phpstan-wordpress-compat.stub',
-    '',
-    '    WPCompat:',
-    '        pluginFile: wp-media-categories.php',
-    '',
-  ].join('\n'));
-  writeFixtureFile(fixture.root, 'phpstan-wordpress-compat.stub', '<?php\n');
+  retireWpCompatPhpstanBaseline(fixture);
+
+  const result = runChecker(fixture.root, fixture.revision);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('cleared PHPStan baseline preserves literal replacement tokens in existing includes', (t) => {
+  const extension = 'vendor/$&/wp-compat/extension.neon';
+  const fixture = wpCompatPhpstanRetirementRepository(extension);
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  retireWpCompatPhpstanBaseline(fixture, { extension });
 
   const result = runChecker(fixture.root, fixture.revision);
   assert.equal(result.status, 0, result.stderr);
@@ -378,24 +395,7 @@ test('cleared PHPStan baseline preserves an existing WPCompat include and config
 test('cleared PHPStan baseline rejects changes to an existing WPCompat configuration', (t) => {
   const fixture = wpCompatPhpstanRetirementRepository();
   t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
-  unlinkSync(join(fixture.root, 'phpstan-baseline.neon'));
-  writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
-    'includes:',
-    '    - vendor/johnbillion/wp-compat/extension.neon',
-    '',
-    'parameters:',
-    '    level: 7',
-    '    phpVersion: 70400',
-    '    paths:',
-    '        - includes',
-    '    stubFiles:',
-    '        - phpstan-wordpress-compat.stub',
-    '',
-    '    WPCompat:',
-    '        pluginFile: changed.php',
-    '',
-  ].join('\n'));
-  writeFixtureFile(fixture.root, 'phpstan-wordpress-compat.stub', '<?php\n');
+  retireWpCompatPhpstanBaseline(fixture, { pluginFile: 'changed.php' });
 
   const result = runChecker(fixture.root, fixture.revision);
   assert.equal(result.status, 2, result.stderr);

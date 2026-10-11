@@ -696,7 +696,7 @@ function isClearedPhpstanBaselineMigration(base, head) {
   const remainingIncludes = includesBlock.groups.entries.replace(baselineEntry, '');
   const normalizedBase = base.replace(
     includesBlock[0],
-    remainingIncludes === '' ? '' : `includes:\n${remainingIncludes}\n`,
+    () => (remainingIncludes === '' ? '' : `includes:\n${remainingIncludes}\n`),
   );
 
   // Permit only the WordPress compatibility stub used by the level-7 migration.
