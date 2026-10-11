@@ -684,10 +684,20 @@ function isClearedPhpstanBaselineMigration(base, head) {
   const headLevel = phpstanLevel(head);
   if (baseLevel === null || headLevel === null || headLevel <= baseLevel) return false;
 
-  const baselineInclude = /^includes:\n[ \t]+- phpstan-baseline\.neon\n\n/u;
-  if (!baselineInclude.test(base) || head.includes('phpstan-baseline.neon') || head.includes('ignoreErrors')) {
+  const includesBlock = base.match(/^includes:\n(?<entries>(?:[ \t]+- [^\n]+\n)+)\n/u);
+  if (includesBlock === null || includesBlock.groups === undefined
+    || head.includes('phpstan-baseline.neon') || head.includes('ignoreErrors')) {
     return false;
   }
+
+  const baselineEntry = /^[ \t]+- phpstan-baseline\.neon\n/gmu;
+  if ([...includesBlock.groups.entries.matchAll(baselineEntry)].length !== 1) return false;
+
+  const remainingIncludes = includesBlock.groups.entries.replace(baselineEntry, '');
+  const normalizedBase = base.replace(
+    includesBlock[0],
+    remainingIncludes === '' ? '' : `includes:\n${remainingIncludes}\n`,
+  );
 
   // Permit only the WordPress compatibility stub used by the level-7 migration.
   // The following quality step still runs the unchanged Composer analyzer command.
@@ -699,7 +709,7 @@ function isClearedPhpstanBaselineMigration(base, head) {
   }
 
   const normalizeLevel = (source) => source.replace(/^([ \t]+level: )[0-9]+$/mu, '$1__LEVEL__');
-  return normalizeLevel(base.replace(baselineInclude, '')) === normalizeLevel(normalizedHead);
+  return normalizeLevel(normalizedBase) === normalizeLevel(normalizedHead);
 }
 
 function portfolioMainFile(repository) {

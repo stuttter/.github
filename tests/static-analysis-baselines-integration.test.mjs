@@ -297,6 +297,34 @@ function phpstanRetirementRepository() {
   });
 }
 
+function wpCompatPhpstanRetirementRepository() {
+  return createRepository({
+    'composer.json': JSON.stringify({
+      'require-dev': {
+        'johnbillion/wp-compat': '^2.0.1',
+        'php-stubs/wordpress-stubs': '7.1.*',
+      },
+      scripts: { phpstan: 'phpstan analyse --no-progress' },
+    }, null, 2) + '\n',
+    'phpstan-baseline.neon': canonicalPhpstanBaseline,
+    'phpstan.neon.dist': [
+      'includes:',
+      '    - vendor/johnbillion/wp-compat/extension.neon',
+      '    - phpstan-baseline.neon',
+      '',
+      'parameters:',
+      '    level: 5',
+      '    phpVersion: 70400',
+      '    paths:',
+      '        - includes',
+      '',
+      '    WPCompat:',
+      '        pluginFile: wp-media-categories.php',
+      '',
+    ].join('\n'),
+  });
+}
+
 function retirePhpstanBaseline(fixture, { level = 7, path = 'includes', stub = true, ignoreErrors = false } = {}) {
   unlinkSync(join(fixture.root, 'phpstan-baseline.neon'));
   writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
@@ -319,6 +347,59 @@ test('cleared PHPStan baseline permits a higher level and one named compatibilit
   retirePhpstanBaseline(fixture);
   const result = runChecker(fixture.root, fixture.revision);
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('cleared PHPStan baseline preserves an existing WPCompat include and configuration', (t) => {
+  const fixture = wpCompatPhpstanRetirementRepository();
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  unlinkSync(join(fixture.root, 'phpstan-baseline.neon'));
+  writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
+    'includes:',
+    '    - vendor/johnbillion/wp-compat/extension.neon',
+    '',
+    'parameters:',
+    '    level: 7',
+    '    phpVersion: 70400',
+    '    paths:',
+    '        - includes',
+    '    stubFiles:',
+    '        - phpstan-wordpress-compat.stub',
+    '',
+    '    WPCompat:',
+    '        pluginFile: wp-media-categories.php',
+    '',
+  ].join('\n'));
+  writeFixtureFile(fixture.root, 'phpstan-wordpress-compat.stub', '<?php\n');
+
+  const result = runChecker(fixture.root, fixture.revision);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('cleared PHPStan baseline rejects changes to an existing WPCompat configuration', (t) => {
+  const fixture = wpCompatPhpstanRetirementRepository();
+  t.after(() => rmSync(fixture.root, { force: true, recursive: true }));
+  unlinkSync(join(fixture.root, 'phpstan-baseline.neon'));
+  writeFixtureFile(fixture.root, 'phpstan.neon.dist', [
+    'includes:',
+    '    - vendor/johnbillion/wp-compat/extension.neon',
+    '',
+    'parameters:',
+    '    level: 7',
+    '    phpVersion: 70400',
+    '    paths:',
+    '        - includes',
+    '    stubFiles:',
+    '        - phpstan-wordpress-compat.stub',
+    '',
+    '    WPCompat:',
+    '        pluginFile: changed.php',
+    '',
+  ].join('\n'));
+  writeFixtureFile(fixture.root, 'phpstan-wordpress-compat.stub', '<?php\n');
+
+  const result = runChecker(fixture.root, fixture.revision);
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /may not add, remove, or change phpstan\.neon/u);
 });
 
 test('cleared PHPStan baseline still rejects analyzer configuration drift', (t) => {
