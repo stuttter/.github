@@ -199,8 +199,10 @@ administrator bypass, and restrict deployment to the inventory's exact release
 branch. Keep WordPress.org credentials at the inventory-declared scope.
 Undeclared repository or environment copies must be removed before audit or
 apply can succeed. Then use
-`scripts/provision-release-environments.mjs` to audit or rotate credentials
-without copying values into files or command arguments. The script
+`scripts/provision-release-environments.mjs` to audit every credential scope and
+rotate the Stuttter organization credentials without copying values into files
+or command arguments. Repository-scoped JJJ credentials are checked by name but
+must be rotated separately through that repository's secure settings. The script
 selects only enabled WordPress.org release targets from the validated inventory,
 rejects forks, archives, owner drift, branch drift, administrator bypass,
 incomplete API results, unexpected deployment policies, and any repository or

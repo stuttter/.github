@@ -87,6 +87,7 @@ export function loadInventory(path) {
     if (item.owner_policy === 'jjj-maintainer' && !/^JJJ\//u.test(item.repository || '')) errors.push(`${context}.owner_policy requires a JJJ-owned repository.`);
     if ('release_credentials' in item && !['stuttter-organization', 'repository'].includes(item.release_credentials)) errors.push(`${context}.release_credentials is invalid.`);
     if (item.release_credentials === 'repository' && item.owner_policy !== 'jjj-maintainer') errors.push(`${context}.release_credentials may use repository scope only for an explicit JJJ-owned exception.`);
+    if (item.enabled === true && item.owner_policy === 'jjj-maintainer' && item.managed_paths?.includes('release') && item.manifest?.wordpress_org === true && item.release_credentials !== 'repository') errors.push(`${context}.release_credentials must use repository scope for an enabled JJJ-owned WordPress.org release target.`);
     if ('compatibility_exception' in item) {
       const exception = item.compatibility_exception;
       if (!exception || typeof exception !== 'object' || Array.isArray(exception)) {

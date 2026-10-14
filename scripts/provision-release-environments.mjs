@@ -590,7 +590,7 @@ export function provisionFleet({
     return {
       ...preparation,
       organization_secrets: inspection.credential_source === 'stuttter-organization' ? secretNames : [],
-      repository_secrets: inspection.credential_source === 'repository' ? secretNames : [],
+      repository_secrets_present: inspection.credential_source === 'repository' ? secretNames : [],
       credential_copies_preserved: inspection.credential_copies,
     };
   });

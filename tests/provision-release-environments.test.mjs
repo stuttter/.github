@@ -570,7 +570,7 @@ test('fleet apply verifies organization scope with no narrower credential copies
   assert.deepEqual(report.prepared.map((result) => result.repository), [target.repository]);
   assert.deepEqual(report.applied[0].credential_copies_preserved, { repository: [], environment: [] });
   assert.deepEqual(report.applied[0].organization_secrets, ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD']);
-  assert.deepEqual(report.applied[0].repository_secrets, []);
+  assert.deepEqual(report.applied[0].repository_secrets_present, []);
   assert.deepEqual(report.cleanup_required, []);
   assert.equal(calls.some(({ args }) => args.includes('DELETE')), false);
   assert.equal(environmentSecrets.length, 0);
