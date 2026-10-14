@@ -285,7 +285,10 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
     `${repository} repository secrets`,
   ).map((secret) => secret.name);
   const credentialCopies = {
-    repository: repositorySecrets.filter((name) => credentialSecretNames.includes(name)),
+    repository: repositorySecrets.filter((name) =>
+      reusableWorkflowSecretNames.includes(name) ||
+      (credentialSource === 'stuttter-organization' && secretNames.includes(name))
+    ),
     environment: environmentSecrets.filter((name) => credentialSecretNames.includes(name)),
   };
   if (credentialSource === 'stuttter-organization' && credentialCopies.repository.length > 0) {
@@ -580,13 +583,17 @@ export function provisionFleet({
     return report;
   }
 
-  report.applied = report.prepared.map((preparation) => ({
-    ...preparation,
-    organization_secrets: secretNames,
-    credential_copies_preserved: inspections.find(
-      (inspection) => inspection.repository === preparation.repository,
-    ).credential_copies,
-  }));
+  report.applied = report.prepared.map((preparation) => {
+    const inspection = inspections.find(
+      (candidate) => candidate.repository === preparation.repository,
+    );
+    return {
+      ...preparation,
+      organization_secrets: inspection.credential_source === 'stuttter-organization' ? secretNames : [],
+      repository_secrets: inspection.credential_source === 'repository' ? secretNames : [],
+      credential_copies_preserved: inspection.credential_copies,
+    };
+  });
   return report;
 }
 

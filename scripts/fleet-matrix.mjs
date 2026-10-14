@@ -9,7 +9,11 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function selectTargets(inventory, requested = 'all') {
   const targets = inventory.repositories
     .filter((target) => target.enabled && (requested === 'all' || target.repository === requested))
-    .map((target) => ({ repository: target.repository, branch: target.manifest.release_branch || 'main' }));
+    .map((target) => ({
+      repository: target.repository,
+      branch: target.manifest.release_branch || 'main',
+      owner: target.owner_policy === 'jjj-maintainer' ? 'JJJ' : 'stuttter',
+    }));
 
   if (requested !== 'all' && targets.length === 0) {
     throw new Error(`${requested} is not an enabled portfolio target.`);
