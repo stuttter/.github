@@ -57,12 +57,12 @@ compatibility policy before the inventory can accept it. Revisit the baseline
 at least annually, or earlier when dependencies, WordPress APIs, or security
 maintenance justify it.
 
-Post Type Switcher is the first explicit ownership and compatibility exception.
-It remains in the `JJJ` account, retains its published WordPress 6.2 and PHP 8.0
-minimums, and receives the same immutable CI, dependency, artifact, and release
-policy as the Stuttter repositories. Its inventory entry must declare both the
-`jjj-maintainer` owner policy and the exact WordPress compatibility exception.
-Neither exception authorizes a repository transfer or a compatibility change.
+Post Type Switcher is the first explicit ownership exception. It remains in the
+`JJJ` account, supports WordPress 6.6 and PHP 8.0 or newer, and receives the same
+immutable CI, dependency, artifact, and release policy as the Stuttter
+repositories. Its inventory entry must declare the `jjj-maintainer` owner
+policy. The ownership exception does not authorize a repository transfer or a
+compatibility change.
 
 ## Required validation
 

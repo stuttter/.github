@@ -585,10 +585,6 @@
       "enabled": true,
       "owner_policy": "jjj-maintainer",
       "release_credentials": "repository",
-      "compatibility_exception": {
-        "minimum_wordpress": "6.2",
-        "reason": "Preserve the published WordPress 6.2 minimum while dedicated CI exercises that oldest supported line."
-      },
       "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": {
@@ -599,7 +595,7 @@
             { "path": "phpunit.xml.dist", "sha256": "6272f9780a623d456875e5c724e3952f15828d49737a867d7b44f2970871bbda" },
             { "path": "tests/bootstrap.php", "sha256": "ebce659fac6d6968b6b5eb1aae313f5af55a89e21331bafb8f06dbbf8df2dfd0" },
             { "path": "tests/HookRegistrationTest.php", "sha256": "3da2e4a78e9f6dd5bc91b8c6b93e123c2354c14d290527fc63bbca0817bff784" },
-            { "path": "tests/JavaScriptContractTest.php", "sha256": "5e0a1105dd5de0a3888745e823a2d88aa94004a8f4c5036db3b36757e4b9a975" },
+            { "path": "tests/JavaScriptContractTest.php", "sha256": "11c6f2b53df7bbe410cbc0a9535d6f524ec35c0a44ad688bdb19f6b51170b0f5" },
             { "path": "tests/PluginBehaviorTest.php", "sha256": "5b43434282c94631f97ab636a5aacc849fe2f921a700395d80560e671c76f076" }
           ]
         },
@@ -637,7 +633,7 @@
         "main_file": "post-type-switcher.php",
         "risk": "elevated",
         "minimum_php": "8.0",
-        "minimum_wordpress": "6.2",
+        "minimum_wordpress": "6.6",
         "tested_wordpress": "7.1",
         "wordpress_org": true,
         "multisite": false,
