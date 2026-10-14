@@ -147,6 +147,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     'stuttter/wp-term-order',
     'stuttter/wp-term-icons',
     'stuttter/ludicrousdb',
+    'JJJ/post-type-switcher',
   ]);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.wordpress.sha256, '4f0069c407dcc34f19ec2bf06ce7690fae5b14e9fb1a94268519509f7a460e80');

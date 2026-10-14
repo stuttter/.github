@@ -152,13 +152,14 @@ function normalizedChecks(protection) {
 export function inspectTarget({ target, execute = runGitHub }) {
   const repository = target.repository;
   const releaseBranch = target.manifest.release_branch || 'main';
+  const expectedOwner = target.owner_policy === 'jjj-maintainer' ? 'JJJ' : organization;
   const metadata = request(execute, `repos/${repository}`);
   const errors = [];
   const drift = [];
 
   if (
     metadata.full_name !== repository ||
-    metadata.owner?.login !== organization ||
+    metadata.owner?.login !== expectedOwner ||
     metadata.fork !== false ||
     metadata.archived !== false ||
     metadata.default_branch !== releaseBranch

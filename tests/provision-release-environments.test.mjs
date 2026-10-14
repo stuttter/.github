@@ -337,6 +337,41 @@ test('inspection rejects repository and environment credential copies', () => {
   assert.match(repositoryAlias.errors.join(' '), /repository credential copies/i);
 });
 
+test('inspection accepts the explicit JJJ owner with repository-scoped caller credentials', () => {
+  const external = {
+    ...target,
+    repository: 'JJJ/post-type-switcher',
+    owner_policy: 'jjj-maintainer',
+    release_credentials: 'repository',
+  };
+  const base = readExecutor({
+    organizationRepositories: [],
+    repositorySecrets: ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'],
+  });
+  const execute = (args, input) => {
+    const endpoint = args.find((argument) => argument.startsWith('repos/')) || '';
+    if (endpoint === 'repos/JJJ/post-type-switcher') {
+      return JSON.stringify({ full_name: external.repository, owner: { login: 'JJJ' }, fork: false, archived: false, default_branch: 'master' });
+    }
+    return base.execute(args, input);
+  };
+
+  const inspection = inspectReleaseEnvironment({ target: external, reviewerId: 88951, execute });
+  assert.equal(inspection.credential_source, 'repository');
+  assert.deepEqual(inspection.credential_copies, { repository: [], environment: [] });
+  assert.deepEqual(inspection.errors, []);
+
+  const report = provisionFleet({
+    targets: [external],
+    approvedRepositories: [],
+    reviewerId: 88951,
+    apply: false,
+    execute,
+  });
+  assert.equal(report.failed, null);
+  assert.deepEqual(report.cleanup_required, []);
+});
+
 test('organization credential audit requires both secrets and the exact repository allowlist', () => {
   const exact = readExecutor();
   assert.deepEqual(inspectOrganizationCredentials({ approvedRepositories: [target.repository], execute: exact.execute }).errors, []);
@@ -534,6 +569,8 @@ test('fleet apply verifies organization scope with no narrower credential copies
   assert.deepEqual(report.applied.map((result) => result.repository), [target.repository]);
   assert.deepEqual(report.prepared.map((result) => result.repository), [target.repository]);
   assert.deepEqual(report.applied[0].credential_copies_preserved, { repository: [], environment: [] });
+  assert.deepEqual(report.applied[0].organization_secrets, ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD']);
+  assert.deepEqual(report.applied[0].repository_secrets_present, []);
   assert.deepEqual(report.cleanup_required, []);
   assert.equal(calls.some(({ args }) => args.includes('DELETE')), false);
   assert.equal(environmentSecrets.length, 0);

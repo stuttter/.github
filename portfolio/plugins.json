@@ -579,6 +579,67 @@
         "release_branch": "master",
         "php_matrix": ["7.4", "8.0", "8.2", "8.4"]
       }
+    },
+    {
+      "repository": "JJJ/post-type-switcher",
+      "enabled": true,
+      "owner_policy": "jjj-maintainer",
+      "release_credentials": "repository",
+      "managed_paths": ["ci", "release", "dependabot"],
+      "checks": {
+        "phpunit": {
+          "config": "phpunit.xml.dist",
+          "files": [
+            { "path": "composer.json", "sha256": "8301d9c14fba2afbab27a76a83ee5f5650ec97c8faf2f122611ee74c93adda1d" },
+            { "path": "composer.lock", "sha256": "a4c9d8df31f4bd0ead04f5478f6c7f990ca37062bd09bd2cf58e2e88f7632120" },
+            { "path": "phpunit.xml.dist", "sha256": "6272f9780a623d456875e5c724e3952f15828d49737a867d7b44f2970871bbda" },
+            { "path": "tests/bootstrap.php", "sha256": "ebce659fac6d6968b6b5eb1aae313f5af55a89e21331bafb8f06dbbf8df2dfd0" },
+            { "path": "tests/HookRegistrationTest.php", "sha256": "3da2e4a78e9f6dd5bc91b8c6b93e123c2354c14d290527fc63bbca0817bff784" },
+            { "path": "tests/JavaScriptContractTest.php", "sha256": "11c6f2b53df7bbe410cbc0a9535d6f524ec35c0a44ad688bdb19f6b51170b0f5" },
+            { "path": "tests/PluginBehaviorTest.php", "sha256": "5b43434282c94631f97ab636a5aacc849fe2f921a700395d80560e671c76f076" }
+          ]
+        },
+        "node": {
+          "version": "22",
+          "script": "build:check",
+          "scripts": {
+            "build": "wp-scripts build && node bin/move-build.mjs",
+            "build:check": "npm run build && npm run generated:check && git diff --exit-code -- assets/js/block.js assets/js/block.asset.php",
+            "generated:check": "node bin/check-generated-assets.mjs",
+            "start": "wp-scripts start"
+          },
+          "files": [
+            { "path": "package.json", "sha256": "4d6cf27d54c9254d3dfdf44b3539e550c781ae07c1f3198528ccac1b26ec061d" },
+            { "path": "package-lock.json", "sha256": ["0147e0b42a1da7e17cb19ef18791b401c8806b14e504adab11db2cee5f38ddc2", "4c6cf1299ba3c5b4fe665a6471c06f5e510849e1a0bed52f34e7a04b02361e79"] },
+            { "path": "pnpm-lock.yaml", "sha256": ["8748fc1536182cae88135fc233ae563d072ae8784f941fdee5a35201de2ad826", "9e958e72acc0e97d252757e0502b4710d395b1cc427357916203289627685478"] },
+            { "path": "bin/check-generated-assets.mjs", "sha256": "9d73d33c9e2af97e5699c18a3017f71d3a90fe1843378a7590d3853d53184727" },
+            { "path": "bin/move-build.mjs", "sha256": "6235a69b5b541d6f8ccda76a82b348341752eb8085940934f397a353f57bc53d" },
+            { "path": "src/index.js", "sha256": "db0976f213ecc91e2e0767bb2748c4b47fdf629bcec6ceff30b85076fe1c2f24" },
+            { "path": "src/components/post-type-switcher.js", "sha256": "9e819748b381d9494092241ea7a694f8d2ce0fc7c8633c432376693ef636f631" },
+            { "path": "assets/js/block.js", "sha256": "c57268c92275060ddfaa79a5adbb41b53280773a208b7e5f019d188bc36c1334" },
+            { "path": "assets/js/block.asset.php", "sha256": "cde6b70349bc129b987d865d51864aa263bc7c29d060e32fc8447ff596c5d6e5" }
+          ]
+        }
+      },
+      "integration": {
+        "plugin_check": true,
+        "wordpress": {
+          "path": "tests/integration/smoke.php",
+          "sha256": "2b7e287465279f466aa76af94cdeb9b6e29b84ad814bcdf3603ac4b01db7902c"
+        }
+      },
+      "manifest": {
+        "slug": "post-type-switcher",
+        "main_file": "post-type-switcher.php",
+        "risk": "elevated",
+        "minimum_php": "8.0",
+        "minimum_wordpress": "6.6",
+        "tested_wordpress": "7.1",
+        "wordpress_org": true,
+        "multisite": false,
+        "release_branch": "master",
+        "php_matrix": ["8.0", "8.2", "8.4"]
+      }
     }
   ]
 }

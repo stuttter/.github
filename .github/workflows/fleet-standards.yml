@@ -173,12 +173,13 @@ jobs:
       - name: Reject forks, archives, and unexpected owners
         env:
           GH_TOKEN: ${{ secrets.FLEET_GITHUB_TOKEN }}
+          TARGET_OWNER: ${{ matrix.target.owner }}
           TARGET_REPOSITORY: ${{ matrix.target.repository }}
         shell: bash
         run: |
           metadata="$(gh api "repos/${TARGET_REPOSITORY}")"
           test "$(jq -r '.full_name' <<< "${metadata}")" = "${TARGET_REPOSITORY}"
-          test "$(jq -r '.owner.login' <<< "${metadata}")" = 'stuttter'
+          test "$(jq -r '.owner.login' <<< "${metadata}")" = "${TARGET_OWNER}"
           test "$(jq -r '.fork' <<< "${metadata}")" = 'false'
           test "$(jq -r '.archived' <<< "${metadata}")" = 'false'
 

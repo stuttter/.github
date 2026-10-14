@@ -152,6 +152,31 @@ test('Node command grammar rejects shell bypasses and unapproved commands', () =
   }
 });
 
+test('Node command grammar accepts the locked WordPress Scripts build contract', () => {
+  const files = [
+    fileContract('package.json', '{}\n'),
+    fileContract('package-lock.json', '{}\n'),
+    fileContract('pnpm-lock.yaml', 'lockfileVersion: 9.0\n'),
+    fileContract('bin/move-build.mjs', 'move\n'),
+    fileContract('bin/check-generated-assets.mjs', 'check\n'),
+    fileContract('assets/js/block.js', 'asset\n'),
+    fileContract('assets/js/block.asset.php', '<?php return array();\n'),
+  ];
+  const node = {
+    version: '22',
+    script: 'build:check',
+    scripts: {
+      build: 'wp-scripts build && node bin/move-build.mjs',
+      'build:check': 'npm run build && npm run generated:check && git diff --exit-code -- assets/js/block.js assets/js/block.asset.php',
+      'generated:check': 'node bin/check-generated-assets.mjs',
+      start: 'wp-scripts start',
+    },
+    files,
+  };
+
+  assert.deepEqual(validateProjectChecks({ phpunit: false, node }), []);
+});
+
 test('live-smoke profile requires hashes for both entry points and helpers', () => {
   const files = [
     fileContract('tests/run-single.sh', 'single\n'),

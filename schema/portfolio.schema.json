@@ -64,6 +64,27 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
           },
+          "owner_policy": {
+            "const": "jjj-maintainer"
+          },
+          "release_credentials": {
+            "enum": ["stuttter-organization", "repository"]
+          },
+          "compatibility_exception": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minimum_wordpress", "reason"],
+            "properties": {
+              "minimum_wordpress": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 20
+              }
+            }
+          },
           "enabled": { "type": "boolean" },
           "managed_paths": {
             "type": "array",

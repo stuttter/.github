@@ -57,6 +57,13 @@ compatibility policy before the inventory can accept it. Revisit the baseline
 at least annually, or earlier when dependencies, WordPress APIs, or security
 maintenance justify it.
 
+Post Type Switcher is the first explicit ownership exception. It remains in the
+`JJJ` account, supports WordPress 6.6 and PHP 8.0 or newer, and receives the same
+immutable CI, dependency, artifact, and release policy as the Stuttter
+repositories. Its inventory entry must declare the `jjj-maintainer` owner
+policy. The ownership exception does not authorize a repository transfer or a
+compatibility change.
+
 ## Required validation
 
 The shared gate should verify:
@@ -324,6 +331,14 @@ Organization secrets are repository-accessible; the protected
 environment gates the central publish job rather than access by every workflow
 in the repository. Protect all workflow files accordingly, and never reference
 the credentials outside that gated publish job.
+
+The JJJ-owned Post Type Switcher repository cannot receive Stuttter organization
+secrets. Its explicit inventory exception uses repository Actions secrets with
+the same canonical names. The reusable workflow still exposes them only to its
+protected publish job, and the `wordpress.org` environment still requires JJJ's
+review and the exact protected release branch. Environment credential copies
+and reusable-workflow alias secrets remain forbidden. This exception does not
+apply to any repository discovered by owner, topic, or name.
 
 After approval it may create the Git tag and GitHub release, update WordPress.org
 trunk and the matching Subversion tag, then download the generated public ZIP

@@ -301,6 +301,26 @@ test('inventory requires an ordered PHP matrix beginning at the minimum', () => 
   }
 });
 
+test('enabled JJJ WordPress.org release targets require repository credentials', () => {
+  const external = {
+    ...target,
+    repository: 'JJJ/post-type-switcher',
+    owner_policy: 'jjj-maintainer',
+  };
+  const { root, cleanup } = fixture();
+  const path = join(root, 'inventory.json');
+  try {
+    writeFileSync(path, JSON.stringify({ repositories: [external] }));
+    assert.throws(() => loadInventory(path), /release_credentials must use repository scope/u);
+
+    external.release_credentials = 'repository';
+    writeFileSync(path, JSON.stringify({ repositories: [external] }));
+    assert.doesNotThrow(() => loadInventory(path));
+  } finally {
+    cleanup();
+  }
+});
+
 test('enabled inventory repositories cannot regress below the WordPress 6.4 baseline', () => {
   const legacy = structuredClone(target);
   legacy.manifest.minimum_wordpress = '6.3';
@@ -314,6 +334,30 @@ test('enabled inventory repositories cannot regress below the WordPress 6.4 base
 
     writeFileSync(path, JSON.stringify({ repositories: [disabledLegacy] }));
     assert.doesNotThrow(() => loadInventory(path));
+  } finally {
+    cleanup();
+  }
+});
+
+test('an explicit compatibility exception preserves a reviewed older WordPress floor', () => {
+  const legacy = structuredClone(target);
+  legacy.repository = 'JJJ/post-type-switcher';
+  legacy.owner_policy = 'jjj-maintainer';
+  legacy.release_credentials = 'repository';
+  legacy.manifest.minimum_wordpress = '6.2';
+  legacy.compatibility_exception = {
+    minimum_wordpress: '6.2',
+    reason: 'Preserve the published minimum with dedicated oldest-version integration coverage.',
+  };
+  const { root, cleanup } = fixture();
+  const path = join(root, 'inventory.json');
+  try {
+    writeFileSync(path, JSON.stringify({ repositories: [legacy] }));
+    assert.doesNotThrow(() => loadInventory(path));
+
+    legacy.compatibility_exception.minimum_wordpress = '6.1';
+    writeFileSync(path, JSON.stringify({ repositories: [legacy] }));
+    assert.throws(() => loadInventory(path), /documented compatibility_exception/u);
   } finally {
     cleanup();
   }

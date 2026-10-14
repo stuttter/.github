@@ -124,6 +124,22 @@ test('disabled, non-release, and non-WordPress.org repositories are excluded', (
   assert.deepEqual(report.expected_repositories, ['stuttter/wp-chosen']);
 });
 
+test('repository-scoped JJJ release credentials are excluded from the Stuttter organization allowlist', () => {
+  const external = {
+    ...eligible('JJJ/post-type-switcher'),
+    owner_policy: 'jjj-maintainer',
+    release_credentials: 'repository',
+  };
+  const github = executor();
+  const report = auditWordPressOrgSecretAccess({
+    inventory: inventory(eligible('stuttter/wp-chosen'), external),
+    execute: github.execute,
+  });
+
+  assert.equal(report.status, 'clean');
+  assert.deepEqual(report.expected_repositories, ['stuttter/wp-chosen']);
+});
+
 test('audit fails closed when GitHub metadata is unavailable or incomplete', () => {
   const endpoint = 'orgs/stuttter/actions/secrets/WORDPRESS_ORG_USERNAME/repositories?per_page=100';
   const failed = executor({ failAt: endpoint });
