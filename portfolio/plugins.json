@@ -597,7 +597,10 @@
             { "path": "composer.json", "sha256": "8301d9c14fba2afbab27a76a83ee5f5650ec97c8faf2f122611ee74c93adda1d" },
             { "path": "composer.lock", "sha256": "a4c9d8df31f4bd0ead04f5478f6c7f990ca37062bd09bd2cf58e2e88f7632120" },
             { "path": "phpunit.xml.dist", "sha256": "6272f9780a623d456875e5c724e3952f15828d49737a867d7b44f2970871bbda" },
-            { "path": "tests/bootstrap.php", "sha256": "ebce659fac6d6968b6b5eb1aae313f5af55a89e21331bafb8f06dbbf8df2dfd0" }
+            { "path": "tests/bootstrap.php", "sha256": "ebce659fac6d6968b6b5eb1aae313f5af55a89e21331bafb8f06dbbf8df2dfd0" },
+            { "path": "tests/HookRegistrationTest.php", "sha256": "3da2e4a78e9f6dd5bc91b8c6b93e123c2354c14d290527fc63bbca0817bff784" },
+            { "path": "tests/JavaScriptContractTest.php", "sha256": "5e0a1105dd5de0a3888745e823a2d88aa94004a8f4c5036db3b36757e4b9a975" },
+            { "path": "tests/PluginBehaviorTest.php", "sha256": "6824adbe7bbae40178db56d3414ff565c3dca60afdac7f3e8aaa039736de35b5" }
           ]
         },
         "node": {
@@ -635,7 +638,7 @@
         "risk": "elevated",
         "minimum_php": "8.0",
         "minimum_wordpress": "6.2",
-        "tested_wordpress": "6.9",
+        "tested_wordpress": "7.1",
         "wordpress_org": true,
         "multisite": false,
         "release_branch": "master",
