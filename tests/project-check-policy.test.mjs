@@ -156,6 +156,7 @@ test('Node command grammar accepts the locked WordPress Scripts build contract',
   const files = [
     fileContract('package.json', '{}\n'),
     fileContract('package-lock.json', '{}\n'),
+    fileContract('pnpm-lock.yaml', 'lockfileVersion: 9.0\n'),
     fileContract('bin/move-build.mjs', 'move\n'),
     fileContract('bin/check-generated-assets.mjs', 'check\n'),
     fileContract('assets/js/block.js', 'asset\n'),

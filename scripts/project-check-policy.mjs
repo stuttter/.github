@@ -16,7 +16,7 @@ const dormantPhpcsContractPaths = new Set([
   'phpcs.xml.dist',
   'scripts/check-phpcs-baseline.php',
 ]);
-const safeContractPath = /^(?:composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml\.dist|\.?phpcs\.xml(?:\.dist)?|(?:bin|scripts|tests)\/[A-Za-z0-9._/-]+)$/u;
+const safeContractPath = /^(?:composer\.(?:json|lock)|package(?:-lock)?\.json|pnpm-lock\.yaml|phpunit\.xml\.dist|\.?phpcs\.xml(?:\.dist)?|(?:bin|scripts|tests)\/[A-Za-z0-9._/-]+)$/u;
 const safeNodeContractPath = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/u;
 const safeSmokePath = /^(?:bin|tests)\/[A-Za-z0-9._/-]+\.sh$/u;
 const sha256Pattern = /^[a-f0-9]{64}$/u;

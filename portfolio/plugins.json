@@ -612,6 +612,7 @@
           "files": [
             { "path": "package.json", "sha256": "4d6cf27d54c9254d3dfdf44b3539e550c781ae07c1f3198528ccac1b26ec061d" },
             { "path": "package-lock.json", "sha256": ["0147e0b42a1da7e17cb19ef18791b401c8806b14e504adab11db2cee5f38ddc2", "4c6cf1299ba3c5b4fe665a6471c06f5e510849e1a0bed52f34e7a04b02361e79"] },
+            { "path": "pnpm-lock.yaml", "sha256": ["8748fc1536182cae88135fc233ae563d072ae8784f941fdee5a35201de2ad826", "9e958e72acc0e97d252757e0502b4710d395b1cc427357916203289627685478"] },
             { "path": "bin/check-generated-assets.mjs", "sha256": "9d73d33c9e2af97e5699c18a3017f71d3a90fe1843378a7590d3853d53184727" },
             { "path": "bin/move-build.mjs", "sha256": "6235a69b5b541d6f8ccda76a82b348341752eb8085940934f397a353f57bc53d" },
             { "path": "src/index.js", "sha256": "db0976f213ecc91e2e0767bb2748c4b47fdf629bcec6ceff30b85076fe1c2f24" },
