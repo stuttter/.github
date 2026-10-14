@@ -593,10 +593,10 @@
             { "path": "composer.json", "sha256": ["8301d9c14fba2afbab27a76a83ee5f5650ec97c8faf2f122611ee74c93adda1d", "0b68ce7ad52f67629b12abc4bbf7bb65d550b924bdebd47eaacd56328692e706"] },
             { "path": "composer.lock", "sha256": ["a4c9d8df31f4bd0ead04f5478f6c7f990ca37062bd09bd2cf58e2e88f7632120", "78e59948fd29fb19c8836d7c6f17a55e826cd66ddbffc51e74bb3ff2dd7fd649"] },
             { "path": "phpunit.xml.dist", "sha256": "6272f9780a623d456875e5c724e3952f15828d49737a867d7b44f2970871bbda" },
-            { "path": "tests/bootstrap.php", "sha256": "ebce659fac6d6968b6b5eb1aae313f5af55a89e21331bafb8f06dbbf8df2dfd0" },
-            { "path": "tests/HookRegistrationTest.php", "sha256": "3da2e4a78e9f6dd5bc91b8c6b93e123c2354c14d290527fc63bbca0817bff784" },
+            { "path": "tests/bootstrap.php", "sha256": ["ebce659fac6d6968b6b5eb1aae313f5af55a89e21331bafb8f06dbbf8df2dfd0", "51496e9b87327482958fd7988869e67c1a4a0562d23721f252fdfb15bdc5e235"] },
+            { "path": "tests/HookRegistrationTest.php", "sha256": ["3da2e4a78e9f6dd5bc91b8c6b93e123c2354c14d290527fc63bbca0817bff784", "5107c6acad17b36b71eacf871f6b22ed8e1ce025d677ec58e72ca35e4b137312"] },
             { "path": "tests/JavaScriptContractTest.php", "sha256": "11c6f2b53df7bbe410cbc0a9535d6f524ec35c0a44ad688bdb19f6b51170b0f5" },
-            { "path": "tests/PluginBehaviorTest.php", "sha256": "5b43434282c94631f97ab636a5aacc849fe2f921a700395d80560e671c76f076" }
+            { "path": "tests/PluginBehaviorTest.php", "sha256": ["5b43434282c94631f97ab636a5aacc849fe2f921a700395d80560e671c76f076", "534c56f5683d42207c7418dd4369347d08da3ccacaa5ed0fd3456c842204e9ce"] }
           ]
         },
         "node": {
