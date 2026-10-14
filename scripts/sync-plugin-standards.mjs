@@ -77,12 +77,26 @@ export function loadInventory(path) {
       errors.push(`${context} must be an object.`);
       continue;
     }
-    for (const key of Object.keys(item)) if (!['repository', 'enabled', 'managed_paths', 'manifest', 'checks', 'integration', 'protection'].includes(key)) errors.push(`${context} has unsupported key ${key}.`);
+    for (const key of Object.keys(item)) if (!['repository', 'enabled', 'managed_paths', 'manifest', 'checks', 'integration', 'protection', 'owner_policy', 'release_credentials', 'compatibility_exception'].includes(key)) errors.push(`${context} has unsupported key ${key}.`);
     if (typeof item.repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(item.repository)) errors.push(`${context} repository is invalid.`);
     const repositoryIdentity = typeof item.repository === 'string' ? item.repository.toLowerCase() : item.repository;
     if (seen.has(repositoryIdentity)) errors.push(`${context} duplicates ${item.repository}.`);
     seen.add(repositoryIdentity);
     if (typeof item.enabled !== 'boolean') errors.push(`${context} enabled must be boolean.`);
+    if ('owner_policy' in item && item.owner_policy !== 'jjj-maintainer') errors.push(`${context}.owner_policy is invalid.`);
+    if (item.owner_policy === 'jjj-maintainer' && !/^JJJ\//u.test(item.repository || '')) errors.push(`${context}.owner_policy requires a JJJ-owned repository.`);
+    if ('release_credentials' in item && !['stuttter-organization', 'repository'].includes(item.release_credentials)) errors.push(`${context}.release_credentials is invalid.`);
+    if (item.release_credentials === 'repository' && item.owner_policy !== 'jjj-maintainer') errors.push(`${context}.release_credentials may use repository scope only for an explicit JJJ-owned exception.`);
+    if ('compatibility_exception' in item) {
+      const exception = item.compatibility_exception;
+      if (!exception || typeof exception !== 'object' || Array.isArray(exception)) {
+        errors.push(`${context}.compatibility_exception must be an object.`);
+      } else {
+        for (const key of Object.keys(exception)) if (!['minimum_wordpress', 'reason'].includes(key)) errors.push(`${context}.compatibility_exception has unsupported key ${key}.`);
+        if (typeof exception.minimum_wordpress !== 'string' || !/^\d+\.\d+$/u.test(exception.minimum_wordpress)) errors.push(`${context}.compatibility_exception.minimum_wordpress is invalid.`);
+        if (typeof exception.reason !== 'string' || exception.reason.trim().length < 20) errors.push(`${context}.compatibility_exception.reason is too short.`);
+      }
+    }
     const managedPaths = ['ci', 'release', 'dependabot'];
     if (!Array.isArray(item.managed_paths) || new Set(item.managed_paths).size !== item.managed_paths.length || item.managed_paths.some((path) => !managedPaths.includes(path))) {
       errors.push(`${context} managed_paths is invalid.`);

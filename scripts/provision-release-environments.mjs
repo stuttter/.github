@@ -57,6 +57,16 @@ export function selectReleaseTargets(inventory, requested = 'all') {
   return targets;
 }
 
+export function releaseCredentialSource(target) {
+  return target.release_credentials || 'stuttter-organization';
+}
+
+export function selectOrganizationReleaseTargets(inventory) {
+  return selectReleaseTargets(inventory).filter(
+    (target) => releaseCredentialSource(target) === 'stuttter-organization',
+  );
+}
+
 export function releaseReviewerId(metadata) {
   if (metadata.login !== reviewerLogin || !Number.isSafeInteger(metadata.id) || metadata.id <= 0) {
     throw new Error('The fixed JJJ release reviewer identity could not be verified.');
@@ -173,15 +183,21 @@ export function runGitHub(args, input = undefined, runner = spawnSync, environme
 export function inspectReleaseEnvironment({ target, reviewerId, execute = runGitHub }) {
   const repository = target.repository;
   const releaseBranch = target.manifest.release_branch || 'main';
+  const credentialSource = releaseCredentialSource(target);
+  const expectedOwner = target.owner_policy === 'jjj-maintainer' ? 'JJJ' : organization;
   const errors = [];
   const metadata = parseJson(execute(apiArguments(`repos/${repository}`)), `${repository} metadata`);
   if (
     metadata.full_name !== repository ||
-    metadata.owner?.login !== 'stuttter' ||
+    metadata.owner?.login !== expectedOwner ||
     metadata.fork !== false ||
     metadata.archived !== false
   ) {
-    errors.push(`${repository} is not an active, owned Stuttter repository.`);
+    errors.push(
+      expectedOwner === organization
+        ? `${repository} is not an active, owned Stuttter repository.`
+        : `${repository} is not an active repository under its declared JJJ owner policy.`,
+    );
   }
   if (metadata.default_branch !== releaseBranch) {
     errors.push(`${repository} default branch does not match its release branch.`);
@@ -272,11 +288,21 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
     repository: repositorySecrets.filter((name) => credentialSecretNames.includes(name)),
     environment: environmentSecrets.filter((name) => credentialSecretNames.includes(name)),
   };
-  if (credentialCopies.repository.length > 0) {
+  if (credentialSource === 'stuttter-organization' && credentialCopies.repository.length > 0) {
     errors.push(`${repository} has repository credential copies that shadow the organization secrets.`);
   }
+  if (credentialSource === 'repository') {
+    const missing = secretNames.filter((name) => !repositorySecrets.includes(name));
+    const aliases = repositorySecrets.filter((name) => reusableWorkflowSecretNames.includes(name));
+    if (missing.length > 0) errors.push(`${repository} is missing its required repository-scoped WordPress.org credentials.`);
+    if (aliases.length > 0) errors.push(`${repository} has repository secrets that shadow the reusable-workflow credential inputs.`);
+  }
   if (credentialCopies.environment.length > 0) {
-    errors.push(`${repository} has ${environmentName} credential copies; WordPress.org credentials must be organization-only.`);
+    errors.push(
+      credentialSource === 'stuttter-organization'
+        ? `${repository} has ${environmentName} credential copies; WordPress.org credentials must be organization-only.`
+        : `${repository} has ${environmentName} credential copies; reusable-workflow credentials must be supplied by the caller repository.`,
+    );
   }
 
   const desired = current && validProtectionMetadata
@@ -292,6 +318,7 @@ export function inspectReleaseEnvironment({ target, reviewerId, execute = runGit
   return {
     repository,
     environment: environmentName,
+    credential_source: credentialSource,
     release_branch: releaseBranch,
     current,
     policies,
@@ -402,7 +429,10 @@ export function provisionFleet({
   apply = false,
   execute = runGitHub,
 }) {
-  const targetRepositories = targets.map((target) => target.repository).sort();
+  const targetRepositories = targets
+    .filter((target) => releaseCredentialSource(target) === 'stuttter-organization')
+    .map((target) => target.repository)
+    .sort();
   const expectedRepositories = [...approvedRepositories].sort();
   if (apply && JSON.stringify(targetRepositories) !== JSON.stringify(expectedRepositories)) {
     return {
@@ -576,11 +606,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const reviewer = parseJson(runGitHub(apiArguments(`users/${reviewerLogin}`)), 'Release reviewer');
     const reviewerId = releaseReviewerId(reviewer);
     const inventory = loadInventory(resolve(repositoryRoot, 'portfolio/plugins.json'));
-    const approvedTargets = selectReleaseTargets(inventory);
     const targets = selectReleaseTargets(inventory, requested);
+    const organizationTargets = selectOrganizationReleaseTargets(inventory);
     const report = provisionFleet({
       targets,
-      approvedRepositories: approvedTargets.map((target) => target.repository),
+      approvedRepositories: organizationTargets.map((target) => target.repository),
       reviewerId,
       username,
       password,

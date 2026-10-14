@@ -6,14 +6,14 @@ import {
   inspectOrganizationCredentials,
   redactCredentials,
   runGitHub,
-  selectReleaseTargets,
+  selectOrganizationReleaseTargets,
 } from './provision-release-environments.mjs';
 import { loadInventory } from './sync-plugin-standards.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 export function auditWordPressOrgSecretAccess({ inventory, execute = runGitHub }) {
-  const expectedRepositories = selectReleaseTargets(inventory).map((target) => target.repository);
+  const expectedRepositories = selectOrganizationReleaseTargets(inventory).map((target) => target.repository);
   const inspection = inspectOrganizationCredentials({
     approvedRepositories: expectedRepositories,
     execute,

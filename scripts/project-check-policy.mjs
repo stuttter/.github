@@ -85,6 +85,9 @@ function parseNodeCommand(command, aliases, context) {
       if (!aliases.has(words[2])) errors.push(`${context} invokes undeclared npm alias ${words[2]}.`);
     } else if (executable === 'node' && words.length === 2 && safePath(words[1], /^(?:bin|scripts|tests)\/[A-Za-z0-9._/-]+$/u)) {
       paths.push(words[1]);
+    } else if (executable === 'wp-scripts' && words.length === 2 && ['build', 'start'].includes(words[1])) {
+      // WordPress Scripts is locked by package-lock.json. Only its argument-free
+      // build and development-server commands are part of this contract.
     } else if (executable === 'postcss' && words.length === 8 && words[2] === '--output' && words[4] === '--env' && /^(?:dev|prod)$/u.test(words[5]) && words[6] === '--config') {
       const config = `${words[7]}/postcss.config.js`;
       for (const path of [words[1], words[3], config]) {

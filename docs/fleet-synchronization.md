@@ -7,6 +7,11 @@ topic, name pattern, or search result is intentionally not supported.
 
 ## Ownership boundary
 
+Inventory targets normally belong to the Stuttter organization. A target under
+the `JJJ` account is accepted only when its inventory record explicitly declares
+the `jjj-maintainer` owner policy. This preserves Post Type Switcher's public
+ownership without turning owner discovery into enrollment.
+
 The synchronizer manages only these paths:
 
 - `.github/plugin-standard.json` when it does not exist;
@@ -181,10 +186,19 @@ central workflow references the credentials only in its publish job, and that
 job remains blocked by the fixed `wordpress.org` environment gate. Protect the
 managed caller and all workflow files from unreviewed changes.
 
+An inventory record may declare repository-scoped release credentials only with
+the explicit `jjj-maintainer` owner policy. That exception is currently for
+`JJJ/post-type-switcher`. The repository must contain both canonical
+WordPress.org Actions secrets, must not contain reusable-workflow alias secrets,
+and must not copy credentials into its protected environment. Central audits
+exclude that repository from the Stuttter organization-secret allowlist while
+still checking its release environment and caller contract.
+
 Create the environment in GitHub first, require JJJ's review, disable
 administrator bypass, and restrict deployment to the inventory's exact release
-branch. Keep WordPress.org credentials only at organization scope. Repository
-or environment copies must be removed before audit or apply can succeed. Then use
+branch. Keep WordPress.org credentials at the inventory-declared scope.
+Undeclared repository or environment copies must be removed before audit or
+apply can succeed. Then use
 `scripts/provision-release-environments.mjs` to audit or rotate credentials
 without copying values into files or command arguments. The script
 selects only enabled WordPress.org release targets from the validated inventory,

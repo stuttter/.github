@@ -337,6 +337,30 @@ test('inspection rejects repository and environment credential copies', () => {
   assert.match(repositoryAlias.errors.join(' '), /repository credential copies/i);
 });
 
+test('inspection accepts the explicit JJJ owner with repository-scoped caller credentials', () => {
+  const external = {
+    ...target,
+    repository: 'JJJ/post-type-switcher',
+    owner_policy: 'jjj-maintainer',
+    release_credentials: 'repository',
+  };
+  const base = readExecutor({
+    organizationRepositories: [],
+    repositorySecrets: ['WORDPRESS_ORG_USERNAME', 'WORDPRESS_ORG_PASSWORD'],
+  });
+  const execute = (args, input) => {
+    const endpoint = args.find((argument) => argument.startsWith('repos/')) || '';
+    if (endpoint === 'repos/JJJ/post-type-switcher') {
+      return JSON.stringify({ full_name: external.repository, owner: { login: 'JJJ' }, fork: false, archived: false, default_branch: 'master' });
+    }
+    return base.execute(args, input);
+  };
+
+  const inspection = inspectReleaseEnvironment({ target: external, reviewerId: 88951, execute });
+  assert.equal(inspection.credential_source, 'repository');
+  assert.deepEqual(inspection.errors, []);
+});
+
 test('organization credential audit requires both secrets and the exact repository allowlist', () => {
   const exact = readExecutor();
   assert.deepEqual(inspectOrganizationCredentials({ approvedRepositories: [target.repository], execute: exact.execute }).errors, []);

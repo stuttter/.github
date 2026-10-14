@@ -319,6 +319,29 @@ test('enabled inventory repositories cannot regress below the WordPress 6.4 base
   }
 });
 
+test('an explicit compatibility exception preserves a reviewed older WordPress floor', () => {
+  const legacy = structuredClone(target);
+  legacy.repository = 'JJJ/post-type-switcher';
+  legacy.owner_policy = 'jjj-maintainer';
+  legacy.manifest.minimum_wordpress = '6.2';
+  legacy.compatibility_exception = {
+    minimum_wordpress: '6.2',
+    reason: 'Preserve the published minimum with dedicated oldest-version integration coverage.',
+  };
+  const { root, cleanup } = fixture();
+  const path = join(root, 'inventory.json');
+  try {
+    writeFileSync(path, JSON.stringify({ repositories: [legacy] }));
+    assert.doesNotThrow(() => loadInventory(path));
+
+    legacy.compatibility_exception.minimum_wordpress = '6.1';
+    writeFileSync(path, JSON.stringify({ repositories: [legacy] }));
+    assert.throws(() => loadInventory(path), /documented compatibility_exception/u);
+  } finally {
+    cleanup();
+  }
+});
+
 test('enabled inventory repositories cannot regress below the PHP 7.4 baseline', () => {
   const legacy = structuredClone(target);
   legacy.manifest.minimum_php = '7.3';
