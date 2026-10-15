@@ -129,6 +129,7 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
   const inventory = JSON.parse(readFileSync(new URL('../portfolio/plugins.json', import.meta.url), 'utf8'));
   const userAvatars = inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-avatars');
   const userPreferences = inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-preferences');
+  const prettyFilters = inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-pretty-filters');
   const termOrder = inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-term-order');
   const enrolled = inventory.repositories
     .filter(({ integration }) => integration.plugin_check || integration.wordpress)
@@ -143,12 +144,14 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     'stuttter/wp-user-profiles',
     'stuttter/wp-user-avatars',
     'stuttter/wp-user-preferences',
+    'stuttter/wp-pretty-filters',
     'stuttter/wp-term-images',
     'stuttter/wp-term-order',
     'stuttter/wp-term-icons',
     'stuttter/ludicrousdb',
     'JJJ/post-type-switcher',
   ]);
+  assert.equal(prettyFilters.integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.plugin_check, true);
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-user-groups').integration.wordpress.sha256, '4f0069c407dcc34f19ec2bf06ce7690fae5b14e9fb1a94268519509f7a460e80');
   assert.equal(inventory.repositories.find(({ repository }) => repository === 'stuttter/wp-media-categories').integration.wordpress.sha256, '4a7e89f6edb6d0d2cf11159eeed7826f08eaf8bddf7ba0b2df9b216b0a53d3c0');
