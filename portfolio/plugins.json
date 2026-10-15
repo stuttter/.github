@@ -393,12 +393,14 @@
     },
     {
       "repository": "stuttter/wp-pretty-filters",
-      "enabled": false,
-      "managed_paths": [],
+      "enabled": true,
+      "managed_paths": ["ci", "release", "dependabot"],
       "checks": {
         "phpunit": false
       },
-      "integration": {},
+      "integration": {
+        "plugin_check": true
+      },
       "manifest": {
         "slug": "wp-pretty-filters",
         "main_file": "wp-pretty-filters.php",
