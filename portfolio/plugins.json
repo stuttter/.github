@@ -609,9 +609,9 @@
             "start": "wp-scripts start"
           },
           "files": [
-            { "path": "package.json", "sha256": "66ece5b2d50882df7b509c0f441d50e274e36fdbb450f6eae1f56dff9d6a85b0" },
-            { "path": "package-lock.json", "sha256": ["4cfc21682a5cf6bac0cae4e241520afd766ac73f8353f737bcdacf9e75835ef0", "803409474a75774003a1edf294e18f0cf72f695b1769dd1ad8aae480c7b28b93"] },
-            { "path": "pnpm-lock.yaml", "sha256": ["0137edc627f29d2022788ce2420d7bd551a8b5e32bbc023fb3bbd634e6e99cfc", "febea6f1df3dec2120fba27f780c70e1e5708e019a51dbb2050444649ef906d7"] },
+            { "path": "package.json", "sha256": ["66ece5b2d50882df7b509c0f441d50e274e36fdbb450f6eae1f56dff9d6a85b0", "8b9cdd56e2e8c2f6acc5e43f5edd7e9b834694db8497c3d22e879f0bd5c63437"] },
+            { "path": "package-lock.json", "sha256": ["803409474a75774003a1edf294e18f0cf72f695b1769dd1ad8aae480c7b28b93", "a11acb25e3f29cc9296e92d07dacb8a3221934016898a405b4737db50167f47e"] },
+            { "path": "pnpm-lock.yaml", "sha256": "febea6f1df3dec2120fba27f780c70e1e5708e019a51dbb2050444649ef906d7" },
             { "path": "bin/check-generated-assets.mjs", "sha256": "4666cd59fc790fcacf2d4444cd41959c982828ab3f924df059d532dde1aa50c7" },
             { "path": "bin/move-build.mjs", "sha256": "2fabeebef5085fbf6b2211da51b1a248ab73330838d744fd32786e2bfa064b03" },
             { "path": "src/index.js", "sha256": "db0976f213ecc91e2e0767bb2748c4b47fdf629bcec6ceff30b85076fe1c2f24" },
