@@ -633,7 +633,7 @@
           },
           "files": [
             { "path": "package.json", "sha256": ["8b9cdd56e2e8c2f6acc5e43f5edd7e9b834694db8497c3d22e879f0bd5c63437", "ea4745ca3c4ebed24434a605fe0b0cfd264758f8f6d8c95d02bb6a0c11bddf95"] },
-            { "path": "package-lock.json", "sha256": ["a11acb25e3f29cc9296e92d07dacb8a3221934016898a405b4737db50167f47e", "09fb07bb39351a4a4caba49af7e43b8156debbde1cafd0631697145ad535444b"] },
+            { "path": "package-lock.json", "sha256": ["a11acb25e3f29cc9296e92d07dacb8a3221934016898a405b4737db50167f47e", "09fb07bb39351a4a4caba49af7e43b8156debbde1cafd0631697145ad535444b", "1d891a6453d3423a5b6ac6f3e7f74cd5c0436e5f5a0684e7ac742fee02add58b"] },
             { "path": "pnpm-lock.yaml", "sha256": "febea6f1df3dec2120fba27f780c70e1e5708e019a51dbb2050444649ef906d7" },
             { "path": "bin/check-generated-assets.mjs", "sha256": "4666cd59fc790fcacf2d4444cd41959c982828ab3f924df059d532dde1aa50c7" },
             { "path": "bin/move-build.mjs", "sha256": "2fabeebef5085fbf6b2211da51b1a248ab73330838d744fd32786e2bfa064b03" },
