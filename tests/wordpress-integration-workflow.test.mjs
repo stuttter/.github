@@ -55,12 +55,16 @@ test('integration and Plugin Check are credential-free artifact gates', () => {
 
 test('wp-env is exact, locked, and carries the audited transitive overrides', () => {
   assert.equal(runtime.dependencies['@wordpress/env'], '11.16.0');
+  assert.equal(runtime.overrides['body-parser'], '1.20.9');
+  assert.equal(runtime.overrides['fast-uri'], '3.1.9');
   assert.equal(runtime.overrides['js-yaml'], '4.3.2');
   assert.equal(runtime.overrides['proxy-addr'], '2.0.8');
   assert.equal(runtime.overrides.qs, '6.16.0');
   assert.equal(runtime.overrides['simple-git'], '4.0.2');
   assert.equal(lock.packages['node_modules/@simple-git/argv-parser'].version, '2.0.1');
   assert.equal(lock.packages['node_modules/@wordpress/env'].version, '11.16.0');
+  assert.equal(lock.packages['node_modules/body-parser'].version, '1.20.9');
+  assert.equal(lock.packages['node_modules/fast-uri'].version, '3.1.9');
   assert.equal(lock.packages['node_modules/js-yaml'].version, '4.3.2');
   assert.equal(lock.packages['node_modules/proxy-addr'].version, '2.0.8');
   assert.equal(lock.packages['node_modules/qs'].version, '6.16.0');
