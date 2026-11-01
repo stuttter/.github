@@ -213,10 +213,11 @@ function composerReachable(manifest, devPackages, errors) {
 }
 
 function canonicalComposerDistribution(record) {
+	if (! plainObject(record)) return null;
 	const url = record.dist?.url;
 	const reference = record.dist?.reference;
 	const match = typeof url === 'string'
-		? url.match(/^https:\/\/api\.github\.com\/repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/zipball\/([0-9a-f]{7,64})$/)
+		? url.match(/^https:\/\/api\.github\.com\/repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/zipball\/([0-9a-f]{40})$/)
 		: null;
 	if (! hasOnlyKeys(record.dist, new Set(['type', 'url', 'reference', 'shasum']))
 		|| record.dist.type !== 'zip'
@@ -231,6 +232,7 @@ function canonicalComposerDistribution(record) {
 }
 
 function canonicalComposerSource(record) {
+	if (! plainObject(record)) return null;
 	const url = record.source?.url;
 	const match = typeof url === 'string'
 		? url.match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(\.git)?$/)

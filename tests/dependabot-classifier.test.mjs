@@ -347,6 +347,11 @@ test('rejects alternate Composer download routes and malformed canonical records
 		(record) => { record.source.url = record.source.url.replace('/vendor/', '/vendor/%2e%2e/'); },
 		(record) => { record.source.url = record.source.url.replace('/vendor/', '/vendor/../'); },
 		(record) => { record.source.url = record.source.url.replace('github.com/', 'github.com/\t'); },
+		(record) => {
+			record.source.reference = 'deadbeef';
+			record.dist.reference = 'deadbeef';
+			record.dist.url = 'https://api.github.com/repos/vendor/tester/zipball/deadbeef';
+		},
 	];
 	const rejected = mutations.map((mutate) => scenario('composer', (head) => {
 		composerUpdate(head, '2.3.5');
@@ -361,6 +366,35 @@ test('rejects alternate Composer download routes and malformed canonical records
 		}
 	} finally {
 		for (const fixture of rejected) fixture.cleanup();
+	}
+});
+
+test('denies a newly added Composer package without throwing from the exported API', () => {
+	const fixture = scenario('composer', (head) => {
+		const manifestPath = join(head, 'composer.json');
+		const lockPath = join(head, 'composer.lock');
+		const manifest = json(manifestPath);
+		const lock = json(lockPath);
+		manifest['require-dev']['new/tool'] = '1.0.0';
+		lock['content-hash'] = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		const record = structuredClone(lock['packages-dev'][0]);
+		record.name = 'new/tool';
+		record.version = '1.0.0';
+		record.source.url = 'https://github.com/new/tool.git';
+		record.source.reference = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		record.dist.url = 'https://api.github.com/repos/new/tool/zipball/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		record.dist.reference = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+		lock['packages-dev'].push(record);
+		writeJson(manifestPath, manifest);
+		writeJson(lockPath, lock);
+	});
+	try {
+		const result = classifyDependabotUpdate(fixture);
+		assert.equal(result.decision, 'deny');
+		assert.ok(codes(result).includes('direct_dependency_set_changed'));
+		assert.ok(codes(result).includes('dependency_graph_changed'));
+	} finally {
+		fixture.cleanup();
 	}
 });
 
