@@ -28,6 +28,10 @@ function plainObject(value) {
 	return value !== null && typeof value === 'object' && ! Array.isArray(value);
 }
 
+function hasOnlyKeys(value, keys) {
+	return plainObject(value) && Object.keys(value).every((key) => keys.has(key));
+}
+
 function cloneWithout(object, keys) {
 	const copy = structuredClone(object);
 	for (const key of keys) {
@@ -120,8 +124,12 @@ function versionLevel(from, to) {
 }
 
 function safeSpecifier(specifier, version) {
-	const match = String(specifier ?? '').match(/^([~^]?)(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/);
+	const wildcard = String(specifier ?? '').match(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.\*$/);
 	const concrete = parseVersion(version);
+	if (wildcard && concrete) {
+		return concrete[0] === Number(wildcard[1]) && concrete[1] === Number(wildcard[2]);
+	}
+	const match = String(specifier ?? '').match(/^([~^]?)(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/);
 	if (! match || ! concrete) return false;
 	const [, operator, major, minor, patch] = match;
 	const requested = [Number(major), Number(minor), Number(patch ?? 0)];
@@ -181,7 +189,7 @@ function packageMap(packages, field, errors) {
 }
 
 function composerReachable(manifest, devPackages, errors) {
-	const platform = /^(?:php(?:-64bit)?|ext-|lib-|composer(?:-plugin-api|-runtime-api)?$)/;
+	const platform = /^(?:php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|ext-[A-Za-z0-9_.-]+|lib-[A-Za-z0-9_.-]+|composer(?:-plugin-api|-runtime-api)?)$/;
 	const queue = Object.keys(manifest['require-dev'] ?? {}).filter((name) => ! platform.test(name));
 	const reachable = new Set();
 	while (queue.length) {
@@ -204,37 +212,54 @@ function composerReachable(manifest, devPackages, errors) {
 	}
 }
 
-function validComposerSource(record) {
-	try {
-		const sourceUrl = new URL(record.source?.url);
-		const distUrl = new URL(record.dist?.url);
-		const reference = record.source?.reference;
-		const repositoryPath = sourceUrl.pathname.replace(/\.git$/, '');
-		return record.source?.type === 'git'
-			&& record.dist?.type === 'zip'
-			&& sourceUrl.protocol === 'https:'
-			&& distUrl.protocol === 'https:'
-			&& sourceUrl.hostname === 'github.com'
-			&& distUrl.hostname === 'api.github.com'
-			&& /^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repositoryPath)
-			&& typeof reference === 'string'
-			&& /^[0-9a-f]{7,64}$/i.test(reference)
-			&& record.dist?.reference === reference
-			&& distUrl.pathname === `/repos${repositoryPath}/zipball/${reference}`;
-	} catch {
-		return false;
+function canonicalComposerDistribution(record) {
+	if (! plainObject(record)) return null;
+	const url = record.dist?.url;
+	const reference = record.dist?.reference;
+	const match = typeof url === 'string'
+		? url.match(/^https:\/\/api\.github\.com\/repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/zipball\/([0-9a-f]{40})$/)
+		: null;
+	if (! hasOnlyKeys(record.dist, new Set(['type', 'url', 'reference', 'shasum']))
+		|| record.dist.type !== 'zip'
+		|| ! match
+		|| url !== `https://api.github.com/repos/${match[1]}/zipball/${match[2]}`
+		|| typeof reference !== 'string'
+		|| match[2].toLowerCase() !== reference.toLowerCase()
+		|| (record.dist.shasum !== undefined && ! /^(?:|[0-9a-f]{40})$/i.test(record.dist.shasum))) {
+		return null;
 	}
+	return { repository: `/${match[1].toLowerCase()}`, reference };
+}
+
+function canonicalComposerSource(record) {
+	if (! plainObject(record)) return null;
+	const url = record.source?.url;
+	const match = typeof url === 'string'
+		? url.match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(\.git)?$/)
+		: null;
+	if (! hasOnlyKeys(record.source, new Set(['type', 'url', 'reference']))
+		|| record.source.type !== 'git'
+		|| ! match
+		|| url !== `https://github.com/${match[1]}${match[2] ?? ''}`) {
+		return null;
+	}
+	return { repository: `/${match[1].toLowerCase()}`, reference: record.source.reference };
+}
+
+function validComposerSource(record) {
+	const distribution = canonicalComposerDistribution(record);
+	if (! distribution || Object.hasOwn(record, 'transport-options')) return false;
+	if (record.source === undefined) return true;
+	const source = canonicalComposerSource(record);
+	return source !== null
+		&& source.reference === distribution.reference
+		&& source.repository === distribution.repository;
 }
 
 function composerRepository(record) {
-	try {
-		const url = new URL(record.source?.url);
-		return url.protocol === 'https:' && url.hostname === 'github.com'
-			? url.pathname.replace(/\.git$/, '').toLowerCase()
-			: null;
-	} catch {
-		return null;
-	}
+	return canonicalComposerSource(record)?.repository
+		?? canonicalComposerDistribution(record)?.repository
+		?? null;
 }
 
 function classifyComposer(baseRoot, headRoot, policy, updates, errors) {
