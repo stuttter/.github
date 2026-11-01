@@ -135,6 +135,25 @@ test('treats Composer package names beginning with php as dependencies', () => {
 	}
 });
 
+test('skips every Composer platform-package form during reachability checks', () => {
+	const fixture = scenario('composer', (head, base) => {
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'composer.json');
+			const manifest = json(manifestPath);
+			for (const name of ['php', 'php-64bit', 'php-ipv6', 'php-zts', 'php-debug', 'hhvm', 'ext-json', 'lib-curl', 'composer', 'composer-plugin-api', 'composer-runtime-api']) {
+				manifest['require-dev'][name] = '*';
+			}
+			writeJson(manifestPath, manifest);
+		}
+		composerUpdate(head, '2.3.5');
+	});
+	try {
+		assert.equal(classifyDependabotUpdate(fixture).decision, 'allow');
+	} finally {
+		fixture.cleanup();
+	}
+});
+
 test('allows bounded Composer patch-series wildcard constraints', () => {
 	const fixture = scenario('composer', (head, base) => {
 		composerDirect(base, {
@@ -152,6 +171,28 @@ test('allows bounded Composer patch-series wildcard constraints', () => {
 		assert.equal(classifyDependabotUpdate(fixture).decision, 'allow');
 	} finally {
 		fixture.cleanup();
+	}
+});
+
+test('rejects Composer patch-series wildcard mismatches', () => {
+	const rejected = ['7.2.0', '8.1.0'].map((version) => scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: 'v7.1.0',
+			specifier: '7.1.*',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: `v${version}`,
+			specifier: '7.1.*',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	}));
+	try {
+		for (const fixture of rejected) {
+			assert.ok(codes(classifyDependabotUpdate({ ...fixture, policy: { allow_minor: true } })).includes('constraint_mismatch'));
+		}
+	} finally {
+		for (const fixture of rejected) fixture.cleanup();
 	}
 });
 
@@ -198,6 +239,34 @@ test('allows canonical GitHub dist-only Composer packages and rejects substituti
 	} finally {
 		allowed.cleanup();
 		substituted.cleanup();
+	}
+});
+
+test('rejects alternate Composer download routes and malformed canonical records', () => {
+	const mutations = [
+		(record) => { record.dist.mirrors = ['https://attacker.invalid/archive.zip']; },
+		(record) => { record.source.mirrors = ['https://attacker.invalid/repository.git']; },
+		(record) => { record['transport-options'] = { http: { header: ['Authorization: attacker'] } }; },
+		(record) => { record.dist.url += '?token=attacker'; },
+		(record) => { record.dist.url = record.dist.url.replace('/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'); },
+		(record) => { record.dist.type = 'tar'; },
+		(record) => { record.source.url = 'https://github.com/attacker/tool.git'; },
+		(record) => { record.source.reference = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; },
+		(record) => { record.source = null; },
+	];
+	const rejected = mutations.map((mutate) => scenario('composer', (head) => {
+		composerUpdate(head, '2.3.5');
+		const lockPath = join(head, 'composer.lock');
+		const lock = json(lockPath);
+		mutate(lock['packages-dev'][0]);
+		writeJson(lockPath, lock);
+	}));
+	try {
+		for (const fixture of rejected) {
+			assert.ok(codes(classifyDependabotUpdate(fixture)).includes('unsafe_dependency_source'));
+		}
+	} finally {
+		for (const fixture of rejected) fixture.cleanup();
 	}
 });
 

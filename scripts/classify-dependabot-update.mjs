@@ -28,6 +28,10 @@ function plainObject(value) {
 	return value !== null && typeof value === 'object' && ! Array.isArray(value);
 }
 
+function hasOnlyKeys(value, keys) {
+	return plainObject(value) && Object.keys(value).every((key) => keys.has(key));
+}
+
 function cloneWithout(object, keys) {
 	const copy = structuredClone(object);
 	for (const key of keys) {
@@ -185,7 +189,7 @@ function packageMap(packages, field, errors) {
 }
 
 function composerReachable(manifest, devPackages, errors) {
-	const platform = /^(?:php(?:-64bit)?|ext-[A-Za-z0-9_.-]+|lib-[A-Za-z0-9_.-]+|composer(?:-plugin-api|-runtime-api)?)$/;
+	const platform = /^(?:php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|ext-[A-Za-z0-9_.-]+|lib-[A-Za-z0-9_.-]+|composer(?:-plugin-api|-runtime-api)?)$/;
 	const queue = Object.keys(manifest['require-dev'] ?? {}).filter((name) => ! platform.test(name));
 	const reachable = new Set();
 	while (queue.length) {
@@ -213,12 +217,19 @@ function canonicalComposerDistribution(record) {
 		const distUrl = new URL(record.dist?.url);
 		const reference = record.dist?.reference;
 		const match = distUrl.pathname.match(/^\/repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/zipball\/([0-9a-f]{7,64})$/i);
-		if (record.dist?.type !== 'zip'
+		if (! hasOnlyKeys(record.dist, new Set(['type', 'url', 'reference', 'shasum']))
+			|| record.dist.type !== 'zip'
 			|| distUrl.protocol !== 'https:'
 			|| distUrl.hostname !== 'api.github.com'
+			|| distUrl.username !== ''
+			|| distUrl.password !== ''
+			|| distUrl.port !== ''
+			|| distUrl.search !== ''
+			|| distUrl.hash !== ''
 			|| ! match
 			|| typeof reference !== 'string'
-			|| match[2].toLowerCase() !== reference.toLowerCase()) {
+			|| match[2].toLowerCase() !== reference.toLowerCase()
+			|| (record.dist.shasum !== undefined && ! /^(?:|[0-9a-f]{40})$/i.test(record.dist.shasum))) {
 			return null;
 		}
 		return { repository: `/${match[1].toLowerCase()}`, reference };
@@ -229,14 +240,20 @@ function canonicalComposerDistribution(record) {
 
 function validComposerSource(record) {
 	const distribution = canonicalComposerDistribution(record);
-	if (! distribution) return false;
+	if (! distribution || Object.hasOwn(record, 'transport-options')) return false;
 	if (record.source === undefined) return true;
 	try {
 		const sourceUrl = new URL(record.source?.url);
 		const repositoryPath = sourceUrl.pathname.replace(/\.git$/, '').toLowerCase();
-		return record.source?.type === 'git'
+		return hasOnlyKeys(record.source, new Set(['type', 'url', 'reference']))
+			&& record.source.type === 'git'
 			&& sourceUrl.protocol === 'https:'
 			&& sourceUrl.hostname === 'github.com'
+			&& sourceUrl.username === ''
+			&& sourceUrl.password === ''
+			&& sourceUrl.port === ''
+			&& sourceUrl.search === ''
+			&& sourceUrl.hash === ''
 			&& /^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repositoryPath)
 			&& record.source?.reference === distribution.reference
 			&& repositoryPath === distribution.repository;
