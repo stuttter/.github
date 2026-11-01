@@ -7,17 +7,21 @@ import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const runtimeRoot = resolve(repositoryRoot, 'runtime/wordpress');
-// 4.3.0 moved beyond the advisory range without an identifiable max-stale fix.
-// Keep the reviewed uncached-use contract until upstream remediation is confirmed.
-const exceptionExpires = Date.parse('2026-11-03T00:00:00Z');
 const expectedVersions = {
   '@simple-git/argv-parser': '2.0.1',
   '@wordpress/env': '11.16.0',
+  'body-parser': '1.20.9',
   got: '11.8.6',
   'cacheable-request': '7.0.4',
+  express: '4.22.3',
+  'fast-uri': '3.1.9',
+  glob: '14.0.3',
   'http-cache-semantics': '4.3.0',
   'js-yaml': '4.3.2',
+  minimatch: '11.0.3',
   'proxy-addr': '2.0.8',
+  qs: '6.17.1',
+  rimraf: '6.1.3',
   'simple-git': '4.0.2',
 };
 
@@ -52,7 +56,7 @@ export function validateRuntimeAudit(report) {
   return [`npm audit reported vulnerable packages: ${names.join(', ') || 'unknown'}.`];
 }
 
-export function validateRuntimeContract(lock, wordpressSources, now = Date.now()) {
+export function validateRuntimeContract(lock, wordpressSources) {
   const errors = [];
   const packages = lock?.packages ?? {};
   const packagePaths = Object.keys(packages);
@@ -101,8 +105,22 @@ export function validateRuntimeContract(lock, wordpressSources, now = Date.now()
     errors.push('@wordpress/env no longer matches the reviewed simple-git 4 compatibility patch.');
   }
 
-  if (now >= exceptionExpires) {
-    errors.push('The GHSA-ch52-4w7c-c8xp applicability review has expired.');
+  const rimrafSources = Object.entries(wordpressSources)
+    .filter(([, source]) => /require\( 'rimraf' \)/u.test(source));
+  if (
+    !sameValues(
+      rimrafSources.map(([path]) => path),
+      [
+        'commands/start.js',
+        'download-sources.js',
+        'runtime/docker/index.js',
+        'runtime/playground/index.js',
+      ],
+    ) ||
+    rimrafSources.some(([, source]) => !/const \{ rimraf \} = require\( 'rimraf' \);/u.test(source)) ||
+    /const rimraf = require\( 'rimraf' \);/u.test(allSources)
+  ) {
+    errors.push('@wordpress/env no longer matches the reviewed rimraf 6 named asynchronous API.');
   }
   return errors;
 }

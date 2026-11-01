@@ -9,19 +9,29 @@ function runtimeFixture() {
       packages: {
         'node_modules/@simple-git/argv-parser': { version: '2.0.1' },
         'node_modules/@wordpress/env': { version: '11.16.0' },
+        'node_modules/body-parser': { version: '1.20.9' },
         'node_modules/got': { version: '11.8.6' },
         'node_modules/cacheable-request': { version: '7.0.4' },
+        'node_modules/express': { version: '4.22.3' },
+        'node_modules/fast-uri': { version: '3.1.9' },
+        'node_modules/glob': { version: '14.0.3' },
         'node_modules/http-cache-semantics': { version: '4.3.0' },
         'node_modules/js-yaml': { version: '4.3.2' },
+        'node_modules/minimatch': { version: '11.0.3' },
         'node_modules/proxy-addr': { version: '2.0.8' },
+        'node_modules/qs': { version: '6.17.1' },
+        'node_modules/rimraf': { version: '6.1.3' },
         'node_modules/simple-git': { version: '4.0.2' },
       },
     },
     sources: {
       'wordpress.js': "const got = require('got');\nconst versions = await got('https://api.wordpress.org/').json();",
-      'download-sources.js': "const got = require('got');\nconst { simpleGit: SimpleGit } = require( 'simple-git' );\nconst responseStream = got.stream(source.url);",
+      'download-sources.js': "const got = require('got');\nconst { rimraf } = require( 'rimraf' );\nconst { simpleGit: SimpleGit } = require( 'simple-git' );\nconst responseStream = got.stream(source.url);",
       'config/parse-config.js': 'module.exports = {};',
+      'commands/start.js': "const { rimraf } = require( 'rimraf' );",
+      'runtime/docker/index.js': "const { rimraf } = require( 'rimraf' );",
       'runtime/docker/download-wp-phpunit.js': "const { simpleGit: SimpleGit } = require( 'simple-git' );",
+      'runtime/playground/index.js': "const { rimraf } = require( 'rimraf' );",
     },
   };
 }
@@ -56,14 +66,14 @@ test('rejects incomplete audit reports', () => {
 
 test('accepts only the reviewed uncached wp-env runtime contract', () => {
   const { lock, sources } = runtimeFixture();
-  assert.deepEqual(validateRuntimeContract(lock, sources, Date.parse('2026-10-03T00:00:00Z')), []);
+  assert.deepEqual(validateRuntimeContract(lock, sources), []);
 });
 
 test('rejects runtime version or request-path drift', () => {
   const { lock, sources } = runtimeFixture();
   lock.packages['node_modules/http-cache-semantics'].version = '4.4.0';
   sources['download-sources.js'] += '\nconst options = { cache: store };';
-  const errors = validateRuntimeContract(lock, sources, Date.parse('2026-10-03T00:00:00Z'));
+  const errors = validateRuntimeContract(lock, sources);
   assert.match(errors.join('\n'), /http-cache-semantics is not locked/u);
   assert.match(errors.join('\n'), /uncached got request paths/u);
 });
@@ -74,30 +84,31 @@ test('rejects a missing or legacy simple-git compatibility import', () => {
     "const { simpleGit: SimpleGit } = require( 'simple-git' );",
     "const SimpleGit = require( 'simple-git' );",
   );
-  const errors = validateRuntimeContract(lock, sources, Date.parse('2026-10-03T00:00:00Z'));
+  const errors = validateRuntimeContract(lock, sources);
   assert.match(errors.join('\n'), /simple-git 4 compatibility patch/u);
 });
 
 test('rejects nested overrides of reviewed runtime packages', () => {
   const { lock, sources } = runtimeFixture();
   lock.packages['node_modules/@wordpress/env/node_modules/got'] = { version: '11.8.5' };
-  const errors = validateRuntimeContract(lock, sources, Date.parse('2026-10-03T00:00:00Z'));
+  const errors = validateRuntimeContract(lock, sources);
   assert.match(errors.join('\n'), /got must be installed only at its reviewed top-level lockfile path/u);
 });
 
 test('rejects a missing runtime lockfile without throwing', () => {
   const { sources } = runtimeFixture();
-  assert.doesNotThrow(() => validateRuntimeContract(undefined, sources, Date.parse('2026-10-03T00:00:00Z')));
+  assert.doesNotThrow(() => validateRuntimeContract(undefined, sources));
   assert.match(
-    validateRuntimeContract(undefined, sources, Date.parse('2026-10-03T00:00:00Z')).join('\n'),
+    validateRuntimeContract(undefined, sources).join('\n'),
     /@wordpress\/env must be installed only at its reviewed top-level lockfile path/u,
   );
 });
 
-test('expires the temporary applicability review', () => {
+test('rejects legacy rimraf imports', () => {
   const { lock, sources } = runtimeFixture();
+  sources['commands/start.js'] = "const rimraf = require( 'rimraf' );";
   assert.match(
-    validateRuntimeContract(lock, sources, Date.parse('2026-11-03T00:00:00Z')).join('\n'),
-    /has expired/u,
+    validateRuntimeContract(lock, sources).join('\n'),
+    /rimraf 6 named asynchronous API/u,
   );
 });
