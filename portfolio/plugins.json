@@ -244,8 +244,8 @@
         "phpunit": {
           "config": "phpunit.xml.dist",
           "files": [
-            { "path": "composer.json", "sha256": "d0183017f2602e73748ed26b758add509f70b28a95bad33a450439e54fd219de" },
-            { "path": "composer.lock", "sha256": "a87cc1c6169b60e88224207659dbe753377fed98844adee7b9c3a7cd3a0fb690" },
+            { "path": "composer.json", "sha256": "62c106eeea1b8bbf6a54d77d6f2609693aff468221af5fc2e861d85ced8b7201" },
+            { "path": "composer.lock", "sha256": "1ebe4c0f24d6d29e73531d2497c45b8c4207b2e9ea427ce480189fe68da5b612" },
             { "path": "phpunit.xml.dist", "sha256": "93980825969bc906cf7a434a0b393da3c0fb186365be3e18f952f2fd40bd51fb" },
             { "path": "tests/bootstrap.php", "sha256": "cbfefee52510e920fdbd8d58e8943e03a01c507f8a41e365273eb1e2b20a60ba" }
           ]
