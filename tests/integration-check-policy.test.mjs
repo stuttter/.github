@@ -199,8 +199,8 @@ test('only reviewed WordPress integration pilots are enrolled', () => {
     {
       path: 'composer.lock',
       sha256: [
-        '3d01661bcec4f1324abd2e009d247c1aa4e3238fb413cacc82abd485eb55aa95',
         'afafb11841a07084452e1d982992af6906c1b4bda91ade31c81e5fd3bbb92ead',
+        'd12d11b0c3b916678c1b3cdf7bbe10f02fc94d28a2988aa5301e33d7da1facc0',
       ],
     },
     { path: 'phpunit.xml.dist', sha256: 'c23c3afa83ae468cd04eb74991e71e9a69f95bf8520a54d9c5689b28e302a365' },
