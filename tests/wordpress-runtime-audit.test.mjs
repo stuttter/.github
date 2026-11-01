@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { validateRuntimeAudit, validateRuntimeContract } from '../scripts/audit-wordpress-runtime.mjs';
+import { validateRuntimeAudit, validateRuntimeCompatibility, validateRuntimeContract } from '../scripts/audit-wordpress-runtime.mjs';
 
 function runtimeFixture() {
   return {
@@ -110,5 +110,12 @@ test('rejects legacy rimraf imports', () => {
   assert.match(
     validateRuntimeContract(lock, sources).join('\n'),
     /rimraf 6 named asynchronous API/u,
+  );
+});
+
+test('runtime compatibility smoke fails closed without the reviewed packages', () => {
+  assert.match(
+    validateRuntimeCompatibility(process.cwd()).join('\n'),
+    /runtime compatibility smoke failed/u,
   );
 });

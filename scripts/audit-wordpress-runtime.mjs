@@ -24,6 +24,60 @@ const expectedVersions = {
   rimraf: '6.1.3',
   'simple-git': '4.0.2',
 };
+const compatibilityProbe = String.raw`
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+(async () => {
+  const { rimraf } = require('rimraf');
+  require('glob');
+  require('minimatch');
+
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'wordpress-runtime-rimraf-'));
+  fs.mkdirSync(path.join(directory, 'nested'));
+  fs.writeFileSync(path.join(directory, 'nested', 'file'), 'runtime smoke');
+  await rimraf(directory);
+  assert.equal(fs.existsSync(directory), false);
+
+  const express = require('express');
+  const app = express();
+  app.set('query parser', 'extended');
+  app.use(express.urlencoded({ extended: true }));
+  app.post('/probe', (request, response) => {
+    response.json({ body: request.body, query: request.query });
+  });
+
+  const server = await new Promise((resolve, reject) => {
+    const candidate = app.listen(0, '127.0.0.1', () => resolve(candidate));
+    candidate.on('error', reject);
+  });
+  try {
+    const address = server.address();
+    const response = await fetch(
+      'http://127.0.0.1:' + address.port + '/probe?nested%5Bvalue%5D=query',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: 'nested%5Bvalue%5D=body',
+      },
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      body: { nested: { value: 'body' } },
+      query: { nested: { value: 'query' } },
+    });
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+`;
 
 function sameValues(actual, expected) {
   return JSON.stringify([...actual].sort()) === JSON.stringify([...expected].sort());
@@ -125,6 +179,17 @@ export function validateRuntimeContract(lock, wordpressSources) {
   return errors;
 }
 
+export function validateRuntimeCompatibility(root = runtimeRoot) {
+  const probe = spawnSync(
+    process.execPath,
+    ['--input-type=commonjs', '--eval', compatibilityProbe],
+    { cwd: root, encoding: 'utf8', timeout: 30_000 },
+  );
+  if (!probe.error && probe.status === 0) return [];
+  const detail = probe.error?.message || probe.stderr.trim() || probe.stdout.trim() || `exit status ${probe.status}`;
+  return [`WordPress integration runtime compatibility smoke failed: ${detail}`];
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const audit = spawnSync(
     'npm',
@@ -150,6 +215,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const errors = [
       ...validateRuntimeAudit(report),
       ...validateRuntimeContract(lock, wordpressSources),
+      ...validateRuntimeCompatibility(),
     ];
     if (audit.status === 0 && errors.length === 0) {
       process.stdout.write('WordPress integration runtime audit and applicability contract passed.\n');
