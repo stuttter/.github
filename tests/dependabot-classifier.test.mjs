@@ -58,6 +58,34 @@ function composerUpdate(headDir, version) {
 	writeJson(lockPath, lock);
 }
 
+function composerDirect(root, { name = 'vendor/tester', version, specifier, reference, source = true }) {
+	const manifestPath = join(root, 'composer.json');
+	const lockPath = join(root, 'composer.lock');
+	const manifest = json(manifestPath);
+	const lock = json(lockPath);
+	manifest['require-dev'] = { [name]: specifier };
+	const record = lock['packages-dev'][0];
+	record.name = name;
+	record.version = version;
+	if (source) {
+		record.source = {
+			type: 'git',
+			url: `https://github.com/${name}.git`,
+			reference,
+		};
+	} else {
+		delete record.source;
+	}
+	record.dist = {
+		type: 'zip',
+		url: `https://api.github.com/repos/${name}/zipball/${reference}`,
+		reference,
+		shasum: '',
+	};
+	writeJson(manifestPath, manifest);
+	writeJson(lockPath, lock);
+}
+
 function codes(evidence) {
 	return evidence.reasons.map(({ code }) => code);
 }
@@ -82,6 +110,94 @@ test('allows a bounded Composer development patch', () => {
 		assert.equal(classifyDependabotUpdate(fixture).decision, 'allow');
 	} finally {
 		fixture.cleanup();
+	}
+});
+
+test('treats Composer package names beginning with php as dependencies', () => {
+	const fixture = scenario('composer', (head, base) => {
+		composerDirect(base, {
+			name: 'phpstan/phpstan',
+			version: '2.3.4',
+			specifier: '^2.3.4',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			name: 'phpstan/phpstan',
+			version: '2.3.5',
+			specifier: '^2.3.4',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	});
+	try {
+		assert.equal(classifyDependabotUpdate(fixture).decision, 'allow');
+	} finally {
+		fixture.cleanup();
+	}
+});
+
+test('allows bounded Composer patch-series wildcard constraints', () => {
+	const fixture = scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: 'v7.1.0',
+			specifier: '7.1.*',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: 'v7.1.2',
+			specifier: '7.1.*',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	});
+	try {
+		assert.equal(classifyDependabotUpdate(fixture).decision, 'allow');
+	} finally {
+		fixture.cleanup();
+	}
+});
+
+test('allows canonical GitHub dist-only Composer packages and rejects substitution', () => {
+	const allowed = scenario('composer', (head, base) => {
+		composerDirect(base, {
+			name: 'phpstan/phpstan',
+			version: '2.3.4',
+			specifier: '^2.3.4',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			source: false,
+		});
+		composerDirect(head, {
+			name: 'phpstan/phpstan',
+			version: '2.3.5',
+			specifier: '^2.3.4',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+			source: false,
+		});
+	});
+	const substituted = scenario('composer', (head, base) => {
+		composerDirect(base, {
+			name: 'phpstan/phpstan',
+			version: '2.3.4',
+			specifier: '^2.3.4',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			source: false,
+		});
+		composerDirect(head, {
+			name: 'phpstan/phpstan',
+			version: '2.3.5',
+			specifier: '^2.3.4',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+			source: false,
+		});
+		const lockPath = join(head, 'composer.lock');
+		const lock = json(lockPath);
+		lock['packages-dev'][0].dist.url = `https://api.github.com/repos/attacker/tool/zipball/${lock['packages-dev'][0].dist.reference}`;
+		writeJson(lockPath, lock);
+	});
+	try {
+		assert.equal(classifyDependabotUpdate(allowed).decision, 'allow');
+		assert.ok(codes(classifyDependabotUpdate(substituted)).includes('unsafe_dependency_source'));
+	} finally {
+		allowed.cleanup();
+		substituted.cleanup();
 	}
 });
 
