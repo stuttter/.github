@@ -422,8 +422,8 @@
         "phpunit": {
           "config": "phpunit.xml.dist",
           "files": [
-            { "path": "composer.json", "sha256": "0005a3e39a7758ac5540c1d3ba8fa09bf3ac8f2534059ce05cff5d40bf18fbbf" },
-            { "path": "composer.lock", "sha256": "1ecd7ebbf5df134c1d86dcb7cd9f00ca0a05797efa3fe0e3859b9ec832e62758" },
+            { "path": "composer.json", "sha256": ["0005a3e39a7758ac5540c1d3ba8fa09bf3ac8f2534059ce05cff5d40bf18fbbf", "161e4f939355ca8689d2570de4480d4ec2ad32e35319183a1f8d31fabed202ec"] },
+            { "path": "composer.lock", "sha256": ["1ecd7ebbf5df134c1d86dcb7cd9f00ca0a05797efa3fe0e3859b9ec832e62758", "fcb9302ca2094098c3c092feddfdfe719ecf4461bb5ab81aa29e4f7cf3cd0823", "9eeeeb4c0292087c99b6dc589645f2f78f806ea985535cd5a83c66c0d9d8971a", "a417bf0d33b2004cd0440ad510f57e8adc4b2732308ba1a0e2ec7668c7d95efc"] },
             { "path": "phpunit.xml.dist", "sha256": "3e0a40a7d519b655d28bfe84c1e1018d9363f61a321bf005a07c4968de944066" },
             { "path": "tests/bootstrap.php", "sha256": "3e9ce13d43d8fb1742634de5dad4a6388700c23419d461279232113c4cae4d77" }
           ]
