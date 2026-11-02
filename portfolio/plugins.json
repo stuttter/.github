@@ -171,15 +171,15 @@
             "vendor:check": "node bin/check-vendored-assets.mjs"
           },
           "files": [
-            { "path": "package.json", "sha256": "3661a95dfba92e63d1eaf0da5aaa07836a6404aebdac80a41fd107b316c8aa4c" },
-            { "path": "package-lock.json", "sha256": "0d17f1bb0dc7fedd712f21f013f5a69d34c2abdb96db5a90d726440fec788459" },
+            { "path": "package.json", "sha256": "ba8b7229c78c1f47b4ce71c0ca33e26351d6e7a40e6a443093b195846d5fb638" },
+            { "path": "package-lock.json", "sha256": "edc5591065c542cde032c0ce10d26c598fe30c90e9b690d8ec27d7bf4c6f4a9c" },
             { "path": "bin/check-amd-loader.mjs", "sha256": "75910308b5bb3bcc40ea924ca7740334460d76cc71508f5fd276f9985effa8ad" },
             { "path": "bin/check-generated-assets.mjs", "sha256": "14ee73f2f3aac0058a457844301115250ccd21eeaddb414eace77e350dbcaca2" },
             { "path": "bin/check-vendored-assets.mjs", "sha256": "fc0a490a6bed5edc025906663b5cb90571e70b23ad50f807e1ab1a8abc1328e1" },
             { "path": "wp-chosen/assets/css/postcss-configs/main/postcss.config.js", "sha256": "af529f1bb054423b3c28529a73b56390aa53dd54022a3635ed9db7e25f2e6a25" },
             { "path": "wp-chosen/assets/css/wp-chosen.css", "sha256": "190b53ff2377bf319cecf38024f96e5cf2bff39aab11a92edf45b8dce7a5e7de" },
             { "path": "wp-chosen/assets/css/wp-chosen.css.map", "sha256": "102dec7c08dcfad1936723018d83304a1fd3de1c193e27ade5bc89b6745162cd" },
-            { "path": "wp-chosen/assets/css/wp-chosen.min.css", "sha256": "72c393fa3ac04241ed3e83902b26a4c1e6cc95c320fe156eaefc1d13f33ad608" },
+            { "path": "wp-chosen/assets/css/wp-chosen.min.css", "sha256": "0b26cfaccb74891a19a01b8c190fd9dd990af886a4005c03769ae43fd40623d5" },
             { "path": "wp-chosen/assets/css/chosen.min.css", "sha256": "24ff326610d42e825948574bc055367a906155e4c7b4b938c3646df1f3b9b304" },
             { "path": "wp-chosen/assets/js/chosen.jquery.min.js", "sha256": "cc1fb7d4aef1be1ae2d0883a371c2dd50246633e9a83ee9020cb55a1e807ff41" },
             { "path": "wp-chosen/assets/css/scss/general.scss", "sha256": "823f4781b7a0cc1c2e121cc3f8672c6c360c3707326f6b3663214ff3c43014e1" },
