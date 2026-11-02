@@ -101,7 +101,8 @@ function changedPaths(base, head) {
 }
 
 function parseVersion(value) {
-	const match = String(value ?? '').match(/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
+	if (typeof value !== 'string') return null;
+	const match = value.match(/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
 	return match ? match.slice(1).map(Number) : null;
 }
 
@@ -123,14 +124,13 @@ function versionLevel(from, to) {
 	return 'same';
 }
 
-function safeSpecifier(specifier, version) {
-	const wildcard = String(specifier ?? '').match(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.\*$/);
-	const concrete = parseVersion(version);
+function safeSpecifierClause(specifier, concrete) {
+	const wildcard = specifier.match(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.\*$/);
 	if (wildcard && concrete) {
 		return concrete[0] === Number(wildcard[1]) && concrete[1] === Number(wildcard[2]);
 	}
-	const match = String(specifier ?? '').match(/^([~^]?)(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/);
-	if (! match || ! concrete) return false;
+	const match = specifier.match(/^([~^]?)(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/);
+	if (! match || ! concrete) return null;
 	const [, operator, major, minor, patch] = match;
 	const requested = [Number(major), Number(minor), Number(patch ?? 0)];
 	if (concrete[0] !== requested[0]) return false;
@@ -146,6 +146,22 @@ function safeSpecifier(specifier, version) {
 		return concrete[1] === requested[1] && (patch === undefined || concrete[2] >= requested[2]);
 	}
 	return concrete[1] === 0 && concrete[2] === requested[2];
+}
+
+function safeSpecifier(specifier, version) {
+	if (typeof specifier !== 'string') return false;
+	const concrete = parseVersion(version);
+	const separator = ' || ';
+	const clauses = specifier.includes('||') ? specifier.split(separator) : [specifier];
+	if (! concrete || clauses.some((clause) => clause === '')) return false;
+	const matches = clauses.map((clause) => safeSpecifierClause(clause, concrete));
+	return matches.every((match) => match !== null) && matches.some(Boolean);
+}
+
+function safeChangedSpecifier(specifier, version) {
+	return typeof specifier === 'string'
+		&& ! specifier.includes('||')
+		&& safeSpecifier(specifier, version);
 }
 
 function policyResult(policy, errors) {
@@ -325,7 +341,7 @@ function classifyComposer(baseRoot, headRoot, policy, updates, errors) {
 		if (oldSpecifier !== newSpecifier && before.version === after.version) {
 			errors.push({ code: 'specifier_without_update', dependency: name, message: `${name} changed its constraint without changing its locked version.` });
 		}
-		if (oldSpecifier !== newSpecifier && ! safeSpecifier(newSpecifier, after.version)) {
+		if (oldSpecifier !== newSpecifier && ! safeChangedSpecifier(newSpecifier, after.version)) {
 			errors.push({ code: 'unsafe_dependency_source', dependency: name, message: `${name} changed to an unsupported or mismatched source constraint.` });
 		}
 		if (! safeSpecifier(newSpecifier, after.version)) {
@@ -504,7 +520,7 @@ function classifyNpm(baseRoot, headRoot, policy, updates, errors) {
 		if (oldSpecifier !== newSpecifier && before.version === after.version) {
 			errors.push({ code: 'specifier_without_update', dependency: name, message: `${name} changed its constraint without changing its locked version.` });
 		}
-		if (oldSpecifier !== newSpecifier && ! safeSpecifier(newSpecifier, after.version)) {
+		if (oldSpecifier !== newSpecifier && ! safeChangedSpecifier(newSpecifier, after.version)) {
 			errors.push({ code: 'unsafe_dependency_source', dependency: name, message: `${name} changed to an unsupported or mismatched source constraint.` });
 		}
 		if (! safeSpecifier(newSpecifier, after.version)) {
