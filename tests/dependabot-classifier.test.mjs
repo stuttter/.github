@@ -174,6 +174,282 @@ test('allows bounded Composer patch-series wildcard constraints', () => {
 	}
 });
 
+test('allows bounded Composer union constraints and rejects unmatched unions', () => {
+	const allowed = [
+		['8.5.54', '8.5.55'],
+		['9.6.1', '9.6.2'],
+	].map(([before, after]) => scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: before,
+			specifier: '^8.5.48 || ^9.6',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: after,
+			specifier: '^8.5.48 || ^9.6',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	}));
+	const rejected = scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: '10.0.0',
+			specifier: '^8.5.48 || ^9.6',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: '10.0.1',
+			specifier: '^8.5.48 || ^9.6',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	});
+	try {
+		for (const fixture of allowed) {
+			assert.equal(classifyDependabotUpdate(fixture).decision, 'allow');
+		}
+		assert.ok(codes(classifyDependabotUpdate(rejected)).includes('constraint_mismatch'));
+	} finally {
+		for (const fixture of allowed) fixture.cleanup();
+		rejected.cleanup();
+	}
+});
+
+test('denies changed, malformed, and non-string Composer union constraints', () => {
+	const widened = scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: '8.5.54',
+			specifier: '^8.5.48',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: '8.5.55',
+			specifier: '^8.5.48 || ^9.6',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	});
+	const malformed = ['^8.5.48 ||', '|| ^8.5.48', '^8.5.48 || dev-main', '^8.5.48 | ^9.6', '^8.5.48  || ^9.6', '^8.5.48\t||\t^9.6'].map((specifier) => scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: '8.5.54',
+			specifier,
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: '8.5.55',
+			specifier,
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	}));
+	const padded = [' ^8.5.55', '^8.5.55\n', '\u00a0^8.5.55'].map((specifier) => scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: '8.5.54',
+			specifier: '^8.5.48',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: '8.5.55',
+			specifier,
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+	}));
+	const nonString = scenario('composer', (head, base) => {
+		composerDirect(base, {
+			version: '8.5.54',
+			specifier: '^8.5.48',
+			reference: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		});
+		composerDirect(head, {
+			version: '8.5.55',
+			specifier: '^8.5.48',
+			reference: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+		});
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'composer.json');
+			const manifest = json(manifestPath);
+			manifest['require-dev']['vendor/tester'] = ['^8.5.48'];
+			writeJson(manifestPath, manifest);
+		}
+	});
+	try {
+		assert.ok(codes(classifyDependabotUpdate(widened)).includes('unsafe_dependency_source'));
+		for (const fixture of [...malformed, nonString]) {
+			assert.ok(codes(classifyDependabotUpdate(fixture)).includes('constraint_mismatch'));
+		}
+		for (const fixture of padded) {
+			assert.ok(codes(classifyDependabotUpdate(fixture)).includes('unsafe_dependency_source'));
+		}
+	} finally {
+		widened.cleanup();
+		for (const fixture of malformed) fixture.cleanup();
+		for (const fixture of padded) fixture.cleanup();
+		nonString.cleanup();
+	}
+});
+
+test('allows unchanged npm unions and denies unsafe union forms', () => {
+	const unchanged = scenario('npm', (head, base) => {
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'package.json');
+			const lockPath = join(root, 'package-lock.json');
+			const manifest = json(manifestPath);
+			const lock = json(lockPath);
+			manifest.devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			lock.packages[''].devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			writeJson(manifestPath, manifest);
+			writeJson(lockPath, lock);
+		}
+		npmUpdate(head, '2.3.5');
+		const manifestPath = join(head, 'package.json');
+		const lockPath = join(head, 'package-lock.json');
+		const manifest = json(manifestPath);
+		const lock = json(lockPath);
+		manifest.devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+		lock.packages[''].devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+		writeJson(manifestPath, manifest);
+		writeJson(lockPath, lock);
+	});
+	const narrowed = scenario('npm', (head, base) => {
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'package.json');
+			const lockPath = join(root, 'package-lock.json');
+			const manifest = json(manifestPath);
+			const lock = json(lockPath);
+			manifest.devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			lock.packages[''].devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			writeJson(manifestPath, manifest);
+			writeJson(lockPath, lock);
+		}
+		npmUpdate(head, '2.3.5');
+	});
+	const widened = scenario('npm', (head) => {
+		npmUpdate(head, '2.3.5');
+		const manifestPath = join(head, 'package.json');
+		const lockPath = join(head, 'package-lock.json');
+		const manifest = json(manifestPath);
+		const lock = json(lockPath);
+		manifest.devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+		lock.packages[''].devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+		writeJson(manifestPath, manifest);
+		writeJson(lockPath, lock);
+	});
+	const rewritten = scenario('npm', (head, base) => {
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'package.json');
+			const lockPath = join(root, 'package-lock.json');
+			const manifest = json(manifestPath);
+			const lock = json(lockPath);
+			manifest.devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			lock.packages[''].devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			writeJson(manifestPath, manifest);
+			writeJson(lockPath, lock);
+		}
+		npmUpdate(head, '2.3.5');
+		const manifestPath = join(head, 'package.json');
+		const lockPath = join(head, 'package-lock.json');
+		const manifest = json(manifestPath);
+		const lock = json(lockPath);
+		manifest.devDependencies['example-linter'] = '^2.3.5 || ^3.0';
+		lock.packages[''].devDependencies['example-linter'] = '^2.3.5 || ^3.0';
+		writeJson(manifestPath, manifest);
+		writeJson(lockPath, lock);
+	});
+	const malformed = ['^2.3.4 ||', '^2.3.4 || git+https://example.com/tool.git'].map((specifier) => scenario('npm', (head, base) => {
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'package.json');
+			const lockPath = join(root, 'package-lock.json');
+			const manifest = json(manifestPath);
+			const lock = json(lockPath);
+			manifest.devDependencies['example-linter'] = specifier;
+			lock.packages[''].devDependencies['example-linter'] = specifier;
+			writeJson(manifestPath, manifest);
+			writeJson(lockPath, lock);
+		}
+		npmUpdate(head, '2.3.5');
+		const manifestPath = join(head, 'package.json');
+		const lockPath = join(head, 'package-lock.json');
+		const manifest = json(manifestPath);
+		const lock = json(lockPath);
+		manifest.devDependencies['example-linter'] = specifier;
+		lock.packages[''].devDependencies['example-linter'] = specifier;
+		writeJson(manifestPath, manifest);
+		writeJson(lockPath, lock);
+	}));
+	const crossed = scenario('npm', (head, base) => {
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'package.json');
+			const lockPath = join(root, 'package-lock.json');
+			const manifest = json(manifestPath);
+			const lock = json(lockPath);
+			manifest.devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			lock.packages[''].devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+			writeJson(manifestPath, manifest);
+			writeJson(lockPath, lock);
+		}
+		npmUpdate(head, '3.0.0');
+		const manifestPath = join(head, 'package.json');
+		const lockPath = join(head, 'package-lock.json');
+		const manifest = json(manifestPath);
+		const lock = json(lockPath);
+		manifest.devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+		lock.packages[''].devDependencies['example-linter'] = '^2.3.4 || ^3.0';
+		writeJson(manifestPath, manifest);
+		writeJson(lockPath, lock);
+	});
+	try {
+		assert.equal(classifyDependabotUpdate(unchanged).decision, 'allow');
+		assert.equal(classifyDependabotUpdate(narrowed).decision, 'allow');
+		assert.ok(codes(classifyDependabotUpdate(widened)).includes('unsafe_dependency_source'));
+		assert.ok(codes(classifyDependabotUpdate(rewritten)).includes('unsafe_dependency_source'));
+		for (const fixture of malformed) {
+			assert.ok(codes(classifyDependabotUpdate(fixture)).includes('constraint_mismatch'));
+		}
+		assert.ok(codes(classifyDependabotUpdate({ ...crossed, policy: { allow_minor: true } })).includes('disallowed_version_change'));
+	} finally {
+		unchanged.cleanup();
+		narrowed.cleanup();
+		widened.cleanup();
+		rewritten.cleanup();
+		for (const fixture of malformed) fixture.cleanup();
+		crossed.cleanup();
+	}
+});
+
+test('denies non-string npm specifiers and locked versions', () => {
+	const nonStringSpecifier = scenario('npm', (head, base) => {
+		for (const root of [base, head]) {
+			const manifestPath = join(root, 'package.json');
+			const lockPath = join(root, 'package-lock.json');
+			const manifest = json(manifestPath);
+			const lock = json(lockPath);
+			manifest.devDependencies['example-linter'] = ['^2.3.4'];
+			lock.packages[''].devDependencies['example-linter'] = ['^2.3.4'];
+			writeJson(manifestPath, manifest);
+			writeJson(lockPath, lock);
+		}
+		npmUpdate(head, '2.3.5');
+		const manifestPath = join(head, 'package.json');
+		const lockPath = join(head, 'package-lock.json');
+		const manifest = json(manifestPath);
+		const lock = json(lockPath);
+		manifest.devDependencies['example-linter'] = ['^2.3.4'];
+		lock.packages[''].devDependencies['example-linter'] = ['^2.3.4'];
+		writeJson(manifestPath, manifest);
+		writeJson(lockPath, lock);
+	});
+	const nonStringVersion = scenario('npm', (head) => {
+		npmUpdate(head, '2.3.5');
+		const lockPath = join(head, 'package-lock.json');
+		const lock = json(lockPath);
+		lock.packages['node_modules/example-linter'].version = ['2.3.5'];
+		writeJson(lockPath, lock);
+	});
+	try {
+		assert.ok(codes(classifyDependabotUpdate(nonStringSpecifier)).includes('constraint_mismatch'));
+		assert.ok(codes(classifyDependabotUpdate(nonStringVersion)).includes('disallowed_version_change'));
+	} finally {
+		nonStringSpecifier.cleanup();
+		nonStringVersion.cleanup();
+	}
+});
+
 test('applies bounded patch-series wildcard constraints to npm updates', () => {
 	const allowed = scenario('npm', (head) => npmUpdate(head, '2.3.5'));
 	const rejected = ['2.4.0', '3.3.0'].map((version) => scenario('npm', (head) => npmUpdate(head, version)));
