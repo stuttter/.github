@@ -41,7 +41,11 @@ test('real WordPress cells use a fixed smoke path and no configured command', ()
   assert.match(job, /config="\$\{GITHUB_WORKSPACE\}\/wp-env-integration\.json"/u);
   assert.match(job, /WordPress integration requires a centrally generated root configuration/u);
   assert.match(runner, /start --update --runtime=docker --config=/u);
-  assert.doesNotMatch(runner, /--runtime=playground/u);
+  assert.equal((runner.match(/^"\$\{wp_env\}" start --update --runtime=docker --config="\$\{config\}"$/gmu) ?? []).length, 1);
+  assert.doesNotMatch(runner, /playground/iu);
+  assert.equal((workflow.match(/run-wordpress-integration\.sh/gu) ?? []).length, 1);
+  assert.equal((workflow.match(/\.portfolio-standard\/runtime\/wordpress\/node_modules\/\.bin\/wp-env/gu) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /wp-playground/iu);
   assert.doesNotMatch(job, /config="\$\{RUNNER_TEMP\}\/wp-env-integration\.json"/u);
   assert.doesNotMatch(job, /matrix\.(?:command|script|path)/u);
 

@@ -131,6 +131,9 @@ function playgroundAuditFixture() {
       },
     },
     runner: '"${wp_env}" start --update --runtime=docker --config="${config}"',
+    workflow: `bash .portfolio-standard/scripts/run-wordpress-integration.sh
+      .portfolio-standard/runtime/wordpress/node_modules/.bin/wp-env
+      "\${{ steps.integration-config.outputs.config }}"`,
   };
 }
 
@@ -164,21 +167,37 @@ test('rejects incomplete audit reports', () => {
 
 test('accepts only the reviewed inactive Playground advisory graph', () => {
   const fixture = playgroundAuditFixture();
-  assert.deepEqual(validateRuntimeAudit(fixture.report, fixture.lock, fixture.runner), []);
+  assert.deepEqual(validateRuntimeAudit(fixture.report, fixture.lock, fixture.runner, fixture.workflow), []);
 });
 
-test('rejects Playground advisory, package-path, or runtime drift', () => {
+test('rejects Playground advisory, package-path, runtime, or workflow drift', () => {
   const advisory = playgroundAuditFixture();
   advisory.report.vulnerabilities['isomorphic-git'].via[0].source += 1;
-  assert.match(validateRuntimeAudit(advisory.report, advisory.lock, advisory.runner).join('\n'), /vulnerable packages/u);
+  assert.match(
+    validateRuntimeAudit(advisory.report, advisory.lock, advisory.runner, advisory.workflow).join('\n'),
+    /vulnerable packages/u,
+  );
 
   const packagePath = playgroundAuditFixture();
   packagePath.lock.packages['node_modules/isomorphic-git'] = { version: '1.37.6' };
-  assert.match(validateRuntimeAudit(packagePath.report, packagePath.lock, packagePath.runner).join('\n'), /vulnerable packages/u);
+  assert.match(
+    validateRuntimeAudit(packagePath.report, packagePath.lock, packagePath.runner, packagePath.workflow).join('\n'),
+    /vulnerable packages/u,
+  );
 
   const runtime = playgroundAuditFixture();
-  runtime.runner = runtime.runner.replace('--runtime=docker', '--runtime=playground');
-  assert.match(validateRuntimeAudit(runtime.report, runtime.lock, runtime.runner).join('\n'), /vulnerable packages/u);
+  runtime.runner += '\n"${wp_env}" start --runtime playground --config="${config}"';
+  assert.match(
+    validateRuntimeAudit(runtime.report, runtime.lock, runtime.runner, runtime.workflow).join('\n'),
+    /vulnerable packages/u,
+  );
+
+  const workflow = playgroundAuditFixture();
+  workflow.workflow += '\n.portfolio-standard/runtime/wordpress/node_modules/.bin/wp-env start --runtime playground';
+  assert.match(
+    validateRuntimeAudit(workflow.report, workflow.lock, workflow.runner, workflow.workflow).join('\n'),
+    /vulnerable packages/u,
+  );
 });
 
 test('accepts only the reviewed uncached wp-env runtime contract', () => {
