@@ -129,7 +129,7 @@ const reviewedAutomationReferences = {
   ],
 };
 const reviewedSourceDigests = {
-  '.github/workflows/codex-issue.yml': '743cab2b8871ac69bdca558b1f92cf28743485e739d028168c643d09abdde399',
+  '.github/workflows/codex-issue.yml': 'c3f4460b05b7a10752568e110263e5ce061c4a33f566a69f61d17e15a4373f18',
   '.github/workflows/fleet-standards.yml': '0a333a171a133cf41b9ec9f92cec9037a94bb91c6931ac446f1eb02a9391d868',
   '.github/workflows/standards-ci.yml': 'f1dc0fbd3f5401bc7c678806edfa2d54d5e8c8b499f89f8cdca32017e272f8c9',
   '.github/workflows/wordpress-plugin-ci.yml': '822f2113148447a9c5e2a65341b049fdd519066156e864437cc15f63bdf7818d',
