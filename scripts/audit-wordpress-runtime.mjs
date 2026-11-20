@@ -366,6 +366,12 @@ export function validateRuntimeAudit(
   return [`npm audit reported vulnerable packages: ${names.join(', ') || 'unknown'}.`];
 }
 
+export function validateRuntimeAuditExit(status, report, auditErrors) {
+  const total = report?.metadata?.vulnerabilities?.total;
+  if (auditErrors.length !== 0 || !Number.isInteger(total)) return false;
+  return (status === 0 && total === 0) || (status === 1 && total > 0);
+}
+
 export function validateRuntimeContract(lock, wordpressSources) {
   const errors = [];
   const packages = lock?.packages ?? {};
@@ -487,18 +493,19 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       ...readTextSources(resolve(repositoryRoot, 'scripts'), repositoryRoot),
     };
     delete automationSources['scripts/audit-wordpress-runtime.mjs'];
+    const auditErrors = validateRuntimeAudit(
+      report,
+      lock,
+      runtimeManifest,
+      integrationRunnerSource,
+      automationSources,
+    );
     const errors = [
-      ...validateRuntimeAudit(
-        report,
-        lock,
-        runtimeManifest,
-        integrationRunnerSource,
-        automationSources,
-      ),
+      ...auditErrors,
       ...validateRuntimeContract(lock, wordpressSources),
       ...validateRuntimeCompatibility(),
     ];
-    if ((audit.status === 0 || audit.status === 1) && errors.length === 0) {
+    if (validateRuntimeAuditExit(audit.status, report, auditErrors) && errors.length === 0) {
       process.stdout.write('WordPress integration runtime audit and applicability contract passed.\n');
     } else {
       process.stderr.write(`${errors.join('\n')}\n`);

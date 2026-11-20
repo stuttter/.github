@@ -7,6 +7,7 @@ import test from 'node:test';
 import {
   readTextSources,
   validateRuntimeAudit,
+  validateRuntimeAuditExit,
   validateRuntimeCompatibility,
   validateRuntimeContract,
 } from '../scripts/audit-wordpress-runtime.mjs';
@@ -169,6 +170,8 @@ test('accepts a complete audit with no vulnerabilities', () => {
     metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 } },
   };
   assert.deepEqual(validateRuntimeAudit(report), []);
+  assert.equal(validateRuntimeAuditExit(0, report, []), true);
+  assert.equal(validateRuntimeAuditExit(1, report, []), false);
 });
 
 test('rejects every reported vulnerable package', () => {
@@ -193,16 +196,16 @@ test('rejects incomplete audit reports', () => {
 
 test('accepts only the reviewed inactive Playground advisory graph', () => {
   const fixture = playgroundAuditFixture();
-  assert.deepEqual(
-    validateRuntimeAudit(
-      fixture.report,
-      fixture.lock,
-      fixture.manifest,
-      fixture.runner,
-      fixture.automation,
-    ),
-    [],
+  const errors = validateRuntimeAudit(
+    fixture.report,
+    fixture.lock,
+    fixture.manifest,
+    fixture.runner,
+    fixture.automation,
   );
+  assert.deepEqual(errors, []);
+  assert.equal(validateRuntimeAuditExit(1, fixture.report, errors), true);
+  assert.equal(validateRuntimeAuditExit(0, fixture.report, errors), false);
 });
 
 test('rejects Playground advisory, package-path, runtime, or workflow drift', () => {
