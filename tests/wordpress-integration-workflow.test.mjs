@@ -35,16 +35,24 @@ test('real WordPress cells use a fixed smoke path and no configured command', ()
     workflow.indexOf('\n  wordpress-integration:'),
     workflow.indexOf('\n  artifact:'),
   );
+  const runner = readFileSync(new URL('../scripts/run-wordpress-integration.sh', import.meta.url), 'utf8');
   assert.match(job, /Run repository smoke test in real WordPress/u);
   assert.match(job, /run-wordpress-integration\.sh/u);
   assert.match(job, /config="\$\{GITHUB_WORKSPACE\}\/wp-env-integration\.json"/u);
+  assert.match(job, /override_config="\$\{GITHUB_WORKSPACE\}\/wp-env-integration\.override\.json"/u);
+  assert.match(job, /-e "\$\{override_config\}" \|\| -L "\$\{override_config\}"/u);
   assert.match(job, /WordPress integration requires a centrally generated root configuration/u);
+  assert.match(runner, /start --update --runtime=docker --scripts=false --config=/u);
+  assert.equal((runner.match(/^"\$\{wp_env\}" start --update --runtime=docker --scripts=false --config="\$\{config\}"$/gmu) ?? []).length, 1);
+  assert.doesNotMatch(runner, /playground/iu);
+  assert.equal((workflow.match(/run-wordpress-integration\.sh/gu) ?? []).length, 1);
+  assert.equal((workflow.match(/\.portfolio-standard\/runtime\/wordpress\/node_modules\/\.bin\/wp-env/gu) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /wp-playground/iu);
   assert.doesNotMatch(job, /config="\$\{RUNNER_TEMP\}\/wp-env-integration\.json"/u);
   assert.doesNotMatch(job, /matrix\.(?:command|script|path)/u);
 
-  const runner = readFileSync(new URL('../scripts/run-wordpress-integration.sh', import.meta.url), 'utf8');
   assert.match(runner, /wp eval-file wp-content\/portfolio-integration-tests\/smoke\.php/u);
-  assert.match(runner, /destroy --force --config=/u);
+  assert.equal((runner.match(/^\s*"\$\{wp_env\}" destroy --force --scripts=false --config="\$\{config\}" \|\| true$/gmu) ?? []).length, 1);
   assert.doesNotMatch(runner, /(?:eval|bash -c).*\$\{/u);
 });
 
@@ -57,6 +65,7 @@ test('wp-env is exact, locked, and carries the audited transitive overrides', ()
   assert.equal(runtime.dependencies['@wordpress/env'], '11.16.0');
   assert.equal(runtime.overrides['body-parser'], '1.20.9');
   assert.equal(runtime.overrides.express, '4.22.3');
+  assert.equal(runtime.overrides['fast-xml-parser'], '5.12.0');
   assert.equal(runtime.overrides['fast-uri'], '3.1.9');
   assert.equal(runtime.overrides.glob, '14.0.3');
   assert.equal(runtime.overrides['js-yaml'], '4.3.2');
@@ -65,10 +74,12 @@ test('wp-env is exact, locked, and carries the audited transitive overrides', ()
   assert.equal(runtime.overrides.qs, '6.17.1');
   assert.equal(runtime.overrides.rimraf, '6.1.3');
   assert.equal(runtime.overrides['simple-git'], '4.0.2');
+  assert.equal(runtime.overrides['isomorphic-git'], undefined);
   assert.equal(lock.packages['node_modules/@simple-git/argv-parser'].version, '2.0.1');
   assert.equal(lock.packages['node_modules/@wordpress/env'].version, '11.16.0');
   assert.equal(lock.packages['node_modules/body-parser'].version, '1.20.9');
   assert.equal(lock.packages['node_modules/express'].version, '4.22.3');
+  assert.equal(lock.packages['node_modules/fast-xml-parser'].version, '5.12.0');
   assert.equal(lock.packages['node_modules/fast-uri'].version, '3.1.9');
   assert.equal(lock.packages['node_modules/glob'].version, '14.0.3');
   assert.equal(lock.packages['node_modules/js-yaml'].version, '4.3.2');
@@ -77,6 +88,9 @@ test('wp-env is exact, locked, and carries the audited transitive overrides', ()
   assert.equal(lock.packages['node_modules/qs'].version, '6.17.1');
   assert.equal(lock.packages['node_modules/rimraf'].version, '6.1.3');
   assert.equal(lock.packages['node_modules/simple-git'].version, '4.0.2');
+  assert.equal(lock.packages['node_modules/@wp-playground/storage'].version, '3.1.53');
+  assert.equal(lock.packages['node_modules/@wp-playground/storage'].dependencies['isomorphic-git'], '1.37.6');
+  assert.equal(lock.packages['node_modules/@wp-playground/storage/node_modules/isomorphic-git'].version, '1.37.6');
   assert.equal(lock.packages['node_modules/http-cache-semantics'].version, '4.3.0');
   assert.match(lock.packages['node_modules/@wordpress/env'].integrity, /^sha512-/u);
   assert.match(workflow, /node \.\.\/\.\.\/scripts\/patch-wordpress-env\.mjs node_modules\/@wordpress\/env\/lib/u);

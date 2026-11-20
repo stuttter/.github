@@ -1,7 +1,34 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
-import { validateRuntimeAudit, validateRuntimeCompatibility, validateRuntimeContract } from '../scripts/audit-wordpress-runtime.mjs';
+import {
+  readTextSources,
+  validateRuntimeAudit,
+  validateRuntimeAuditExit,
+  validateRuntimeCompatibility,
+  validateRuntimeContract,
+} from '../scripts/audit-wordpress-runtime.mjs';
+
+const protectedSourcePaths = [
+  '.github/workflows/codex-issue.yml',
+  '.github/workflows/fleet-standards.yml',
+  '.github/workflows/standards-ci.yml',
+  '.github/workflows/wordpress-plugin-ci.yml',
+  '.github/workflows/wordpress-plugin-release.yml',
+  'scripts/configure-wordpress-integration.mjs',
+  'scripts/patch-wordpress-env.mjs',
+  'scripts/run-wordpress-integration.sh',
+];
+
+function protectedAutomationFixture() {
+  return Object.fromEntries(protectedSourcePaths.map((path) => [
+    path,
+    readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'),
+  ]));
+}
 
 function runtimeFixture() {
   return {
@@ -13,6 +40,7 @@ function runtimeFixture() {
         'node_modules/got': { version: '11.8.6' },
         'node_modules/cacheable-request': { version: '7.0.4' },
         'node_modules/express': { version: '4.22.3' },
+        'node_modules/fast-xml-parser': { version: '5.12.0' },
         'node_modules/fast-uri': { version: '3.1.9' },
         'node_modules/glob': { version: '14.0.3' },
         'node_modules/http-cache-semantics': { version: '4.3.0' },
@@ -31,8 +59,108 @@ function runtimeFixture() {
       'commands/start.js': "const { rimraf } = require( 'rimraf' );",
       'runtime/docker/index.js': "const { rimraf } = require( 'rimraf' );",
       'runtime/docker/download-wp-phpunit.js': "const { simpleGit: SimpleGit } = require( 'simple-git' );",
-      'runtime/playground/index.js': "const { rimraf } = require( 'rimraf' );",
+      'runtime/playground/index.js': "const { rimraf } = require( 'rimraf' );\nrequire.resolve( '@wp-playground/cli/package.json' );",
     },
+  };
+}
+
+function playgroundAuditFixture() {
+  return {
+    report: {
+      vulnerabilities: {
+        '@wp-playground/blueprints': {
+          name: '@wp-playground/blueprints',
+          severity: 'moderate',
+          isDirect: false,
+          via: ['@wp-playground/storage'],
+          effects: ['@wp-playground/cli', '@wp-playground/tools'],
+          range: '1.0.5 || 3.0.16 || >=3.1.17',
+          nodes: ['node_modules/@wp-playground/blueprints'],
+          fixAvailable: true,
+        },
+        '@wp-playground/cli': {
+          name: '@wp-playground/cli',
+          severity: 'moderate',
+          isDirect: false,
+          via: ['@wp-playground/blueprints', '@wp-playground/storage', '@wp-playground/tools'],
+          effects: [],
+          range: '1.0.5 || 3.0.16 || 3.0.30 || >=3.1.17',
+          nodes: ['node_modules/@wp-playground/cli'],
+          fixAvailable: true,
+        },
+        '@wp-playground/storage': {
+          name: '@wp-playground/storage',
+          severity: 'moderate',
+          isDirect: false,
+          via: ['isomorphic-git'],
+          effects: ['@wp-playground/blueprints', '@wp-playground/cli'],
+          range: '>=3.1.28',
+          nodes: ['node_modules/@wp-playground/storage'],
+          fixAvailable: true,
+        },
+        '@wp-playground/tools': {
+          name: '@wp-playground/tools',
+          severity: 'moderate',
+          isDirect: false,
+          via: ['@wp-playground/blueprints'],
+          effects: ['@wp-playground/cli'],
+          range: '>=3.1.18',
+          nodes: ['node_modules/@wp-playground/tools'],
+          fixAvailable: true,
+        },
+        'isomorphic-git': {
+          name: 'isomorphic-git',
+          severity: 'high',
+          isDirect: false,
+          via: [
+            {
+              source: 1244996,
+              name: 'isomorphic-git',
+              dependency: 'isomorphic-git',
+              url: 'https://github.com/advisories/GHSA-cw2g-2vwq-88w6',
+              severity: 'moderate',
+              range: '<=1.38.5',
+            },
+            {
+              source: 1244997,
+              name: 'isomorphic-git',
+              dependency: 'isomorphic-git',
+              url: 'https://github.com/advisories/GHSA-96wc-2m84-2cj7',
+              severity: 'moderate',
+              range: '<=1.38.5',
+            },
+            {
+              source: 1244998,
+              name: 'isomorphic-git',
+              dependency: 'isomorphic-git',
+              url: 'https://github.com/advisories/GHSA-9qw7-j9xw-fv9c',
+              severity: 'high',
+              range: '<=1.38.5',
+            },
+          ],
+          effects: ['@wp-playground/storage'],
+          range: '<=1.38.5',
+          nodes: ['node_modules/@wp-playground/storage/node_modules/isomorphic-git'],
+          fixAvailable: true,
+        },
+      },
+      metadata: {
+        vulnerabilities: { info: 0, low: 0, moderate: 4, high: 1, critical: 0, total: 5 },
+      },
+    },
+    lock: {
+      packages: {
+        'node_modules/@wp-playground/storage': {
+          version: '3.1.53',
+          dependencies: { 'isomorphic-git': '1.37.6' },
+        },
+        'node_modules/@wp-playground/storage/node_modules/isomorphic-git': { version: '1.37.6' },
+      },
+    },
+    manifest: {},
+    runner: `"\${wp_env}" start --update --runtime=docker --scripts=false --config="\${config}"
+      "\${wp_env}" destroy --force --scripts=false --config="\${config}" || true`,
+    automation: protectedAutomationFixture(),
   };
 }
 
@@ -42,6 +170,8 @@ test('accepts a complete audit with no vulnerabilities', () => {
     metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 } },
   };
   assert.deepEqual(validateRuntimeAudit(report), []);
+  assert.equal(validateRuntimeAuditExit(0, report, []), true);
+  assert.equal(validateRuntimeAuditExit(1, report, []), false);
 });
 
 test('rejects every reported vulnerable package', () => {
@@ -61,6 +191,130 @@ test('rejects every reported vulnerable package', () => {
 test('rejects incomplete audit reports', () => {
   for (const report of [null, {}, { vulnerabilities: {} }, { vulnerabilities: {}, metadata: { vulnerabilities: {} } }]) {
     assert.deepEqual(validateRuntimeAudit(report), ['npm audit did not return a complete vulnerability report.']);
+  }
+});
+
+test('accepts only the reviewed inactive Playground advisory graph', () => {
+  const fixture = playgroundAuditFixture();
+  const errors = validateRuntimeAudit(
+    fixture.report,
+    fixture.lock,
+    fixture.manifest,
+    fixture.runner,
+    fixture.automation,
+  );
+  assert.deepEqual(errors, []);
+  assert.equal(validateRuntimeAuditExit(1, fixture.report, errors), true);
+  assert.equal(validateRuntimeAuditExit(0, fixture.report, errors), false);
+});
+
+test('rejects Playground advisory, package-path, runtime, or workflow drift', () => {
+  const advisory = playgroundAuditFixture();
+  advisory.report.vulnerabilities['isomorphic-git'].via[0].source += 1;
+  assert.match(
+    validateRuntimeAudit(
+      advisory.report,
+      advisory.lock,
+      advisory.manifest,
+      advisory.runner,
+      advisory.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+
+  const packagePath = playgroundAuditFixture();
+  packagePath.lock.packages['node_modules/isomorphic-git'] = { version: '1.37.6' };
+  assert.match(
+    validateRuntimeAudit(
+      packagePath.report,
+      packagePath.lock,
+      packagePath.manifest,
+      packagePath.runner,
+      packagePath.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+
+  const runtime = playgroundAuditFixture();
+  runtime.runner += '\n"${wp_env}" start --runtime playground --config="${config}"';
+  assert.match(
+    validateRuntimeAudit(
+      runtime.report,
+      runtime.lock,
+      runtime.manifest,
+      runtime.runner,
+      runtime.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+
+  const lifecycleScripts = playgroundAuditFixture();
+  lifecycleScripts.runner = lifecycleScripts.runner.replace('destroy --force --scripts=false', 'destroy --force');
+  assert.match(
+    validateRuntimeAudit(
+      lifecycleScripts.report,
+      lifecycleScripts.lock,
+      lifecycleScripts.manifest,
+      lifecycleScripts.runner,
+      lifecycleScripts.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+
+  const workflow = playgroundAuditFixture();
+  workflow.automation['.github/workflows/extra.yml'] = `working-directory: .portfolio-standard/runtime/wordpress
+    run: npx wp-env start --runtime=playground`;
+  assert.match(
+    validateRuntimeAudit(
+      workflow.report,
+      workflow.lock,
+      workflow.manifest,
+      workflow.runner,
+      workflow.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+
+  const wrapper = playgroundAuditFixture();
+  wrapper.automation['scripts/extra-runtime.sh'] = 'npx wp-env start --runtime playground';
+  assert.match(
+    validateRuntimeAudit(
+      wrapper.report,
+      wrapper.lock,
+      wrapper.manifest,
+      wrapper.runner,
+      wrapper.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+});
+
+test('rejects indirect runtime launches through package scripts', () => {
+  const fixture = playgroundAuditFixture();
+  fixture.manifest.scripts = { integration: 'wp-env start --runtime=playground' };
+  assert.match(
+    validateRuntimeAudit(
+      fixture.report,
+      fixture.lock,
+      fixture.manifest,
+      fixture.runner,
+      fixture.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+});
+
+test('rejects linked automation sources', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wordpress-runtime-sources-'));
+  try {
+    writeFileSync(join(directory, 'target.yml'), 'name: target\n');
+    symlinkSync('target.yml', join(directory, 'linked.yml'));
+    assert.throws(
+      () => readTextSources(directory),
+      /Automation source must be a regular file or directory/u,
+    );
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
   }
 });
 
@@ -110,6 +364,15 @@ test('rejects legacy rimraf imports', () => {
   assert.match(
     validateRuntimeContract(lock, sources).join('\n'),
     /rimraf 6 named asynchronous API/u,
+  );
+});
+
+test('rejects a Playground dependency reference outside the inactive runtime', () => {
+  const { lock, sources } = runtimeFixture();
+  sources['runtime/docker/index.js'] += "\nrequire( '@wp-playground/storage' );";
+  assert.match(
+    validateRuntimeContract(lock, sources).join('\n'),
+    /isolates Playground dependencies/u,
   );
 });
 
