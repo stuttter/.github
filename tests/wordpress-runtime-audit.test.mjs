@@ -17,6 +17,7 @@ const protectedSourcePaths = [
   '.github/workflows/standards-ci.yml',
   '.github/workflows/wordpress-plugin-ci.yml',
   '.github/workflows/wordpress-plugin-release.yml',
+  'scripts/configure-wordpress-integration.mjs',
   'scripts/patch-wordpress-env.mjs',
   'scripts/run-wordpress-integration.sh',
 ];
@@ -156,7 +157,8 @@ function playgroundAuditFixture() {
       },
     },
     manifest: {},
-    runner: '"${wp_env}" start --update --runtime=docker --config="${config}"',
+    runner: `"\${wp_env}" start --update --runtime=docker --scripts=false --config="\${config}"
+      "\${wp_env}" destroy --force --scripts=false --config="\${config}" || true`,
     automation: protectedAutomationFixture(),
   };
 }
@@ -239,6 +241,19 @@ test('rejects Playground advisory, package-path, runtime, or workflow drift', ()
       runtime.manifest,
       runtime.runner,
       runtime.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+
+  const lifecycleScripts = playgroundAuditFixture();
+  lifecycleScripts.runner = lifecycleScripts.runner.replace('destroy --force --scripts=false', 'destroy --force');
+  assert.match(
+    validateRuntimeAudit(
+      lifecycleScripts.report,
+      lifecycleScripts.lock,
+      lifecycleScripts.manifest,
+      lifecycleScripts.runner,
+      lifecycleScripts.automation,
     ).join('\n'),
     /vulnerable packages/u,
   );

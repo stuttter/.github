@@ -438,7 +438,8 @@ jobs:
         shell: bash
         run: |
           config="${GITHUB_WORKSPACE}/wp-env-integration.json"
-          if [[ -e "${config}" || -L "${config}" ]]; then
+          override_config="${GITHUB_WORKSPACE}/wp-env-integration.override.json"
+          if [[ -e "${config}" || -L "${config}" || -e "${override_config}" || -L "${override_config}" ]]; then
             echo 'WordPress integration requires a centrally generated root configuration.' >&2
             exit 1
           fi

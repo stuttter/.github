@@ -30,14 +30,14 @@ cleanup() {
 	status=$?
 	trap - EXIT
 	if [[ "${started}" == 'true' ]]; then
-		"${wp_env}" destroy --force --config="${config}" || true
+		"${wp_env}" destroy --force --scripts=false --config="${config}" || true
 	fi
 	exit "${status}"
 }
 trap cleanup EXIT
 
 started='true'
-"${wp_env}" start --update --runtime=docker --config="${config}"
+"${wp_env}" start --update --runtime=docker --scripts=false --config="${config}"
 "${wp_env}" run cli --config="${config}" wp core version
 
 if [[ "${topology}" == 'multisite' ]]; then

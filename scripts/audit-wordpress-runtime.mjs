@@ -132,10 +132,11 @@ const reviewedSourceDigests = {
   '.github/workflows/codex-issue.yml': '743cab2b8871ac69bdca558b1f92cf28743485e739d028168c643d09abdde399',
   '.github/workflows/fleet-standards.yml': '0a333a171a133cf41b9ec9f92cec9037a94bb91c6931ac446f1eb02a9391d868',
   '.github/workflows/standards-ci.yml': 'f1dc0fbd3f5401bc7c678806edfa2d54d5e8c8b499f89f8cdca32017e272f8c9',
-  '.github/workflows/wordpress-plugin-ci.yml': 'ec12e8d08172b83872a31f5664affc0b6ee8e40ff05f4d4189f083e9da98092c',
+  '.github/workflows/wordpress-plugin-ci.yml': '822f2113148447a9c5e2a65341b049fdd519066156e864437cc15f63bdf7818d',
   '.github/workflows/wordpress-plugin-release.yml': '052e090fc24caf166e6a655c1054cfd14178a081125162cc61004cc9ff8357a1',
+  'scripts/configure-wordpress-integration.mjs': '6033419157ad26f15153ccf62f611987ecf6831f8c8a559a2b0928e4940eea95',
   'scripts/patch-wordpress-env.mjs': 'a5b30c6352b5ad73cb7ab6757cfb0caf0b87a83466cd31cc5f2c11db1f1745ce',
-  'scripts/run-wordpress-integration.sh': '9f0babac323489c5c96a07605727cd94cd04ea4014d4f7e01aedefd538864902',
+  'scripts/run-wordpress-integration.sh': 'bfc20cef93482a099530faa412cbe18e69cc1fe17b1439f1d9529f7d09a9453c',
 };
 const compatibilityProbe = String.raw`
 const assert = require('node:assert/strict');
@@ -246,6 +247,7 @@ function collectProtectedSourceDigests(automationSources) {
     const protectedSource = (
       path.startsWith('.github/workflows/') ||
       path.startsWith('.github/actions/') ||
+      path === 'scripts/configure-wordpress-integration.mjs' ||
       path === 'scripts/patch-wordpress-env.mjs' ||
       path === 'scripts/run-wordpress-integration.sh'
     );
@@ -271,7 +273,12 @@ function matchesInactivePlaygroundContract(
     .split('\n')
     .filter((line) => !/^\s*#/u.test(line) && /\bstart\b/u.test(line))
     .map((line) => line.trim());
-  const expectedStartLine = '"${wp_env}" start --update --runtime=docker --config="${config}"';
+  const activeDestroyLines = integrationRunnerSource
+    .split('\n')
+    .filter((line) => !/^\s*#/u.test(line) && /\bdestroy\b/u.test(line))
+    .map((line) => line.trim());
+  const expectedStartLine = '"${wp_env}" start --update --runtime=docker --scripts=false --config="${config}"';
+  const expectedDestroyLine = '"${wp_env}" destroy --force --scripts=false --config="${config}" || true';
   const integrationWorkflowSource = automationSources['.github/workflows/wordpress-plugin-ci.yml'] ?? '';
   const workflowRunnerReferences = integrationWorkflowSource.match(/run-wordpress-integration\.sh/gu) ?? [];
   const workflowWpEnvReferences = integrationWorkflowSource.match(
@@ -287,6 +294,7 @@ function matchesInactivePlaygroundContract(
     typeof runtimeManifest === 'object' &&
     !Object.hasOwn(runtimeManifest, 'scripts') &&
     sameValues(activeStartLines, [expectedStartLine]) &&
+    sameValues(activeDestroyLines, [expectedDestroyLine]) &&
     !/playground/iu.test(integrationRunnerSource) &&
     JSON.stringify(collectProtectedSourceDigests(automationSources)) ===
       JSON.stringify(reviewedSourceDigests) &&

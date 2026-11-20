@@ -39,9 +39,11 @@ test('real WordPress cells use a fixed smoke path and no configured command', ()
   assert.match(job, /Run repository smoke test in real WordPress/u);
   assert.match(job, /run-wordpress-integration\.sh/u);
   assert.match(job, /config="\$\{GITHUB_WORKSPACE\}\/wp-env-integration\.json"/u);
+  assert.match(job, /override_config="\$\{GITHUB_WORKSPACE\}\/wp-env-integration\.override\.json"/u);
+  assert.match(job, /-e "\$\{override_config\}" \|\| -L "\$\{override_config\}"/u);
   assert.match(job, /WordPress integration requires a centrally generated root configuration/u);
-  assert.match(runner, /start --update --runtime=docker --config=/u);
-  assert.equal((runner.match(/^"\$\{wp_env\}" start --update --runtime=docker --config="\$\{config\}"$/gmu) ?? []).length, 1);
+  assert.match(runner, /start --update --runtime=docker --scripts=false --config=/u);
+  assert.equal((runner.match(/^"\$\{wp_env\}" start --update --runtime=docker --scripts=false --config="\$\{config\}"$/gmu) ?? []).length, 1);
   assert.doesNotMatch(runner, /playground/iu);
   assert.equal((workflow.match(/run-wordpress-integration\.sh/gu) ?? []).length, 1);
   assert.equal((workflow.match(/\.portfolio-standard\/runtime\/wordpress\/node_modules\/\.bin\/wp-env/gu) ?? []).length, 1);
@@ -50,7 +52,7 @@ test('real WordPress cells use a fixed smoke path and no configured command', ()
   assert.doesNotMatch(job, /matrix\.(?:command|script|path)/u);
 
   assert.match(runner, /wp eval-file wp-content\/portfolio-integration-tests\/smoke\.php/u);
-  assert.match(runner, /destroy --force --config=/u);
+  assert.equal((runner.match(/^\s*"\$\{wp_env\}" destroy --force --scripts=false --config="\$\{config\}" \|\| true$/gmu) ?? []).length, 1);
   assert.doesNotMatch(runner, /(?:eval|bash -c).*\$\{/u);
 });
 
