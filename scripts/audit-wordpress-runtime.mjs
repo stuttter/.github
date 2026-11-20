@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -127,6 +128,15 @@ const reviewedAutomationReferences = {
     "process.stdout.write('Applied the audited @wordpress/env simple-git 4 compatibility patch.\\n');",
   ],
 };
+const reviewedSourceDigests = {
+  '.github/workflows/codex-issue.yml': '743cab2b8871ac69bdca558b1f92cf28743485e739d028168c643d09abdde399',
+  '.github/workflows/fleet-standards.yml': '0a333a171a133cf41b9ec9f92cec9037a94bb91c6931ac446f1eb02a9391d868',
+  '.github/workflows/standards-ci.yml': 'f1dc0fbd3f5401bc7c678806edfa2d54d5e8c8b499f89f8cdca32017e272f8c9',
+  '.github/workflows/wordpress-plugin-ci.yml': 'ec12e8d08172b83872a31f5664affc0b6ee8e40ff05f4d4189f083e9da98092c',
+  '.github/workflows/wordpress-plugin-release.yml': '052e090fc24caf166e6a655c1054cfd14178a081125162cc61004cc9ff8357a1',
+  'scripts/patch-wordpress-env.mjs': 'a5b30c6352b5ad73cb7ab6757cfb0caf0b87a83466cd31cc5f2c11db1f1745ce',
+  'scripts/run-wordpress-integration.sh': '9f0babac323489c5c96a07605727cd94cd04ea4014d4f7e01aedefd538864902',
+};
 const compatibilityProbe = String.raw`
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -231,7 +241,26 @@ function collectAutomationReferences(automationSources) {
   }));
 }
 
-function matchesInactivePlaygroundContract(lock, integrationRunnerSource, automationSources) {
+function collectProtectedSourceDigests(automationSources) {
+  return Object.fromEntries(Object.keys(automationSources).sort().flatMap((path) => {
+    const protectedSource = (
+      path.startsWith('.github/workflows/') ||
+      path.startsWith('.github/actions/') ||
+      path === 'scripts/patch-wordpress-env.mjs' ||
+      path === 'scripts/run-wordpress-integration.sh'
+    );
+    return protectedSource
+      ? [[path, createHash('sha256').update(automationSources[path]).digest('hex')]]
+      : [];
+  }));
+}
+
+function matchesInactivePlaygroundContract(
+  lock,
+  runtimeManifest,
+  integrationRunnerSource,
+  automationSources,
+) {
   const packages = lock?.packages ?? {};
   const isomorphicGitPaths = Object.keys(packages).filter(
     (path) => path === 'node_modules/isomorphic-git' || path.endsWith('/node_modules/isomorphic-git'),
@@ -254,8 +283,13 @@ function matchesInactivePlaygroundContract(lock, integrationRunnerSource, automa
     storage?.dependencies?.['isomorphic-git'] === '1.37.6' &&
     isomorphicGit?.version === '1.37.6' &&
     sameValues(isomorphicGitPaths, ['node_modules/@wp-playground/storage/node_modules/isomorphic-git']) &&
+    runtimeManifest !== null &&
+    typeof runtimeManifest === 'object' &&
+    !Object.hasOwn(runtimeManifest, 'scripts') &&
     sameValues(activeStartLines, [expectedStartLine]) &&
     !/playground/iu.test(integrationRunnerSource) &&
+    JSON.stringify(collectProtectedSourceDigests(automationSources)) ===
+      JSON.stringify(reviewedSourceDigests) &&
     JSON.stringify(collectAutomationReferences(automationSources)) ===
       JSON.stringify(reviewedAutomationReferences) &&
     workflowRunnerReferences.length === 1 &&
@@ -279,7 +313,7 @@ function readJavaScriptSources(directory, root = directory) {
   return sources;
 }
 
-function readTextSources(directory, root) {
+export function readTextSources(directory, root = directory) {
   const sources = {};
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = resolve(directory, entry.name);
@@ -287,6 +321,8 @@ function readTextSources(directory, root) {
       Object.assign(sources, readTextSources(path, root));
     } else if (entry.isFile()) {
       sources[path.slice(root.length + 1)] = readFileSync(path, 'utf8');
+    } else {
+      throw new Error(`Automation source must be a regular file or directory: ${path}`);
     }
   }
   return sources;
@@ -295,6 +331,7 @@ function readTextSources(directory, root) {
 export function validateRuntimeAudit(
   report,
   lock,
+  runtimeManifest = {},
   integrationRunnerSource = '',
   automationSources = {},
 ) {
@@ -309,7 +346,12 @@ export function validateRuntimeAudit(
   if (counts.total === 0 && names.length === 0) return [];
   if (
     matchesReviewedPlaygroundAudit(vulnerabilities, counts) &&
-    matchesInactivePlaygroundContract(lock, integrationRunnerSource, automationSources)
+    matchesInactivePlaygroundContract(
+      lock,
+      runtimeManifest,
+      integrationRunnerSource,
+      automationSources,
+    )
   ) {
     return [];
   }
@@ -426,6 +468,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
   if (report !== undefined) {
     const lock = JSON.parse(readFileSync(resolve(runtimeRoot, 'package-lock.json'), 'utf8'));
+    const runtimeManifest = JSON.parse(readFileSync(resolve(runtimeRoot, 'package.json'), 'utf8'));
     const wordpressSources = readJavaScriptSources(resolve(runtimeRoot, 'node_modules/@wordpress/env/lib'));
     const integrationRunnerSource = readFileSync(
       resolve(repositoryRoot, 'scripts/run-wordpress-integration.sh'),
@@ -437,7 +480,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     };
     delete automationSources['scripts/audit-wordpress-runtime.mjs'];
     const errors = [
-      ...validateRuntimeAudit(report, lock, integrationRunnerSource, automationSources),
+      ...validateRuntimeAudit(
+        report,
+        lock,
+        runtimeManifest,
+        integrationRunnerSource,
+        automationSources,
+      ),
       ...validateRuntimeContract(lock, wordpressSources),
       ...validateRuntimeCompatibility(),
     ];

@@ -1,7 +1,32 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
-import { validateRuntimeAudit, validateRuntimeCompatibility, validateRuntimeContract } from '../scripts/audit-wordpress-runtime.mjs';
+import {
+  readTextSources,
+  validateRuntimeAudit,
+  validateRuntimeCompatibility,
+  validateRuntimeContract,
+} from '../scripts/audit-wordpress-runtime.mjs';
+
+const protectedSourcePaths = [
+  '.github/workflows/codex-issue.yml',
+  '.github/workflows/fleet-standards.yml',
+  '.github/workflows/standards-ci.yml',
+  '.github/workflows/wordpress-plugin-ci.yml',
+  '.github/workflows/wordpress-plugin-release.yml',
+  'scripts/patch-wordpress-env.mjs',
+  'scripts/run-wordpress-integration.sh',
+];
+
+function protectedAutomationFixture() {
+  return Object.fromEntries(protectedSourcePaths.map((path) => [
+    path,
+    readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'),
+  ]));
+}
 
 function runtimeFixture() {
   return {
@@ -130,25 +155,9 @@ function playgroundAuditFixture() {
         'node_modules/@wp-playground/storage/node_modules/isomorphic-git': { version: '1.37.6' },
       },
     },
+    manifest: {},
     runner: '"${wp_env}" start --update --runtime=docker --config="${config}"',
-    automation: {
-      '.github/workflows/standards-ci.yml': `npm ci --ignore-scripts --prefix runtime/wordpress
-        node scripts/patch-wordpress-env.mjs runtime/wordpress/node_modules/@wordpress/env/lib
-        php -r 'json_decode(file_get_contents("runtime/wordpress/package.json"), true, 512, JSON_THROW_ON_ERROR);'
-        php -r 'json_decode(file_get_contents("runtime/wordpress/package-lock.json"), true, 512, JSON_THROW_ON_ERROR);'`,
-      '.github/workflows/wordpress-plugin-ci.yml': `- name: Reject repository-controlled wp-env configuration
-        echo "Plugin Check requires centrally generated wp-env configuration; remove \${path}." >&2
-        cache-dependency-path: .portfolio-standard/runtime/wordpress/package-lock.json
-        working-directory: .portfolio-standard/runtime/wordpress
-        node ../../scripts/patch-wordpress-env.mjs node_modules/@wordpress/env/lib
-        bash .portfolio-standard/scripts/run-wordpress-integration.sh
-        .portfolio-standard/runtime/wordpress/node_modules/.bin/wp-env
-        "\${{ steps.integration-config.outputs.config }}"`,
-      'scripts/patch-wordpress-env.mjs': `throw new Error(\`Refusing to patch unexpected @wordpress/env source \${actualHash}.\`);
-        throw new Error('The expected @wordpress/env simple-git import occurs an unexpected number of times.');
-        throw new Error(\`@wordpress/env source must be a regular file: \${patch.path}\`);
-        process.stdout.write('Applied the audited @wordpress/env simple-git 4 compatibility patch.\\n');`,
-    },
+    automation: protectedAutomationFixture(),
   };
 }
 
@@ -182,28 +191,55 @@ test('rejects incomplete audit reports', () => {
 
 test('accepts only the reviewed inactive Playground advisory graph', () => {
   const fixture = playgroundAuditFixture();
-  assert.deepEqual(validateRuntimeAudit(fixture.report, fixture.lock, fixture.runner, fixture.automation), []);
+  assert.deepEqual(
+    validateRuntimeAudit(
+      fixture.report,
+      fixture.lock,
+      fixture.manifest,
+      fixture.runner,
+      fixture.automation,
+    ),
+    [],
+  );
 });
 
 test('rejects Playground advisory, package-path, runtime, or workflow drift', () => {
   const advisory = playgroundAuditFixture();
   advisory.report.vulnerabilities['isomorphic-git'].via[0].source += 1;
   assert.match(
-    validateRuntimeAudit(advisory.report, advisory.lock, advisory.runner, advisory.automation).join('\n'),
+    validateRuntimeAudit(
+      advisory.report,
+      advisory.lock,
+      advisory.manifest,
+      advisory.runner,
+      advisory.automation,
+    ).join('\n'),
     /vulnerable packages/u,
   );
 
   const packagePath = playgroundAuditFixture();
   packagePath.lock.packages['node_modules/isomorphic-git'] = { version: '1.37.6' };
   assert.match(
-    validateRuntimeAudit(packagePath.report, packagePath.lock, packagePath.runner, packagePath.automation).join('\n'),
+    validateRuntimeAudit(
+      packagePath.report,
+      packagePath.lock,
+      packagePath.manifest,
+      packagePath.runner,
+      packagePath.automation,
+    ).join('\n'),
     /vulnerable packages/u,
   );
 
   const runtime = playgroundAuditFixture();
   runtime.runner += '\n"${wp_env}" start --runtime playground --config="${config}"';
   assert.match(
-    validateRuntimeAudit(runtime.report, runtime.lock, runtime.runner, runtime.automation).join('\n'),
+    validateRuntimeAudit(
+      runtime.report,
+      runtime.lock,
+      runtime.manifest,
+      runtime.runner,
+      runtime.automation,
+    ).join('\n'),
     /vulnerable packages/u,
   );
 
@@ -211,16 +247,57 @@ test('rejects Playground advisory, package-path, runtime, or workflow drift', ()
   workflow.automation['.github/workflows/extra.yml'] = `working-directory: .portfolio-standard/runtime/wordpress
     run: npx wp-env start --runtime=playground`;
   assert.match(
-    validateRuntimeAudit(workflow.report, workflow.lock, workflow.runner, workflow.automation).join('\n'),
+    validateRuntimeAudit(
+      workflow.report,
+      workflow.lock,
+      workflow.manifest,
+      workflow.runner,
+      workflow.automation,
+    ).join('\n'),
     /vulnerable packages/u,
   );
 
   const wrapper = playgroundAuditFixture();
   wrapper.automation['scripts/extra-runtime.sh'] = 'npx wp-env start --runtime playground';
   assert.match(
-    validateRuntimeAudit(wrapper.report, wrapper.lock, wrapper.runner, wrapper.automation).join('\n'),
+    validateRuntimeAudit(
+      wrapper.report,
+      wrapper.lock,
+      wrapper.manifest,
+      wrapper.runner,
+      wrapper.automation,
+    ).join('\n'),
     /vulnerable packages/u,
   );
+});
+
+test('rejects indirect runtime launches through package scripts', () => {
+  const fixture = playgroundAuditFixture();
+  fixture.manifest.scripts = { integration: 'wp-env start --runtime=playground' };
+  assert.match(
+    validateRuntimeAudit(
+      fixture.report,
+      fixture.lock,
+      fixture.manifest,
+      fixture.runner,
+      fixture.automation,
+    ).join('\n'),
+    /vulnerable packages/u,
+  );
+});
+
+test('rejects linked automation sources', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wordpress-runtime-sources-'));
+  try {
+    writeFileSync(join(directory, 'target.yml'), 'name: target\n');
+    symlinkSync('target.yml', join(directory, 'linked.yml'));
+    assert.throws(
+      () => readTextSources(directory),
+      /Automation source must be a regular file or directory/u,
+    );
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
 });
 
 test('accepts only the reviewed uncached wp-env runtime contract', () => {
