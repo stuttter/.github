@@ -105,6 +105,28 @@ const reviewedPlaygroundAudit = {
     },
   },
 };
+const reviewedAutomationReferences = {
+  '.github/workflows/standards-ci.yml': [
+    'npm ci --ignore-scripts --prefix runtime/wordpress',
+    'node scripts/patch-wordpress-env.mjs runtime/wordpress/node_modules/@wordpress/env/lib',
+    'php -r \'json_decode(file_get_contents("runtime/wordpress/package.json"), true, 512, JSON_THROW_ON_ERROR);\'',
+    'php -r \'json_decode(file_get_contents("runtime/wordpress/package-lock.json"), true, 512, JSON_THROW_ON_ERROR);\'',
+  ],
+  '.github/workflows/wordpress-plugin-ci.yml': [
+    '- name: Reject repository-controlled wp-env configuration',
+    'echo "Plugin Check requires centrally generated wp-env configuration; remove ${path}." >&2',
+    'cache-dependency-path: .portfolio-standard/runtime/wordpress/package-lock.json',
+    'working-directory: .portfolio-standard/runtime/wordpress',
+    'node ../../scripts/patch-wordpress-env.mjs node_modules/@wordpress/env/lib',
+    '.portfolio-standard/runtime/wordpress/node_modules/.bin/wp-env',
+  ],
+  'scripts/patch-wordpress-env.mjs': [
+    'throw new Error(`Refusing to patch unexpected @wordpress/env source ${actualHash}.`);',
+    "throw new Error('The expected @wordpress/env simple-git import occurs an unexpected number of times.');",
+    'throw new Error(`@wordpress/env source must be a regular file: ${patch.path}`);',
+    "process.stdout.write('Applied the audited @wordpress/env simple-git 4 compatibility patch.\\n');",
+  ],
+};
 const compatibilityProbe = String.raw`
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -196,7 +218,20 @@ function matchesReviewedPlaygroundAudit(vulnerabilities, counts) {
   return JSON.stringify({ counts, vulnerabilities: normalized }) === JSON.stringify(reviewedPlaygroundAudit);
 }
 
-function matchesInactivePlaygroundContract(lock, integrationRunnerSource, integrationWorkflowSource) {
+function collectAutomationReferences(automationSources) {
+  return Object.fromEntries(Object.keys(automationSources).sort().flatMap((path) => {
+    const references = automationSources[path]
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => (
+        /runtime\/wordpress|@wordpress\/env|(^|[^A-Za-z0-9_.-])wp-env([^A-Za-z0-9_.-]|$)|playground/iu
+          .test(line)
+      ));
+    return references.length === 0 ? [] : [[path, references]];
+  }));
+}
+
+function matchesInactivePlaygroundContract(lock, integrationRunnerSource, automationSources) {
   const packages = lock?.packages ?? {};
   const isomorphicGitPaths = Object.keys(packages).filter(
     (path) => path === 'node_modules/isomorphic-git' || path.endsWith('/node_modules/isomorphic-git'),
@@ -208,6 +243,7 @@ function matchesInactivePlaygroundContract(lock, integrationRunnerSource, integr
     .filter((line) => !/^\s*#/u.test(line) && /\bstart\b/u.test(line))
     .map((line) => line.trim());
   const expectedStartLine = '"${wp_env}" start --update --runtime=docker --config="${config}"';
+  const integrationWorkflowSource = automationSources['.github/workflows/wordpress-plugin-ci.yml'] ?? '';
   const workflowRunnerReferences = integrationWorkflowSource.match(/run-wordpress-integration\.sh/gu) ?? [];
   const workflowWpEnvReferences = integrationWorkflowSource.match(
     /\.portfolio-standard\/runtime\/wordpress\/node_modules\/\.bin\/wp-env/gu,
@@ -220,6 +256,8 @@ function matchesInactivePlaygroundContract(lock, integrationRunnerSource, integr
     sameValues(isomorphicGitPaths, ['node_modules/@wp-playground/storage/node_modules/isomorphic-git']) &&
     sameValues(activeStartLines, [expectedStartLine]) &&
     !/playground/iu.test(integrationRunnerSource) &&
+    JSON.stringify(collectAutomationReferences(automationSources)) ===
+      JSON.stringify(reviewedAutomationReferences) &&
     workflowRunnerReferences.length === 1 &&
     workflowWpEnvReferences.length === 1 &&
     expectedWorkflowInvocation.test(integrationWorkflowSource) &&
@@ -241,11 +279,24 @@ function readJavaScriptSources(directory, root = directory) {
   return sources;
 }
 
+function readTextSources(directory, root) {
+  const sources = {};
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      Object.assign(sources, readTextSources(path, root));
+    } else if (entry.isFile()) {
+      sources[path.slice(root.length + 1)] = readFileSync(path, 'utf8');
+    }
+  }
+  return sources;
+}
+
 export function validateRuntimeAudit(
   report,
   lock,
   integrationRunnerSource = '',
-  integrationWorkflowSource = '',
+  automationSources = {},
 ) {
   const vulnerabilities = report?.vulnerabilities;
   const counts = report?.metadata?.vulnerabilities;
@@ -258,7 +309,7 @@ export function validateRuntimeAudit(
   if (counts.total === 0 && names.length === 0) return [];
   if (
     matchesReviewedPlaygroundAudit(vulnerabilities, counts) &&
-    matchesInactivePlaygroundContract(lock, integrationRunnerSource, integrationWorkflowSource)
+    matchesInactivePlaygroundContract(lock, integrationRunnerSource, automationSources)
   ) {
     return [];
   }
@@ -380,12 +431,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       resolve(repositoryRoot, 'scripts/run-wordpress-integration.sh'),
       'utf8',
     );
-    const integrationWorkflowSource = readFileSync(
-      resolve(repositoryRoot, '.github/workflows/wordpress-plugin-ci.yml'),
-      'utf8',
-    );
+    const automationSources = {
+      ...readTextSources(resolve(repositoryRoot, '.github'), repositoryRoot),
+      ...readTextSources(resolve(repositoryRoot, 'scripts'), repositoryRoot),
+    };
+    delete automationSources['scripts/audit-wordpress-runtime.mjs'];
     const errors = [
-      ...validateRuntimeAudit(report, lock, integrationRunnerSource, integrationWorkflowSource),
+      ...validateRuntimeAudit(report, lock, integrationRunnerSource, automationSources),
       ...validateRuntimeContract(lock, wordpressSources),
       ...validateRuntimeCompatibility(),
     ];
