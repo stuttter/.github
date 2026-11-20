@@ -14,6 +14,7 @@ const expectedVersions = {
   got: '11.8.6',
   'cacheable-request': '7.0.4',
   express: '4.22.3',
+  'fast-xml-parser': '5.12.0',
   'fast-uri': '3.1.9',
   glob: '14.0.3',
   'http-cache-semantics': '4.3.0',
@@ -23,6 +24,86 @@ const expectedVersions = {
   qs: '6.17.1',
   rimraf: '6.1.3',
   'simple-git': '4.0.2',
+};
+const reviewedPlaygroundAudit = {
+  counts: { info: 0, low: 0, moderate: 4, high: 1, critical: 0, total: 5 },
+  vulnerabilities: {
+    '@wp-playground/blueprints': {
+      name: '@wp-playground/blueprints',
+      severity: 'moderate',
+      isDirect: false,
+      via: ['@wp-playground/storage'],
+      effects: ['@wp-playground/cli', '@wp-playground/tools'],
+      range: '1.0.5 || 3.0.16 || >=3.1.17',
+      nodes: ['node_modules/@wp-playground/blueprints'],
+      fixAvailable: true,
+    },
+    '@wp-playground/cli': {
+      name: '@wp-playground/cli',
+      severity: 'moderate',
+      isDirect: false,
+      via: ['@wp-playground/blueprints', '@wp-playground/storage', '@wp-playground/tools'],
+      effects: [],
+      range: '1.0.5 || 3.0.16 || 3.0.30 || >=3.1.17',
+      nodes: ['node_modules/@wp-playground/cli'],
+      fixAvailable: true,
+    },
+    '@wp-playground/storage': {
+      name: '@wp-playground/storage',
+      severity: 'moderate',
+      isDirect: false,
+      via: ['isomorphic-git'],
+      effects: ['@wp-playground/blueprints', '@wp-playground/cli'],
+      range: '>=3.1.28',
+      nodes: ['node_modules/@wp-playground/storage'],
+      fixAvailable: true,
+    },
+    '@wp-playground/tools': {
+      name: '@wp-playground/tools',
+      severity: 'moderate',
+      isDirect: false,
+      via: ['@wp-playground/blueprints'],
+      effects: ['@wp-playground/cli'],
+      range: '>=3.1.18',
+      nodes: ['node_modules/@wp-playground/tools'],
+      fixAvailable: true,
+    },
+    'isomorphic-git': {
+      name: 'isomorphic-git',
+      severity: 'high',
+      isDirect: false,
+      via: [
+        {
+          source: 1244996,
+          name: 'isomorphic-git',
+          dependency: 'isomorphic-git',
+          url: 'https://github.com/advisories/GHSA-cw2g-2vwq-88w6',
+          severity: 'moderate',
+          range: '<=1.38.5',
+        },
+        {
+          source: 1244997,
+          name: 'isomorphic-git',
+          dependency: 'isomorphic-git',
+          url: 'https://github.com/advisories/GHSA-96wc-2m84-2cj7',
+          severity: 'moderate',
+          range: '<=1.38.5',
+        },
+        {
+          source: 1244998,
+          name: 'isomorphic-git',
+          dependency: 'isomorphic-git',
+          url: 'https://github.com/advisories/GHSA-9qw7-j9xw-fv9c',
+          severity: 'high',
+          range: '<=1.38.5',
+        },
+      ],
+      effects: ['@wp-playground/storage'],
+      range: '<=1.38.5',
+      nodes: ['node_modules/@wp-playground/storage/node_modules/isomorphic-git'],
+      fixAvailable: true,
+    },
+  },
 };
 const compatibilityProbe = String.raw`
 const assert = require('node:assert/strict');
@@ -83,6 +164,55 @@ function sameValues(actual, expected) {
   return JSON.stringify([...actual].sort()) === JSON.stringify([...expected].sort());
 }
 
+function normalizeVulnerability(vulnerability) {
+  return {
+    name: vulnerability?.name,
+    severity: vulnerability?.severity,
+    isDirect: vulnerability?.isDirect,
+    via: (vulnerability?.via ?? []).map((item) => typeof item === 'string' ? item : {
+      source: item.source,
+      name: item.name,
+      dependency: item.dependency,
+      url: item.url,
+      severity: item.severity,
+      range: item.range,
+    }).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    effects: [...(vulnerability?.effects ?? [])].sort(),
+    range: vulnerability?.range,
+    nodes: [...(vulnerability?.nodes ?? [])].sort(),
+    fixAvailable: vulnerability?.fixAvailable,
+  };
+}
+
+function matchesReviewedPlaygroundAudit(vulnerabilities, counts) {
+  const names = Object.keys(vulnerabilities).sort();
+  const expectedNames = Object.keys(reviewedPlaygroundAudit.vulnerabilities).sort();
+  if (!sameValues(names, expectedNames)) return false;
+
+  const normalized = Object.fromEntries(expectedNames.map((name) => [
+    name,
+    normalizeVulnerability(vulnerabilities[name]),
+  ]));
+  return JSON.stringify({ counts, vulnerabilities: normalized }) === JSON.stringify(reviewedPlaygroundAudit);
+}
+
+function matchesInactivePlaygroundContract(lock, integrationRunnerSource) {
+  const packages = lock?.packages ?? {};
+  const isomorphicGitPaths = Object.keys(packages).filter(
+    (path) => path === 'node_modules/isomorphic-git' || path.endsWith('/node_modules/isomorphic-git'),
+  );
+  const storage = packages['node_modules/@wp-playground/storage'];
+  const isomorphicGit = packages['node_modules/@wp-playground/storage/node_modules/isomorphic-git'];
+  return (
+    storage?.version === '3.1.53' &&
+    storage?.dependencies?.['isomorphic-git'] === '1.37.6' &&
+    isomorphicGit?.version === '1.37.6' &&
+    sameValues(isomorphicGitPaths, ['node_modules/@wp-playground/storage/node_modules/isomorphic-git']) &&
+    /"\$\{wp_env\}" start --update --runtime=docker --config="\$\{config\}"/u.test(integrationRunnerSource) &&
+    !/--runtime=playground/u.test(integrationRunnerSource)
+  );
+}
+
 function readJavaScriptSources(directory, root = directory) {
   const sources = {};
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -97,7 +227,7 @@ function readJavaScriptSources(directory, root = directory) {
   return sources;
 }
 
-export function validateRuntimeAudit(report) {
+export function validateRuntimeAudit(report, lock, integrationRunnerSource = '') {
   const vulnerabilities = report?.vulnerabilities;
   const counts = report?.metadata?.vulnerabilities;
 
@@ -107,6 +237,12 @@ export function validateRuntimeAudit(report) {
 
   const names = Object.keys(vulnerabilities);
   if (counts.total === 0 && names.length === 0) return [];
+  if (
+    matchesReviewedPlaygroundAudit(vulnerabilities, counts) &&
+    matchesInactivePlaygroundContract(lock, integrationRunnerSource)
+  ) {
+    return [];
+  }
   return [`npm audit reported vulnerable packages: ${names.join(', ') || 'unknown'}.`];
 }
 
@@ -176,6 +312,15 @@ export function validateRuntimeContract(lock, wordpressSources) {
   ) {
     errors.push('@wordpress/env no longer matches the reviewed rimraf 6 named asynchronous API.');
   }
+
+  const playgroundDependencySources = Object.entries(wordpressSources)
+    .filter(([, source]) => /@wp-playground\/|isomorphic-git/u.test(source));
+  if (!sameValues(
+    playgroundDependencySources.map(([path]) => path),
+    ['runtime/playground/index.js'],
+  )) {
+    errors.push('@wordpress/env no longer isolates Playground dependencies to its inactive Playground runtime.');
+  }
   return errors;
 }
 
@@ -212,12 +357,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (report !== undefined) {
     const lock = JSON.parse(readFileSync(resolve(runtimeRoot, 'package-lock.json'), 'utf8'));
     const wordpressSources = readJavaScriptSources(resolve(runtimeRoot, 'node_modules/@wordpress/env/lib'));
+    const integrationRunnerSource = readFileSync(
+      resolve(repositoryRoot, 'scripts/run-wordpress-integration.sh'),
+      'utf8',
+    );
     const errors = [
-      ...validateRuntimeAudit(report),
+      ...validateRuntimeAudit(report, lock, integrationRunnerSource),
       ...validateRuntimeContract(lock, wordpressSources),
       ...validateRuntimeCompatibility(),
     ];
-    if (audit.status === 0 && errors.length === 0) {
+    if ((audit.status === 0 || audit.status === 1) && errors.length === 0) {
       process.stdout.write('WordPress integration runtime audit and applicability contract passed.\n');
     } else {
       process.stderr.write(`${errors.join('\n')}\n`);

@@ -37,7 +37,7 @@ cleanup() {
 trap cleanup EXIT
 
 started='true'
-"${wp_env}" start --update --config="${config}"
+"${wp_env}" start --update --runtime=docker --config="${config}"
 "${wp_env}" run cli --config="${config}" wp core version
 
 if [[ "${topology}" == 'multisite' ]]; then
